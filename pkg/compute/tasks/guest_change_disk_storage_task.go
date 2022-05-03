@@ -87,9 +87,36 @@ func (t *GuestChangeDiskStorageTask) ChangeDiskStorage(ctx context.Context, gues
 	// set target disk's status to clone
 	targetDisk.SetStatus(t.GetUserCred(), api.DISK_CLONE, "")
 
-	t.SetStage("OnDiskChangeStorageComplete", nil)
+	if input.GuestRunning {
+		t.SetStage("OnDiskLiveChangeStorageReady", nil)
+	} else {
+		t.SetStage("OnDiskChangeStorageComplete", nil)
+	}
+
 	if err := guest.GetDriver().RequestChangeDiskStorage(ctx, t.GetUserCred(), guest, input, t); err != nil {
 		t.TaskFailed(ctx, guest, jsonutils.NewString(fmt.Sprintf("RequestChangeDiskStorage: %s", err)))
+		return
+	}
+}
+
+func (t *GuestChangeDiskStorageTask) OnDiskLiveChangeStorageReady(
+	ctx context.Context, guest *models.SGuest, data jsonutils.JSONObject,
+) {
+	if !jsonutils.QueryBoolean(data, "block_jobs_ready", false) {
+		return
+	}
+
+	input, err := t.GetInputParams()
+	if err != nil {
+		t.TaskFailed(ctx, guest, jsonutils.NewString(fmt.Sprintf("GetInputParams error: %v", err)))
+		return
+	}
+
+	t.SetStage("OnDiskChangeStorageComplete", nil)
+	// block job ready, start switch to target storage disk
+	err := guest.GetDriver().RequestSwitchToTargetStorageDisk(ctx, t.UserCred, guest, input, t)
+	if err != nil {
+		t.TaskFailed(ctx, guest, jsonutils.NewString(fmt.Sprintf("OnDiskLiveChangeStorageReady: %s", err)))
 		return
 	}
 }
@@ -107,6 +134,11 @@ func (t *GuestChangeDiskStorageTask) OnDiskChangeStorageComplete(ctx context.Con
 		t.TaskFailed(ctx, guest, jsonutils.NewString(fmt.Sprintf("Unmarshal response: %v", err)))
 		return
 	}
+
+	if len(resp.TargetFormat) == 0 {
+		resp.TargetFormat = srcDisk.DiskFormat
+	}
+
 	targetDisk, err := t.GetTargetDisk()
 	if err != nil {
 		t.TaskFailed(ctx, guest, jsonutils.NewString(fmt.Sprintf("GetTargetDisk error: %v", err)))

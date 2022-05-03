@@ -975,6 +975,28 @@ func (m *QmpMonitor) CancelBlockJob(driveName string, force bool, callback Strin
 	m.HumanMonitorCommand(cmd, callback)
 }
 
+func (m *QmpMonitor) BlockJobComplete(drive string, callback StringCallback) {
+	m.HumanMonitorCommand(fmt.Sprintf("block_job_complete %s", drive), callback)
+}
+
+func (m *QmpMonitor) BlockReopenImage(drive, newImagePath, format string, callback StringCallback) {
+	var (
+		cmd = &Command{
+			Execute: "block_reopen_image",
+			Args: map[string]interface{}{
+				"device":    drive,
+				"new_image": newImagePath,
+				"format":    format,
+			},
+		}
+		cb = func(res *Response) {
+			callback(m.actionResult(res))
+		}
+	)
+
+	m.Query(cmd, cb)
+}
+
 func (m *QmpMonitor) NetdevAdd(id, netType string, params map[string]string, callback StringCallback) {
 	cmd := fmt.Sprintf("netdev_add %s,id=%s", netType, id)
 	for k, v := range params {

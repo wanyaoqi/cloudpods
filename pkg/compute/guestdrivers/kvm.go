@@ -792,8 +792,7 @@ func (self *SKVMGuestDriver) ValidateDetachNetwork(ctx context.Context, userCred
 }
 
 func (self *SKVMGuestDriver) ValidateChangeDiskStorage(ctx context.Context, userCred mcclient.TokenCredential, guest *models.SGuest, input *api.ServerChangeDiskStorageInput) error {
-	// kvm guest must in ready status
-	if !utils.IsInStringArray(guest.Status, []string{api.VM_READY}) {
+	if !utils.IsInStringArray(guest.Status, []string{api.VM_READY, api.VM_RUNNING}) {
 		return httperrors.NewBadRequestError("Cannot change disk storage in status %s", guest.Status)
 	}
 
@@ -828,6 +827,18 @@ func (self *SKVMGuestDriver) RequestChangeDiskStorage(ctx context.Context, userC
 	body := jsonutils.Marshal(input)
 	header := self.getTaskRequestHeader(task)
 	url := fmt.Sprintf("%s/servers/%s/storage-clone-disk", host.ManagerUri, guest.GetId())
+	_, _, err = httputils.JSONRequest(httputils.GetDefaultClient(), ctx, "POST", url, header, body, false)
+	return err
+}
+
+func (self *SKVMGuestDriver) RequestSwitchToTargetStorageDisk(ctx context.Context, userCred mcclient.TokenCredential, guest *models.SGuest, input *api.ServerChangeDiskStorageInternalInput, task taskman.ITask) error {
+	host, err := guest.GetHost()
+	if err != nil {
+		return err
+	}
+	body := jsonutils.Marshal(input)
+	header := self.getTaskRequestHeader(task)
+	url := fmt.Sprintf("%s/servers/%s/live-change-disk", host.ManagerUri, guest.GetId())
 	_, _, err = httputils.JSONRequest(httputils.GetDefaultClient(), ctx, "POST", url, header, body, false)
 	return err
 }

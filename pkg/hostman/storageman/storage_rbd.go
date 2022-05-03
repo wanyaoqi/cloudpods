@@ -598,7 +598,9 @@ func (s *SRbdStorage) GetCloneTargetDiskPath(ctx context.Context, targetDiskId s
 	return s.GetDiskPath(targetDiskId)
 }
 
-func (s *SRbdStorage) CloneDiskFromStorage(ctx context.Context, srcStorage IStorage, srcDisk IDisk, targetDiskId string) (*hostapi.ServerCloneDiskFromStorageResponse, error) {
+func (s *SRbdStorage) CloneDiskFromStorage(
+	ctx context.Context, srcStorage IStorage, srcDisk IDisk, targetDiskId string, fullCopy bool,
+) (*host.ServerCloneDiskFromStorageResponse, error) {
 	srcDiskPath := srcDisk.GetPath()
 	srcImg, err := qemuimg.NewQemuImage(srcDiskPath)
 	if err != nil {

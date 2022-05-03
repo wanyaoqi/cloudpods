@@ -420,6 +420,14 @@ func (m *HmpMonitor) BlockStream(drive string, _, _ int, callback StringCallback
 	m.Query(cmd, callback)
 }
 
+func (m *HmpMonitor) BlockJobComplete(drive string, callback StringCallback) {
+	m.Query(fmt.Sprintf("block_job_complete"), callback)
+}
+
+func (m *HmpMonitor) BlockReopenImage(drive, newImagePath, format string, cb StringCallback) {
+	m.Query(fmt.Sprintf("block_reopen_image %s %s %s", drive, newImagePath, format), cb)
+}
+
 func (m *HmpMonitor) SetVncPassword(proto, password string, callback StringCallback) {
 	if len(password) > 8 {
 		password = password[:8]

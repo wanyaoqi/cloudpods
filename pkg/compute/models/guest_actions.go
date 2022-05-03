@@ -2851,6 +2851,12 @@ func (self *SGuest) PerformStatus(ctx context.Context, userCred mcclient.TokenCr
 			isp.DecRefCount(ctx, userCred)
 		}
 		self.SetMetadata(ctx, api.BASE_INSTANCE_SNAPSHOT_ID, "", userCred)
+	} else if taskId := self.GetMetadata(ctx, api.DISK_CLONE_TASK_ID, userCred); len(taskId) > 0 {
+		// Note: use perform status as entry of switch clone disk task
+		// is in order to prevent host agent restart or manual sync status.
+		if err := self.startSwitchToClonedDisk(ctx, userCred, taskId); err != nil {
+			return nil, errors.Wrap(err, "startSwitchToClonedDisk")
+		}
 	}
 
 	if preStatus != self.Status && !self.isNotRunningStatus(preStatus) && self.isNotRunningStatus(self.Status) {
@@ -5365,6 +5371,8 @@ func (self *SGuest) PerformChangeDiskStorage(ctx context.Context, userCred mccli
 		ServerChangeDiskStorageInput: *input,
 		StorageId:                    srcDisk.StorageId,
 		TargetDiskId:                 targetDisk.GetId(),
+		DiskFormat:                   srcDisk.DiskFormat,
+		GuestRunning:                 self.Status == api.VM_RUNNING,
 	}
 
 	return nil, self.StartChangeDiskStorageTask(ctx, userCred, internalInput, "")
@@ -5374,6 +5382,20 @@ func (self *SGuest) StartChangeDiskStorageTask(ctx context.Context, userCred mcc
 	reason := fmt.Sprintf("Change disk %s to storage %s", input.DiskId, input.TargetStorageId)
 	self.SetStatus(userCred, api.VM_DISK_CHANGE_STORAGE, reason)
 	return self.GetDriver().StartChangeDiskStorageTask(self, ctx, userCred, input, "")
+}
+
+func (self *SGuest) startSwitchToClonedDisk(ctx context.Context, userCred mcclient.TokenCredential, taskId string) error {
+	task, err := taskman.TaskManager.FetchTaskById(taskId)
+	if err != nil {
+		return errors.Wrap(err, "fetch task id")
+	}
+	_, err = taskman.LocalTaskRun(task, func() (jsonutils.JSONObject, error) {
+		log.Infof("guest %s start switch to cloned disk task", self.Id)
+		params := jsonutils.NewDict()
+		params.Set("block_jobs_ready", jsonutils.JSONTrue)
+		return params, nil
+	})
+	return err
 }
 
 func (self *SGuest) PerformProbeIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {

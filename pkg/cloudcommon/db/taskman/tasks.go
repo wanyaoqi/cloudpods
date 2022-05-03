@@ -160,6 +160,14 @@ func (manager *STaskManager) FilterByOwner(q *sqlchemy.SQuery, owner mcclient.II
 	return q
 }
 
+func (manager *STaskManager) FetchTaskById(taskId) (*STask, error) {
+	iTask, err := manager.FetchById(taskId)
+	if err != nil {
+		return nil, err
+	}
+	return iTask.(*STask), nil
+}
+
 func (self *STask) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return db.IsAdminAllowGet(ctx, userCred, self) || userCred.GetProjectId() == self.UserCred.GetProjectId()
 }
