@@ -40,6 +40,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/hostdeployer/deployclient"
 	"yunion.io/x/onecloud/pkg/hostman/hostinfo"
 	"yunion.io/x/onecloud/pkg/hostman/hostinfo/hostbridge"
+	"yunion.io/x/onecloud/pkg/hostman/hostinfo/hostconsts"
 	"yunion.io/x/onecloud/pkg/hostman/hostutils"
 	"yunion.io/x/onecloud/pkg/hostman/monitor"
 	"yunion.io/x/onecloud/pkg/hostman/options"
@@ -65,7 +66,9 @@ const (
 type SKVMGuestInstance struct {
 	Id string
 
+	// TODO: add struct cgroup info
 	cgroupPid   int
+	cgroupName  string
 	QemuVersion string
 	VncPassword string
 
@@ -720,9 +723,10 @@ func (s *SKVMGuestInstance) clearCgroup(pid int) {
 	if pid == 0 && s.cgroupPid > 0 {
 		pid = s.cgroupPid
 	}
-	log.Infof("cgroup destroy %d", pid)
+	cgrupName := s.GetCgroupName()
+	log.Infof("cgroup destroy %d %s", pid, cgrupName)
 	if pid > 0 && !options.HostOptions.DisableSetCgroup {
-		cgrouputils.CgroupDestroy(strconv.Itoa(pid))
+		cgrouputils.CgroupDestroy(strconv.Itoa(pid), cgrupName)
 	}
 }
 
@@ -1025,7 +1029,7 @@ func (s *SKVMGuestInstance) ExitCleanup(clear bool) {
 }
 
 func (s *SKVMGuestInstance) CleanupCpuset() {
-	task := cgrouputils.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), 0, "")
+	task := cgrouputils.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), s.GetCgroupName(), 0, "")
 	if !task.RemoveTask() {
 		log.Warningf("remove cpuset cgroup error: %s, pid: %d", s.Id, s.GetPid())
 	}
@@ -1463,11 +1467,27 @@ func (s *SKVMGuestInstance) getStorageDeviceId() string {
 	return ""
 }
 
+func (s *SKVMGuestInstance) GetCgroupName() string {
+	if s.cgroupPid == 0 {
+		return ""
+	}
+
+	meta, _ := s.Desc.Get("metadata")
+	if jsonutils.QueryBoolean(meta, "__enable_cgroup_cpuset", false) {
+		return fmt.Sprintf("%s/server_%s_%d", hostconsts.HOST_CGROUP, s.Id, s.cgroupPid)
+	}
+	return ""
+}
+
 func (s *SKVMGuestInstance) SetCgroup() {
 	s.cgroupPid = s.GetPid()
 	s.setCgroupIo()
 	s.setCgroupCpu()
 	s.setCgroupCPUSet()
+}
+
+func (s *SKVMGuestInstance) setCgroupPid() {
+	s.cgroupPid = s.GetPid()
 }
 
 func (s *SKVMGuestInstance) setCgroupIo() {
@@ -1484,7 +1504,9 @@ func (s *SKVMGuestInstance) setCgroupIo() {
 		params["blkio.throttle.write_bps_device"] = options.HostOptions.DefaultWriteBpsPerCpu
 		params["blkio.throttle.write_iops_device"] = options.HostOptions.DefaultWriteIopsPerCpu
 		cpu, _ := s.Desc.Int("cpu")
-		cgrouputils.CgroupIoHardlimitSet(strconv.Itoa(s.cgroupPid), int(cpu), params, devId)
+		cgrouputils.CgroupIoHardlimitSet(
+			strconv.Itoa(s.cgroupPid), s.GetCgroupName(), int(cpu), params, devId,
+		)
 	}
 }
 
@@ -1494,27 +1516,18 @@ func (s *SKVMGuestInstance) setCgroupCpu() {
 		cpuWeight = 1024
 	)
 
-	cgrouputils.CgroupSet(strconv.Itoa(s.cgroupPid), int(cpu)*cpuWeight)
+	cgrouputils.CgroupSet(strconv.Itoa(s.cgroupPid), s.GetCgroupName(), int(cpu)*cpuWeight)
 }
 
 func (s *SKVMGuestInstance) setCgroupCPUSet() {
-	meta, _ := s.Desc.Get("metadata")
-	if meta == nil {
-		return
-	}
-	cpusetStr, _ := meta.GetString(api.VM_METADATA_CGROUP_CPUSET)
-	if len(cpusetStr) == 0 {
-		return
-	}
-	obj, err := jsonutils.ParseString(cpusetStr)
-	if err != nil {
-		log.Errorf("Parse cpusetStr %q error: %v", cpusetStr, err)
-		return
-	}
-	input := new(api.ServerCPUSetInput)
-	if err := obj.Unmarshal(input); err != nil {
-		log.Errorf("Unmarshal %q to ServerCPUSetInput: %v", obj, err)
-		return
+	var input *api.ServerCPUSetInput
+	if s.Desc.Contains("metadata", api.VM_METADATA_CGROUP_CPUSET) {
+		input = new(api.ServerCPUSetInput)
+		err := s.Desc.Unmarshal(s.Desc, "metadata", api.VM_METADATA_CGROUP_CPUSET)
+		if err != nil {
+			log.Errorf("Unmarshal %s to ServerCPUSetInput failed: %s", api.VM_METADATA_CGROUP_CPUSET, err)
+			return
+		}
 	}
 	if _, err := s.CPUSet(context.Background(), input); err != nil {
 		log.Errorf("Do CPUSet error: %v", err)
@@ -1622,6 +1635,7 @@ func (s *SKVMGuestInstance) OnResumeSyncMetadataInfo() {
 	meta := jsonutils.NewDict()
 	meta.Set("__qemu_version", jsonutils.NewString(s.GetQemuVersionStr()))
 	meta.Set("__vnc_port", jsonutils.NewInt(int64(s.GetVncPort())))
+	meta.Set("__enable_cgroup_cpuset", jsonutils.JSONTrue)
 	meta.Set("hotplug_cpu_mem", jsonutils.NewString("enable"))
 	meta.Set("hot_remove_nic", jsonutils.NewString("enable"))
 	if len(s.VncPassword) > 0 {
@@ -1630,6 +1644,7 @@ func (s *SKVMGuestInstance) OnResumeSyncMetadataInfo() {
 	if options.HostOptions.HugepagesOption == "native" {
 		meta.Set("__hugepage", jsonutils.NewString("native"))
 	}
+	// not exactly
 	if !options.HostOptions.HostCpuPassthrough || s.getOsname() == OS_NAME_MACOS {
 		meta.Set("__cpu_mode", jsonutils.NewString(api.CPU_MODE_QEMU))
 	} else {
@@ -1645,6 +1660,27 @@ func (s *SKVMGuestInstance) OnResumeSyncMetadataInfo() {
 		meta.Update(s.syncMeta)
 	}
 	s.SyncMetadata(meta)
+}
+
+func (s *SKVMGuestInstance) doBlockIoThrottle() {
+	disks, _ := s.Desc.GetArray("disks")
+	if len(disks) > 0 {
+		bps, _ := disks[0].Int("bps")
+		iops, _ := disks[0].Int("iops")
+		if bps > 0 || iops > 0 {
+			s.BlockIoThrottle(context.Background(), bps, iops)
+		}
+	}
+}
+
+func (s *SKVMGuestInstance) onGuestPrelaunch() {
+	if options.HostOptions.SetVncPassword {
+		s.SetVncPassword()
+	}
+	s.OnResumeSyncMetadataInfo()
+	s.SetCgroup()
+	s.optimizeOom()
+	s.doBlockIoThrottle()
 }
 
 func (s *SKVMGuestInstance) CleanImportMetadata() *jsonutils.JSONDict {
@@ -1943,11 +1979,19 @@ func (s *SKVMGuestInstance) CPUSet(ctx context.Context, input *api.ServerCPUSetI
 	if !s.IsRunning() {
 		return nil, nil
 	}
-	cpus := []string{}
-	for _, id := range input.CPUS {
-		cpus = append(cpus, fmt.Sprintf("%d", id))
+
+	var cpusetStr string
+	if input != nil {
+		cpus := []string{}
+		for _, id := range input.CPUS {
+			cpus = append(cpus, fmt.Sprintf("%d", id))
+		}
+		cpusetStr = strings.Join(cpus, ",")
 	}
-	task := cgrouputils.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), 0, strings.Join(cpus, ","))
+
+	task := cgrouputils.NewCGroupCPUSetTask(
+		strconv.Itoa(s.GetPid()), s.GetCgroupName(), 0, cpusetStr,
+	)
 	if !task.SetTask() {
 		return nil, errors.Errorf("Cgroup cpuset task failed")
 	}
@@ -1967,7 +2011,9 @@ func (s *SKVMGuestInstance) CPUSetRemove(ctx context.Context) error {
 	if !s.IsRunning() {
 		return nil
 	}
-	task := cgrouputils.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), 0, "")
+	task := cgrouputils.NewCGroupCPUSetTask(
+		strconv.Itoa(s.GetPid()), s.GetCgroupName(), 0, "",
+	)
 	if !task.RemoveTask() {
 		return errors.Errorf("Remove task error happened, please lookup host log")
 	}

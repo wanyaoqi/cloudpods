@@ -28,6 +28,6 @@ func TestCgroupSet(t *testing.T) {
 	pid, _ := reader.ReadString('\n')
 	pid = strings.TrimSpace(pid)
 	t.Logf("Start %s cgroup set", pid)
-	CgroupSet(pid, 1)
+	CgroupSet(pid, "", 1)
 	CgroupCleanAll()
 }

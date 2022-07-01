@@ -25,4 +25,7 @@ const (
 	TELEGRAF_TAG_ONECLOUD_RES_TYPE             = "host"
 	TELEGRAF_TAG_ONECLOUD_HOST_TYPE_HOST       = "host"
 	TELEGRAF_TAG_ONECLOUD_HOST_TYPE_CONTROLLER = "controller"
+
+	HOST_CGROUP          = "cloudpods.hostagent"
+	HOST_RESERVED_CPUSET = "cloudpods.hostagent.reserved"
 )

@@ -900,8 +900,14 @@ func (s *SGuestResumeTask) confirmRunning() {
 }
 
 func (s *SGuestResumeTask) onConfirmRunning(status string) {
-	log.Debugf("[%s] onConfirmRunning status %s", s.GetId(), status)
-	if status == "running" || status == "paused (suspended)" || status == "paused (perlaunch)" {
+	log.Infof("[%s] onConfirmRunning status %s", s.GetId(), status)
+	if status == "paused (prelaunch)" {
+		/* ref: qemu/src/qapi/run-state.json
+		 * prelaunch: QEMU was started with -S and guest has not started.
+		 * we need resume guest at state prelaunch */
+		s.onGuestPrelaunch()
+		s.resumeGuest()
+	} else if status == "running" || status == "paused (suspended)" {
 		s.onStartRunning()
 	} else if strings.Contains(status, "error") {
 		// handle error first, results may be 'paused (internal-error)'
@@ -959,6 +965,7 @@ func (s *SGuestResumeTask) SetGetTaskData(f func() (jsonutils.JSONObject, error)
 }
 
 func (s *SGuestResumeTask) onStartRunning() {
+	s.setCgroupPid()
 	s.removeStatefile()
 	if s.ctx != nil && len(appctx.AppContextTaskId(s.ctx)) > 0 {
 		var (
@@ -974,15 +981,6 @@ func (s *SGuestResumeTask) onStartRunning() {
 		}
 		hostutils.TaskComplete(s.ctx, data)
 	}
-	if options.HostOptions.SetVncPassword {
-		s.SetVncPassword()
-	}
-	s.OnResumeSyncMetadataInfo()
-	s.optimizeOom()
-	s.doBlockIoThrottle()
-	if !options.HostOptions.DisableSetCgroup {
-		timeutils2.AddTimeout(time.Second*5, s.SetCgroup)
-	}
 
 	disksIdx := s.GetNeedMergeBackingFileDiskIndexs()
 	if len(disksIdx) > 0 {
@@ -997,17 +995,6 @@ func (s *SGuestResumeTask) onStartRunning() {
 			func() { s.startStreamDisks(nil) })
 	} else {
 		s.SyncStatus("")
-	}
-}
-
-func (s *SGuestResumeTask) doBlockIoThrottle() {
-	disks, _ := s.Desc.GetArray("disks")
-	if len(disks) > 0 {
-		bps, _ := disks[0].Int("bps")
-		iops, _ := disks[0].Int("iops")
-		if bps > 0 || iops > 0 {
-			s.BlockIoThrottle(context.Background(), bps, iops)
-		}
 	}
 }
 
