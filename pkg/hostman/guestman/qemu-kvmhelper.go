@@ -128,6 +128,17 @@ func (s *SKVMGuestInstance) getBios() string {
 	return bios
 }
 
+func (s *SKVMGuestInstance) isPcie() bool {
+	return utils.IsInStringArray(
+		s.getMachine(),
+		[]string{api.VM_MACHINE_TYPE_Q35, api.VM_MACHINE_TYPE_ARM_VIRT},
+	)
+}
+
+func (s *SKVMGuestInstance) pciePciBridgeId() string {
+	return "pcie_pci"
+}
+
 func (s *SKVMGuestInstance) isQ35() bool {
 	return s.getMachine() == api.VM_MACHINE_TYPE_Q35
 }
@@ -485,6 +496,8 @@ function nic_mtu() {
 	input.IsVdiSpice = s.IsVdiSpice()
 	input.SpicePort = uint(5900 + vncPort)
 	input.PCIBus = s.GetPciBus()
+	input.IsPcie = s.isPcie()
+	input.PciePciBridgeId = s.pciePciBridgeId()
 	if input.QemuArch != qemu.Arch_aarch64 {
 		vga, err := s.Desc.GetString("vga")
 		if err != nil {

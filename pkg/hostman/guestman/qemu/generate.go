@@ -39,6 +39,11 @@ type GenerateStartOptionsInput struct {
 
 	CPUOption
 
+	// pci options
+	PCIBus          string
+	IsPcie          bool
+	PciePciBridgeId string
+
 	EnableUUID            bool
 	UUID                  string
 	Mem                   uint64
@@ -65,19 +70,19 @@ type GenerateStartOptionsInput struct {
 	QMPMonitor            *Monitor
 	IsVdiSpice            bool
 	SpicePort             uint
-	PCIBus                string
-	VGA                   string
-	PidFilePath           string
-	HomeDir               string
-	ExtraOptions          []string
-	EnableRNGRandom       bool
-	EnableSerialDevice    bool
-	NeedMigrate           bool
-	LiveMigratePort       uint
-	LiveMigrateUseTLS     bool
-	IsSlave               bool
-	IsMaster              bool
-	EnablePvpanic         bool
+
+	VGA                string
+	PidFilePath        string
+	HomeDir            string
+	ExtraOptions       []string
+	EnableRNGRandom    bool
+	EnableSerialDevice bool
+	NeedMigrate        bool
+	LiveMigratePort    uint
+	LiveMigrateUseTLS  bool
+	IsSlave            bool
+	IsMaster           bool
+	EnablePvpanic      bool
 
 	EncryptKeyPath string
 }
@@ -161,6 +166,10 @@ func GenerateStartOptions(
 	opts = append(opts, drvOpt.USB())
 	for _, device := range input.Devices {
 		opts = append(opts, drvOpt.Device(device))
+	}
+
+	if input.IsPcie {
+		opts = append(opts, drvOpt.PciePciBridge(input.PciePciBridgeId))
 	}
 
 	// vdi spice
