@@ -157,7 +157,7 @@ func (s *Service) metaData(ctx context.Context, w http.ResponseWriter, r *http.R
 					hostutils.Response(ctx, w, "openssh-key")
 					return
 				} else if len(req) == 3 {
-					pubkey, _ := guestDesc.GetString("pubkeu")
+					pubkey, _ := guestDesc.GetString("pubkey")
 					hostutils.Response(ctx, w, pubkey)
 					return
 				}
