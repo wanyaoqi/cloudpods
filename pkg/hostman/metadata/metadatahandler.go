@@ -30,6 +30,7 @@ import (
 	"yunion.io/x/pkg/util/netutils"
 
 	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/hostman/guestman/desc"
 	"yunion.io/x/onecloud/pkg/hostman/hostutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 )
@@ -45,7 +46,7 @@ type DescGetter interface {
 	Get(ip string) (guestDesc jsonutils.JSONObject)
 }
 
-type DescGetterFunc func(ip string) (guestDesc jsonutils.JSONObject)
+type DescGetterFunc func(ip string) (guestDesc *desc.SGuestDesc)
 
 func (f DescGetterFunc) Get(ip string) (guestDesc jsonutils.JSONObject) {
 	return f(ip)

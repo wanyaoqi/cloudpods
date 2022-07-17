@@ -175,7 +175,7 @@ func (s *SGuestDHCPServer) getConfig(pkt dhcp.Packet) *dhcp.ResponseConfig {
 	if guestNic == nil {
 		guestDesc, guestNic = guestman.GuestDescGetter.GetGuestNicDesc(mac, ip, port, s.iface, !isCandidate)
 	}
-	if guestNic != nil && !jsonutils.QueryBoolean(guestNic, "virtual", false) {
+	if guestNic != nil && !guestNic.Virtual {
 		return s.getGuestConfig(guestDesc, guestNic)
 	}
 	return nil

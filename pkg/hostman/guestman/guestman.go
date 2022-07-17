@@ -34,8 +34,10 @@ import (
 
 	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/apis/compute"
+	api "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/hostman/guestman/desc"
 	fwd "yunion.io/x/onecloud/pkg/hostman/guestman/forwarder"
 	fwdpb "yunion.io/x/onecloud/pkg/hostman/guestman/forwarder/api"
 	"yunion.io/x/onecloud/pkg/hostman/guestman/types"
@@ -342,12 +344,12 @@ func (m *SGuestManager) ShutdownServers() {
 	})
 }
 
-func (m *SGuestManager) GetGuestNicDesc(mac, ip, port, bridge string, isCandidate bool) (jsonutils.JSONObject, jsonutils.JSONObject) {
+func (m *SGuestManager) GetGuestNicDesc(mac, ip, port, bridge string, isCandidate bool) (*desc.SGuestDesc, *api.GuestnetworkJsonDesc) {
 	if isCandidate {
 		return m.getGuestNicDescInCandidate(mac, ip, port, bridge)
 	}
-	var nic jsonutils.JSONObject
-	var guestDesc jsonutils.JSONObject
+	var nic *api.GuestnetworkJsonDesc
+	var guestDesc *desc.SGuestDesc
 	m.Servers.Range(func(k interface{}, v interface{}) bool {
 		guest := v.(*SKVMGuestInstance)
 		if guest.IsLoaded() {
@@ -362,7 +364,7 @@ func (m *SGuestManager) GetGuestNicDesc(mac, ip, port, bridge string, isCandidat
 	return guestDesc, nic
 }
 
-func (m *SGuestManager) getGuestNicDescInCandidate(mac, ip, port, bridge string) (jsonutils.JSONObject, jsonutils.JSONObject) {
+func (m *SGuestManager) getGuestNicDescInCandidate(mac, ip, port, bridge string) (*desc.SGuestDesc, *api.GuestnetworkJsonDesc) {
 	for _, guest := range m.CandidateServers {
 		if guest.IsLoaded() {
 			nic := guest.GetNicDescMatch(mac, ip, port, bridge)

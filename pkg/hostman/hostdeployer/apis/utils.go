@@ -20,6 +20,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
+	"yunion.io/x/cloudpods/pkg/hostman/guestman/desc"
 	"yunion.io/x/onecloud/pkg/cloudcommon/types"
 )
 
@@ -86,44 +87,82 @@ func ConvertRoutes(routes string) []types.SRoute {
 	return ret
 }
 
-func GuestDescToDeployDesc(guestDesc *jsonutils.JSONDict) (*GuestDesc, error) {
+func GuestdisksDescToDeployDesc(guestDisks []*api.GuestdiskJosnDesc) []*Disk {
+	if len(guestDisks) == 0 {
+		return nil
+	}
+
+	disks := make([]*Disk, len(guestDisks))
+	for _, disk := range guestDisks {
+		disks[i].DiskId = disk.DiskId
+		disks[i].Driver = disk.Driver
+		disks[i].CacheMode = disk.CacheMode
+		disks[i].AioMode = disk.AioMode
+		disks[i].Size = disk.Size
+		disks[i].TemplateId = disk.TemplateId
+		disks[i].ImagePath = disk.ImagePath
+		disks[i].StorageId = disk.StorageId
+		disks[i].Migrating = disk.Migrating
+		disks[i].TargetStorageId = disk.TargetStorageI
+		disks[i].Path = disk.Path
+		disks[i].Format = disk.Format
+		disks[i].Index = disk.Index
+		disks[i].MergeSnapshot = disk.MergeSnapshot
+		disks[i].Fs = disk.Fs
+		disks[i].Mountpoint = disk.Mountpoint
+		disks[i].Dev = disk.Dev
+	}
+	return disks
+}
+
+func GuestnetworksDescToDeployDesc(guestnetworks []*api.GuestnetworkJsonDesc) []*Nic {
+	if len(guestnetworks) == 0 {
+		return nil
+	}
+
+	nics := make([]*Nic, len(guestnetworks))
+	for _, nic := range guestnetworks {
+		nics[i].Mac = nic.Mac
+		nics[i].Ip = nic.Ip
+		nics[i].Net = nic.Net
+		nics[i].NetId = nic.NetId
+		nics[i].Virtual = nic.Virtual
+		nics[i].Gateway = nic.Gateway
+		nics[i].Dns = nic.Dns
+		nics[i].Domain = nic.Domain
+		nics[i].Routes = nic.Routes
+		nics[i].Ifname = nic.Ifname
+		nics[i].Masklen = nic.Masklen
+		nics[i].Driver = nic.Driver
+		nics[i].Bridge = nic.Bridge
+		nics[i].WireId = nic.WireId
+		nics[i].Vlan = nic.Vlan
+		nics[i].Interface = nic.Interface
+		nics[i].Bw = nic.Bw
+		nics[i].Index = nic.Index
+		nics[i].VirtualIps = nic.VirtualIps
+		nics[i].ExternelId = nic.ExternelId
+		nics[i].TeamWith = nic.TeamWith
+		nics[i].Manual = nic.Manual
+		nics[i].NicType = nic.NicType
+		nics[i].LinkUp = nic.LinkUp
+		nics[i].Mtu = nic.Mtu
+		nics[i].Name = nic.Name
+	}
+}
+
+func GuestDescToDeployDesc(guestDesc *desc.SGuestDesc) *GuestDesc {
 	ret := new(GuestDesc)
-	ret.Name, _ = guestDesc.GetString("name")
-	ret.Domain, _ = guestDesc.GetString("domain")
-	ret.Uuid, _ = guestDesc.GetString("uuid")
-	ret.Hostname, _ = guestDesc.GetString("hostname")
-	jnics, _ := guestDesc.Get("nics")
-	jdisks, _ := guestDesc.Get("disks")
-	jnicsStandby, _ := guestDesc.Get("nics_standby")
 
-	if jnics != nil {
-		nics := make([]*Nic, 0)
-		err := jnics.Unmarshal(&nics)
-		if err != nil {
-			return nil, err
-		}
-		ret.Nics = nics
-	}
+	ret.Name = guestDesc.Name
+	ret.Domain = guestDesc.Domain
+	ret.Uuid = guestDesc.Uuid
+	ret.Hostname = guestDesc.Hostname
+	ret.Nics = GuestnetworksDescToDeployDesc(guestDesc.Nics)
+	ret.Disks = GuestdisksDescToDeployDesc(guestDesc.Disks)
+	ret.NicsStandby = GuestnetworksDescToDeployDesc(guestDesc.NicsStandby)
 
-	if jdisks != nil {
-		disks := make([]*Disk, 0)
-		err := jdisks.Unmarshal(&disks)
-		if err != nil {
-			return nil, err
-		}
-		ret.Disks = disks
-	}
-
-	if jnicsStandby != nil {
-		nicsStandby := make([]*Nic, 0)
-		err := jnicsStandby.Unmarshal(&nicsStandby)
-		if err != nil {
-			return nil, err
-		}
-		ret.NicsStandby = nicsStandby
-	}
-
-	return ret, nil
+	return ret
 }
 
 func NewReleaseInfo(distro, version, arch string) *ReleaseInfo {

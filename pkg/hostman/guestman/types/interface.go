@@ -28,7 +28,7 @@ type IHealthCheckReactor interface {
 var HealthCheckReactor IHealthCheckReactor
 
 type IGuestDescGetter interface {
-	GetGuestNicDesc(mac, ip, port, bridge string, isCandidate bool) (jsonutils.JSONObject, jsonutils.JSONObject)
+	GetGuestNicDesc(mac, ip, port, bridge string, isCandidate bool) (*desc.SGuestDesc, *api.GuestnetworkJsonDesc)
 }
 
 var GuestDescGetter IGuestDescGetter
