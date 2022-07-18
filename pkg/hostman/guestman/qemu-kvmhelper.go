@@ -178,17 +178,13 @@ func (s *SKVMGuestInstance) GetDiskAddr(idx int) int {
 }
 
 func (s *SKVMGuestInstance) getNicUpScriptPath(nic jsonutils.JSONObject) string {
-	ifname, _ := nic.GetString("ifname")
-	bridge, _ := nic.GetString("bridge")
-	dev := guestManager.GetHost().GetBridgeDev(bridge)
-	return path.Join(s.HomeDir(), fmt.Sprintf("if-up-%s-%s.sh", dev.Bridge(), ifname))
+	dev := guestManager.GetHost().GetBridgeDev(nic.Bridge)
+	return path.Join(s.HomeDir(), fmt.Sprintf("if-up-%s-%s.sh", dev.Bridge(), nic.Ifname))
 }
 
-func (s *SKVMGuestInstance) getNicDownScriptPath(nic jsonutils.JSONObject) string {
-	ifname, _ := nic.GetString("ifname")
-	bridge, _ := nic.GetString("bridge")
-	dev := guestManager.GetHost().GetBridgeDev(bridge)
-	return path.Join(s.HomeDir(), fmt.Sprintf("if-down-%s-%s.sh", dev.Bridge(), ifname))
+func (s *SKVMGuestInstance) getNicDownScriptPath(nic *api.GuestnetworkJsonDesc) string {
+	dev := guestManager.GetHost().GetBridgeDev(nic.Bridge)
+	return path.Join(s.HomeDir(), fmt.Sprintf("if-down-%s-%s.sh", dev.Bridge(), nic.Ifname))
 }
 
 func (s *SKVMGuestInstance) generateNicScripts(nic jsonutils.JSONObject) error {

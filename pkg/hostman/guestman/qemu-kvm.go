@@ -84,15 +84,15 @@ type SKVMInstanceRuntime struct {
 
 	syncMeta *jsonutils.JSONDict
 
-	startupTask *SGuestResumeTask
-	migrateTask *SGuestLiveMigrateTask
-
 	cgroupPid  int
 	cgroupName string
 
 	stopping            bool
 	needSyncStreamDisks bool
 	blockJobTigger      map[string]chan struct{}
+
+	startupTask *SGuestResumeTask
+	migrateTask *SGuestLiveMigrateTask
 }
 
 type SKVMGuestInstance struct {
@@ -1048,7 +1048,9 @@ func (s *SKVMGuestInstance) SaveDesc(desc *desc.SGuestDesc) error {
 		}
 	}
 
-	if err := fileutils2.FilePutContents(s.GetDescFilePath(), jsonutils.Marshal(s.Desc).String(), false); err != nil {
+	if err := fileutils2.FilePutContents(
+		s.GetDescFilePath(), jsonutils.Marshal(s.Desc).String(), false,
+	); err != nil {
 		log.Errorf("save desc failed %s", err)
 		return errors.Wrap(err, "save desc")
 	}
@@ -1412,40 +1414,35 @@ func (s *SKVMGuestInstance) compareDescCdrom(newDesc *desc.SGuestDesc) *string {
 }
 
 func (s *SKVMGuestInstance) compareDescNetworks(newDesc *desc.SGuestDesc,
-) ([]*api.GuestnetworkJsonDesc, []*api.GuestnetworkJsonDesc, [][2]*api.GuestdiskJsonDesc) {
+) ([]*api.GuestnetworkJsonDesc, []*api.GuestnetworkJsonDesc, [][2]*api.GuestnetworkJsonDesc) {
 	var isValid = func(net *api.GuestnetworkJsonDesc) bool {
-		driver, _ := net.GetString("driver")
-		return driver == "virtio"
+		return net.Driver == "virtio"
 	}
 
-	var findNet = func(nets []jsonutils.JSONObject, net jsonutils.JSONObject) int {
-		mac1, _ := net.GetString("mac")
+	var findNet = func(nets []*api.GuestnetworkJsonDesc, net *api.GuestnetworkJsonDesc) int {
 		for i := 0; i < len(nets); i++ {
-			mac2, _ := nets[i].GetString("mac")
-			if mac1 == mac2 {
+			if nets[i].Mac == net.Mac {
 				return i
 			}
 		}
 		return -1
 	}
 
-	var delNics, addNics = []jsonutils.JSONObject{}, []jsonutils.JSONObject{}
-	var changedNics = [][]jsonutils.JSONObject{}
-	nics, _ := newDesc.GetArray("nics")
-	for _, n := range nics {
+	var delNics, addNics = []*api.GuestnetworkJsonDesc{}, []*api.GuestnetworkJsonDesc{}
+	var changedNics = [][2]*api.GuestnetworkJsonDesc{}
+	for _, n := range newDesc.Nics {
 		if isValid(n) {
 			// assume all nics in new desc are new
 			addNics = append(addNics, n)
 		}
 	}
 
-	nics, _ = s.Desc.GetArray("nics")
-	for _, n := range nics {
+	for _, n := range s.Desc.Nics {
 		if isValid(n) {
 			idx := findNet(addNics, n)
 			if idx >= 0 {
 				// check if bridge changed
-				changedNics = append(changedNics, []jsonutils.JSONObject{
+				changedNics = append(changedNics, [2]*api.GuestnetworkJsonDesc{
 					n,            // old
 					addNics[idx], // new
 				})
@@ -1472,12 +1469,12 @@ func getNicBridge(nic *api.GuestnetworkJsonDesc) string {
 	}
 }
 
-func onNicChange(oldNic, newNic jsonutils.JSONObject) error {
+func onNicChange(oldNic, newNic *api.GuestnetworkJsonDesc) error {
 	oldbr := getNicBridge(oldNic)
-	oldifname, _ := oldNic.GetString("ifname")
+	oldifname := oldNic.Ifname
 	newbr := getNicBridge(newNic)
-	newifname, _ := newNic.GetString("ifname")
-	newvlan, _ := newNic.Int("vlan")
+	newifname := newNic.Ifname
+	newvlan := newNic.Vlan
 	if oldbr != newbr {
 		// bridge changed
 		if oldifname == newifname {
@@ -1559,8 +1556,6 @@ func (s *SKVMGuestInstance) SyncConfig(ctx context.Context, desc *desc.SGuestDes
 	data.Set("vnc_port", jsonutils.NewInt(int64(vncPort)))
 	s.saveScripts(data)
 
-	// if options.enable_openflow_controller: 不写
-
 	if fwOnly {
 		res := jsonutils.NewDict()
 		res.Set("task", jsonutils.NewArray(jsonutils.NewString("secgroupsync")))
@@ -1606,23 +1601,19 @@ func (s *SKVMGuestInstance) SyncConfig(ctx context.Context, desc *desc.SGuestDes
 }
 
 func (s *SKVMGuestInstance) getApptags() []string {
-	var tags []string
-	meta, _ := s.Desc.Get("metadata")
-	if meta != nil && meta.Contains("app_tags") {
-		tagsStr, _ := meta.GetString("app_tags")
+	if tagsStr, ok := s.Desc.Metadata["app_tags"]; ok {
 		if len(tagsStr) > 0 {
 			return strings.Split(tagsStr, ",")
 		}
 	}
-	return tags
+	return nil
 }
 
 func (s *SKVMGuestInstance) getStorageDeviceId() string {
-	disks, _ := s.Desc.Disks
+	disks := s.Desc.Disks
 	if len(disks) > 0 {
-		diskPath, _ := disks[0].Path
-		if len(diskPath) > 0 {
-			return fileutils2.GetDevId(diskPath)
+		if len(disks[0].Path) > 0 {
+			return fileutils2.GetDevId(disks[0].Path)
 		}
 	}
 	return ""
@@ -1633,10 +1624,10 @@ func (s *SKVMGuestInstance) GetCgroupName() string {
 		return ""
 	}
 
-	meta, _ := s.Desc.Get("metadata")
-	if jsonutils.QueryBoolean(meta, "__enable_cgroup_cpuset", false) {
+	if s.Desc.Metadata["__enable_cgroup_cpuset"] {
 		return fmt.Sprintf("%s/server_%s_%d", hostconsts.HOST_CGROUP, s.Id, s.cgroupPid)
 	}
+
 	return ""
 }
 
@@ -1673,7 +1664,7 @@ func (s *SKVMGuestInstance) setCgroupIo() {
 
 func (s *SKVMGuestInstance) setCgroupCpu() {
 	var (
-		cpu, _    = s.Desc.Int("cpu")
+		cpu       = s.Desc.Cpu
 		cpuWeight = 1024
 	)
 
