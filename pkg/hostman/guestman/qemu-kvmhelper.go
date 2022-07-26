@@ -525,7 +525,7 @@ function nic_mtu() {
 	cmd += fmt.Sprintf(" -smp %d,maxcpus=255", cpu)
 	cmd += fmt.Sprintf(" -name %s", name)
 	cmd += fmt.Sprintf(" -uuid %s", uuid)
-	cmd += fmt.Sprintf(" -m %dM,slots=4,maxmem=524288M", mem)
+	cmd += fmt.Sprintf(" -m %dM,slots=4,maxmem=1048576M", mem)
 
 	if s.manager.host.IsHugepagesEnabled() {
 		cmd += fmt.Sprintf(" -mem-prealloc -mem-path %s", fmt.Sprintf("/dev/hugepages/%s", uuid))
@@ -680,10 +680,12 @@ function nic_mtu() {
 		cmd += " -device virtio-rng-pci,rng=rng0,max-bytes=1024,period=1000"
 	}
 
+	cmd += fmt.Sprintf(" -chardev file,id=charserial0,path=%s/console.log", s.HomeDir())
+	cmd += " -device isa-serial,chardev=charserial0,id=serial0"
 	// add serial device
 	if !s.disableIsaSerialDev() {
-		cmd += " -chardev pty,id=charserial0"
-		cmd += " -device isa-serial,chardev=charserial0,id=serial0"
+		cmd += " -chardev pty,id=charserial1"
+		cmd += " -device isa-serial,chardev=charserial1,id=serial1"
 	}
 
 	if jsonutils.QueryBoolean(data, "need_migrate", false) {
