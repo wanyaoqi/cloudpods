@@ -34,15 +34,58 @@ type SGuestHardwareDesc struct {
 	Mem       int64
 	Machine   string
 	Bios      string
-	Vga       string
-	Vdi       string
 	BootOrder string
 
-	Cdrom           *api.GuestcdromJsonDesc
-	Disks           []*api.GuestdiskJsonDesc
-	Nics            []*api.GuestnetworkJsonDesc
-	NicsStandby     []*api.GuestnetworkJsonDesc
+	Vga       string
+	VgaDevice *SGuestVga
+
+	Vdi       string
+	VdiDevice *SGuestVdi
+
+	VritioSerial    *SGuestVirtioSerial
+	Cdrom           *SGuestCdrom
+	Disks           []*SGuestDisk
+	Nics            []*SGuestNetwork
+	NicsStandby     []*SGuestNetwork
 	IsolatedDevices []*api.IsolatedDeviceJsonDesc
+}
+
+// %04x:%02x:%02x.%x, domain, bus, device, function
+type SPCIDeviceAddr struct {
+	Domain   int
+	Bus      int
+	Device   int
+	Function int
+
+	Controller    string
+	MultiFunction bool
+}
+
+type SGuestDisk struct {
+	api.GuestdiskJsonDesc
+}
+
+type SGuestCdrom struct {
+	api.GuestcdromJsonDesc
+}
+
+type SGuestNetwork struct {
+	api.GuestnetworkJsonDesc
+}
+
+type SGuestVga struct {
+	*SPCIDeviceAddr
+	Vga string
+}
+
+type SGuestVdi struct {
+	*SPCIDeviceAddr
+	Vdi string
+}
+
+// For qga sock
+type SGuestVirtioSerial struct {
+	*SPCIDeviceAddr
 }
 
 type SGuestDesc struct {

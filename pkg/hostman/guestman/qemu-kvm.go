@@ -98,9 +98,10 @@ type SKVMGuestInstance struct {
 	SKVMInstanceRuntime
 
 	Id      string
-	Desc    *desc.SGuestDesc
 	Monitor monitor.Monitor
 	manager *SGuestManager
+
+	Desc *desc.SGuestDesc
 }
 
 func NewKVMGuestInstance(id string, manager *SGuestManager) *SKVMGuestInstance {
