@@ -81,13 +81,13 @@ type SKVMInstanceRuntime struct {
 	LiveMigrateDestPort *int
 	LiveMigrateUseTls   bool
 
-	SyncMeta *jsonutils.JSONDict
+	syncMeta *jsonutils.JSONDict
 
 	cgroupPid  int
 	cgroupName string
 
 	stopping            bool
-	NeedSyncStreamDisks bool
+	needSyncStreamDisks bool
 	blockJobTigger      map[string]chan struct{}
 
 	StartupTask *SGuestResumeTask
@@ -366,7 +366,7 @@ func (s *SKVMGuestInstance) asyncScriptStart(ctx context.Context, params interfa
 	// is on_async_script_start
 	if isStarted {
 		log.Infof("Async start server %s success!", s.GetName())
-		s.SyncMeta = s.CleanImportMetadata()
+		s.syncMeta = s.CleanImportMetadata()
 		s.StartMonitor(ctx, nil)
 		return nil, nil
 	}
@@ -1720,7 +1720,7 @@ func (s *SKVMGuestInstance) streamDisksComplete(ctx context.Context) {
 		}
 		if disks[i].MergeSnapshot {
 			disks[i].MergeSnapshot = false
-			s.NeedSyncStreamDisks = true
+			s.needSyncStreamDisks = true
 		}
 	}
 	if err := s.SaveDesc(s.Desc); err != nil {
@@ -1745,7 +1745,7 @@ func (s *SKVMGuestInstance) sendStreamDisksComplete(ctx context.Context) {
 		}
 	}
 
-	s.NeedSyncStreamDisks = false
+	s.needSyncStreamDisks = false
 	if err := s.SaveDesc(s.Desc); err != nil {
 		log.Errorf("save guest desc failed %s", err)
 	}
@@ -1810,8 +1810,8 @@ func (s *SKVMGuestInstance) OnResumeSyncMetadataInfo() {
 	} else {
 		meta.Set("__qemu_cmdline", jsonutils.NewString(cmdline))
 	}
-	if s.SyncMeta != nil {
-		meta.Update(s.SyncMeta)
+	if s.syncMeta != nil {
+		meta.Update(s.syncMeta)
 	}
 	s.SyncMetadata(meta)
 }

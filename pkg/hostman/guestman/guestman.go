@@ -324,7 +324,7 @@ func (m *SGuestManager) LoadServer(sid string) {
 		return
 	}
 
-	if guest.NeedSyncStreamDisks {
+	if guest.needSyncStreamDisks {
 		go guest.sendStreamDisksComplete(context.Background())
 	}
 	m.CandidateServers[sid] = guest
