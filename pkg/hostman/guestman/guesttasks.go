@@ -379,6 +379,9 @@ func (d *SGuestDiskSyncTask) startAddDisk(disk *api.GuestdiskJsonDesc) {
 	case DISK_DRIVER_SATA:
 		bus = fmt.Sprintf("ide.%d", diskIndex)
 	}
+	/* 'dummy' here is just a placeholder since there is no PCI
+	 * address required when attaching drives to a controller */
+
 	d.guest.Monitor.DriveAdd(bus, params, func(result string) { d.onAddDiskSucc(disk, result) })
 }
 

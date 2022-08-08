@@ -154,6 +154,10 @@ func GenerateStartOptions(
 		opts = append(opts, drvOpt.BIOS(input.OVMFPath))
 	}
 
+	if input.IsPcie {
+		opts = append(opts, drvOpt.PcieExtendOpt()...)
+	}
+
 	if input.OsName == OS_NAME_MACOS {
 		opts = append(opts, drvOpt.Device("isa-applesmc,osk=ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"))
 	}
@@ -164,10 +168,6 @@ func GenerateStartOptions(
 	for _, device := range input.Devices {
 		opts = append(opts, drvOpt.Device(device))
 	}
-
-	// if input.IsPcie {
-	// 	opts = append(opts, drvOpt.PciePciBridge(input.PciePciBridgeId))
-	// }
 
 	// vdi spice
 	if input.IsVdiSpice {

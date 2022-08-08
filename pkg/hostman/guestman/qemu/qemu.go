@@ -115,6 +115,7 @@ type QemuOptions interface {
 	SerialDevice() []string
 	QGA(homeDir string) []string
 	PvpanicDevice() string
+	PcieExtendOpt() []string
 }
 
 var (
@@ -354,6 +355,17 @@ func (o baseOptions) VGA(vType string, alternativeOpt string) string {
 		return alternativeOpt
 	}
 	return "-vga " + vType
+}
+
+func (o baseOptions) PcieExtendOpt() []string {
+	return []string{
+		// fmt.Sprintf("-device pcie-pci-bridge,id=pcie-pci-bridge1,bus=pcie.0"),
+		// fmt.Sprintf("-device pci-bridge,id=pci.1,bus=pcie-pci-bridge1"),
+
+		// -device pcie-pci-bridge,id=pcie-pci-bridge1,bus=pcie.0 \
+		// slot 1~31, chassis_nr
+		// -device pci-bridge,id=pci.1,bus=pcie-pci-bridge1,chassis_nr=1,addr=0x01 \
+	}
 }
 
 type baseOptions_x86_64 struct {
