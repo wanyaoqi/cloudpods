@@ -266,7 +266,7 @@ func (d *SGuestDiskSyncTask) changeCdrom() {
 func (d *SGuestDiskSyncTask) onGetBlockInfo(blocks []monitor.QemuBlock) {
 	var cdName string
 	for _, r := range blocks {
-		if regexp.MustCompile(`^ide\d+-cd\d+$`).MatchString(r.Device) {
+		if regexp.MustCompile(`cd\d+$`).MatchString(r.Device) {
 			cdName = r.Device
 			break
 		}

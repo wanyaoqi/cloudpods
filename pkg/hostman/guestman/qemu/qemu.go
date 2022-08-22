@@ -547,11 +547,13 @@ func (o baseOptions_aarch64) Memory(sizeMB uint64) string {
 
 func (o baseOptions_aarch64) Cdrom(cdromPath string, osName string, isQ35 bool, disksLen int) []string {
 	opts := []string{}
+	drive := o.Drive("if=none,id=cd0,media=cdrom")
 	if len(cdromPath) > 0 {
-		opts = append(opts,
-			o.Device("virtio-scsi-device -device scsi-cd,drive=cd0,share-rw=true"),
-			o.Drive(fmt.Sprintf("if=none,file=%s,id=cd0,media=cdrom", cdromPath)))
+		drive = o.Drive(fmt.Sprintf("if=none,file=%s,id=cd0,media=cdrom", cdromPath))
 	}
+	opts = append(opts,
+		o.Device("virtio-scsi-device -device scsi-cd,drive=cd0,share-rw=true"), drive,
+	)
 	return opts
 }
 
