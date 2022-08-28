@@ -745,18 +745,17 @@ function nic_mtu() {
 		cmd += " -device isa-serial,chardev=charserial0,id=serial0"
 	}
 
+	liveMigratePort, _ := data.Int("live_migrate_port")
 	if jsonutils.QueryBoolean(data, "need_migrate", false) {
-		migratePort := s.manager.GetFreePortByBase(LIVE_MIGRATE_PORT_BASE)
-		s.Desc.Set("live_migrate_dest_port", jsonutils.NewInt(int64(migratePort)))
+		s.Desc.Set("live_migrate_dest_port", jsonutils.NewInt(int64(liveMigratePort)))
 		if jsonutils.QueryBoolean(data, "live_migrate_use_tls", false) {
 			s.Desc.Set("live_migrate_use_tls", jsonutils.JSONTrue)
 			cmd += fmt.Sprintf(" -incoming defer")
 		} else {
-			cmd += fmt.Sprintf(" -incoming tcp:0:%d", migratePort)
+			cmd += fmt.Sprintf(" -incoming tcp:0:%d", liveMigratePort)
 		}
 	} else if jsonutils.QueryBoolean(s.Desc, "is_slave", false) {
-		cmd += fmt.Sprintf(" -incoming tcp:0:%d",
-			s.manager.GetFreePortByBase(LIVE_MIGRATE_PORT_BASE))
+		cmd += fmt.Sprintf(" -incoming tcp:0:%d", liveMigratePort)
 	} else if jsonutils.QueryBoolean(s.Desc, "is_master", false) {
 		cmd += " -S"
 	}

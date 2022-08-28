@@ -138,6 +138,9 @@ func (s *SKVMGuestInstance) GetVncFilePath() string {
 }
 
 func (s *SKVMGuestInstance) getOriginId() string {
+	if s.Desc == nil {
+		return s.Id
+	}
 	originId, _ := s.Desc.GetString("metadata", "__origin_id")
 	if len(originId) == 0 {
 		originId = s.Id
@@ -266,15 +269,25 @@ func (s *SKVMGuestInstance) asyncScriptStart(ctx context.Context, params interfa
 	var err error
 	for !isStarted && tried < MAX_TRY {
 		tried += 1
-
 		vncPort := s.manager.GetFreeVncPort()
+		defer s.manager.unsetPort(vncPort)
+		log.Infof("Use vnc port %d", vncPort)
 		if err = s.saveVncPort(vncPort); err != nil {
 			goto finally
 		} else {
 			data.Set("vnc_port", jsonutils.NewInt(int64(vncPort)))
 		}
 
-		if err = s.saveScripts(data); err != nil {
+		// get live migrate listen port
+		if jsonutils.QueryBoolean(data, "need_migrate", false) ||
+			jsonutils.QueryBoolean(s.Desc, "is_slave", false) {
+			migratePort := s.manager.GetLiveMigrateFreePort()
+			defer s.manager.unsetPort(migratePort)
+			data.Set("live_migrate_port", jsonutils.NewInt(int64(migratePort)))
+		}
+
+		err = s.saveScripts(data)
+		if err != nil {
 			goto finally
 		} else {
 			err = s.scriptStart()
@@ -698,7 +711,8 @@ func (s *SKVMGuestInstance) startDiskBackupMirror(ctx context.Context) {
 
 func (s *SKVMGuestInstance) startQemuBuiltInNbdServer(ctx context.Context) {
 	if ctx != nil && len(appctx.AppContextTaskId(ctx)) > 0 {
-		nbdServerPort := s.manager.GetFreePortByBase(BUILT_IN_NBD_SERVER_PORT_BASE)
+		nbdServerPort := s.manager.GetNBDServerFreePort()
+		defer s.manager.unsetPort(nbdServerPort)
 		var onNbdServerStarted = func(res string) {
 			if len(res) > 0 {
 				log.Errorf("Start Qemu Builtin nbd server error %s", res)
