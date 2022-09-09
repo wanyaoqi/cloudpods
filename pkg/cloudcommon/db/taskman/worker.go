@@ -26,12 +26,23 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/notifyclient"
 )
 
+const (
+	DEFAULT_WORKER_COUNT = 4
+)
+
 var taskWorkMan *appsrv.SWorkerManager
 var taskWorkerTable map[string]*appsrv.SWorkerManager
 
 func init() {
-	taskWorkMan = appsrv.NewWorkerManager("TaskWorkerManager", 4, 1024, true)
+	taskWorkMan = appsrv.NewWorkerManager("TaskWorkerManager", DEFAULT_WORKER_COUNT, 1024, true)
 	taskWorkerTable = make(map[string]*appsrv.SWorkerManager)
+}
+
+func UpdateWorkerCount(workerCount int) error {
+	if workerCount != DEFAULT_WORKER_COUNT {
+		return taskWorkMan.UpdateWorkerCount(workerCount)
+	}
+	return nil
 }
 
 type taskTask struct {
