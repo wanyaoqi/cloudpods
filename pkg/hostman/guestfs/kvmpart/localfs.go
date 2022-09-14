@@ -267,7 +267,10 @@ func (f *SLocalGuestFS) userAdd(user, homeDir string, isSys bool) error {
 	}
 	cmd := []string{"chroot", f.mountPath, "useradd", "-m", "-s", "/bin/bash", user}
 	if isSys {
-		cmd = append(cmd, "-r", "-e", "", "-f", "-1", "-K", "PASS_MAX_DAYS=-1")
+		cmd = append(cmd, "-r", "-e", "", "-f", "-1")
+		if procutils.NewCommand("chroot", f.mountPath, "useradd", "-h", "|", "grep", "\\-K").Run() == nil {
+			cmd = append(cmd, "-K", "PASS_MAX_DAYS=-1")
+		}
 	}
 	if len(homeDir) > 0 {
 		cmd = append(cmd, "-d", path.Join(homeDir, user))
