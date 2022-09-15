@@ -425,7 +425,7 @@ func (o baseOptions_x86_64) Machine(mType string, accel string) string {
 func (o baseOptions_x86_64) SMP(cpus uint) string {
 	maxCpus := options.HostOptions.MaxHotplugVCpuCount
 	if maxCpus == 0 {
-		maxCpus = 128
+		maxCpus = 240
 	}
 	sockets := 2
 	cores := maxCpus / sockets
@@ -433,7 +433,7 @@ func (o baseOptions_x86_64) SMP(cpus uint) string {
 }
 
 func (o baseOptions_x86_64) Memory(sizeMB uint64) string {
-	return fmt.Sprintf("-m %dM,slots=4,maxmem=524288M", sizeMB)
+	return fmt.Sprintf("-m %dM,slots=4,maxmem=1048576M", sizeMB)
 }
 
 func (o baseOptions_x86_64) Cdrom(cdromPath string, osName string, isQ35 bool, disksLen int) []string {

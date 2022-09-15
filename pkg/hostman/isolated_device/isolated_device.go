@@ -386,6 +386,8 @@ func getQemuParams(man *isolatedDeviceManager, devAddrs []string) *QemuParams {
 	if len(devAddrs) == 0 {
 		return nil
 	}
+	log.Infof("devaddrs %d, %v", len(devAddrs), devAddrs)
+
 	devCmds := []string{}
 	cpuCmd := DEFAULT_CPU_CMD
 	vgaCmd := DEFAULT_VGA_CMD
@@ -397,18 +399,19 @@ func getQemuParams(man *isolatedDeviceManager, devAddrs []string) *QemuParams {
 			log.Warningf("IsolatedDeviceManager not found dev %#v, ignore it!", addr)
 			continue
 		}
+
 		devType := dev.GetDeviceType()
-		devs, ok := devices[devType]
-		if !ok {
+		if _, ok := devices[devType]; !ok {
 			devices[devType] = []IDevice{dev}
 		} else {
-			devs = append(devs, dev)
+			devices[devType] = append(devices[devType], dev)
 		}
 	}
 
 	for devType, devs := range devices {
-		log.Debugf("get devices %s command", devType)
+		log.Infof("get devices %s command", devType)
 		for idx, dev := range devs {
+			log.Infof("device %s cmd %s", dev, getDeviceCmd(dev, idx))
 			devCmds = append(devCmds, getDeviceCmd(dev, idx))
 			if dev.GetVGACmd() != vgaCmd && dev.GetDeviceType() == api.GPU_VGA_TYPE {
 				vgaCmd = dev.GetVGACmd()
