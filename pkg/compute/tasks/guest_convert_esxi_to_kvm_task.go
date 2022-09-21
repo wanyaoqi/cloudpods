@@ -47,6 +47,10 @@ func (self *GuestConvertEsxiToKvmTask) GetSchedParams() (*schedapi.ScheduleInput
 	obj := self.GetObject()
 	guest := obj.(*models.SGuest)
 	schedDesc := guest.ToSchedDesc()
+	for i := 0; i < len(schedDesc.Disks); i++ {
+		schedDesc.Disks[i].Storage = ""
+		schedDesc.Disks[i].Backend = api.STORAGE_LOCAL
+	}
 	if self.Params.Contains("prefer_host_id") {
 		preferHostId, _ := self.Params.GetString("prefer_host_id")
 		schedDesc.ServerConfig.PreferHost = preferHostId
