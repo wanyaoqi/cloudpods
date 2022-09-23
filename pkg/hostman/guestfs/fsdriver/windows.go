@@ -31,6 +31,7 @@ import (
 	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/netutils2"
+	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/seclib2"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/onecloud/pkg/util/version"
@@ -44,6 +45,9 @@ const (
 	TCPIP_PARAM_KEY      = `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters`
 	BOOT_SCRIPT_PATH     = "/Windows/System32/GroupPolicy/Machine/Scripts/Startup/cloudboot.bat"
 	WIN_BOOT_SCRIPT_PATH = "cloudboot"
+
+	WIN_TELEGRAF_BINARY_PATH = "/opt/yunion/bin/telegraf.exe"
+	WIN_TELEGRAF_PATH        = "/Program Files/Telegraf"
 )
 
 type SWindowsRootFs struct {
@@ -542,4 +546,24 @@ func (w *SWindowsRootFs) DetectIsUEFISupport(part IDiskPartition) bool {
 
 func (l *SWindowsRootFs) IsResizeFsPartitionSupport() bool {
 	return true
+}
+
+func (w *SWindowsRootFs) DeployTelegraf(config string) (bool, error) {
+	if err := w.rootFs.Mkdir(WIN_TELEGRAF_PATH, syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IXUSR, true); err != nil {
+		return false, errors.Wrap(err, "mkdir telegraf path")
+	}
+	if err := w.rootFs.FilePutContents(path.Join(WIN_TELEGRAF_PATH, "telegraf.conf"), config, false, true); err != nil {
+		return false, errors.Wrap(err, "write boot script")
+	}
+
+	output, err := procutils.NewCommand("cp", "-f", WIN_TELEGRAF_BINARY_PATH, path.Join(w.rootFs.GetMountPath(), WIN_TELEGRAF_PATH)).Output()
+	if err != nil {
+		return false, errors.Wrapf(err, "cp telegraf failed %s", output)
+	}
+	// bootScript := strings.Join([]string{
+	// 	`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`,
+	// 	` -executionpolicy bypass %SystemRoot%\chgpwd.ps1`,
+	// })
+
+	return false, nil
 }
