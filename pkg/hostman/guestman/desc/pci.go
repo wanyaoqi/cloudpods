@@ -142,6 +142,11 @@ type CharDev struct {
 	Options map[string]string `json:",omitempty"`
 }
 
+type FloppyDevice struct {
+	Id      string
+	Options map[string]string `json:",omitempty"`
+}
+
 const (
 	PCI_ADDRESS_SLOT_MAX = 31
 )
