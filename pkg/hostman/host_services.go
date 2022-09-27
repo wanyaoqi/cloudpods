@@ -113,6 +113,9 @@ func (host *SHostService) RunService() {
 
 	var guestChan chan struct{}
 	guestman.Init(hostInstance, options.HostOptions.ServersPath)
+	if err := guestman.GetGuestManager().InitQemuCaps(); err != nil {
+		lof.Fatalf("Failed init qemu caps: %s", err)
+	}
 
 	hostInstance.StartRegister(2, func() {
 		guestChan = guestman.GetGuestManager().Bootstrap()
