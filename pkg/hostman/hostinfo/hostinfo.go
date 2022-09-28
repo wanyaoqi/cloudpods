@@ -20,6 +20,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"reflect"
 	"regexp"
@@ -50,6 +51,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/hostutils/hardware"
 	"yunion.io/x/onecloud/pkg/hostman/hostutils/kubelet"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
+	"yunion.io/x/onecloud/pkg/hostman/monitor"
 	"yunion.io/x/onecloud/pkg/hostman/options"
 	"yunion.io/x/onecloud/pkg/hostman/storageman"
 	"yunion.io/x/onecloud/pkg/hostman/system_service"
@@ -78,9 +80,10 @@ type SHostInfo struct {
 	saved  bool
 	pinger *SHostPingTask
 
-	Cpu     *SCPUInfo
-	Mem     *SMemory
-	sysinfo *SSysInfo
+	Cpu                 *SCPUInfo
+	Mem                 *SMemory
+	sysinfo             *SSysInfo
+	QemuMachineInfoList []monitor.MachineInfo
 
 	kubeletConfig kubelet.KubeletConfig
 
@@ -190,6 +193,8 @@ func (h *SHostInfo) Init() error {
 	if err := h.detectHostInfo(); err != nil {
 		return errors.Wrap(err, "detectHostInfo")
 	}
+
+	//h.sysinfo.QemuMachineInfoList
 
 	if err := hostbridge.Prepare(options.HostOptions.BridgeDriver); err != nil {
 		err := errors.Errorf("Prepare host bridge %q error: %v", options.HostOptions.BridgeDriver, err)
@@ -822,7 +827,11 @@ func (h *SHostInfo) detectQemuVersion() error {
 	} else {
 		versions := strings.Split(string(version), "\n")
 		parts := strings.Split(versions[0], " ")
-		v := parts[len(parts)-1]
+		var v = parts[len(parts)-1]
+		if strings.HasPrefix(parts[len(parts)-1], "(") {
+			v = parts[len(parts)-2]
+		}
+
 		if len(v) > 0 {
 			log.Infof("Detect qemu version is %s", v)
 			h.sysinfo.QemuVersion = v
@@ -830,7 +839,38 @@ func (h *SHostInfo) detectQemuVersion() error {
 			return fmt.Errorf("Failed to detect qemu version")
 		}
 	}
-	return nil
+	return h.detectQemuCapabilities(h.sysinfo.QemuVersion)
+}
+
+func (h *SHostInfo) detectQemuCapabilities(version string) error {
+	cmds := []string{qemutils.GetQemu(version)}
+	cmds = append(cmds, "-machine", "none")
+
+	qmpPath := fmt.Sprintf("/tmp/qemu-caps-%d.qmp", os.Getpid())
+	os.Remove(qmpPath)
+	cmds = append(cmds, "-chardev", fmt.Sprintf("socket,path=%s,id=char0", qmpPath))
+	cmds = append(cmds, "-mon", "chardev=char0,mode=control")
+	cmds = append(cmds, "-display", "none")
+
+	log.Debugf("qemu caps cmdline %v", cmds)
+	cmd := exec.Command(cmds[0], cmds[1:]...)
+	if err := cmd.Start(); err != nil {
+		return errors.Wrap(err, "start qemu cap cmdline")
+	}
+	qmp := monitor.NewQmpMonitor("", "", nil, nil, nil, nil)
+	if err := qmp.ConnectWithSocket(qmpPath); err != nil {
+		return errors.Wrap(err, "qemu caps connect qmp")
+	}
+	var errChan = make(chan error, 0)
+	qmp.QueryMachines(func(machineInfoList []monitor.MachineInfo, errStr string) {
+		if len(errStr) > 0 {
+			errChan <- errors.Errorf("Query machines failed: %s", errStr)
+			return
+		}
+		h.sysinfo.QemuMachineInfoList = machineInfoList
+		errChan <- nil
+	})
+	return <-errChan
 }
 
 func (h *SHostInfo) detectOvsVersion() {

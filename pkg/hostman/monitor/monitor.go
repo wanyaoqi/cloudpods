@@ -245,6 +245,7 @@ type Monitor interface {
 	NetdevDel(id string, callback StringCallback)
 
 	SaveState(statFilePath string, callback StringCallback)
+	QueryMachines(callback QueryMachinesCallback)
 }
 
 type MonitorErrorFunc func(error)

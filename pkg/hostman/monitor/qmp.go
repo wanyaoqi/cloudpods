@@ -1120,3 +1120,25 @@ func (m *QmpMonitor) QueryPci(callback QueryPciCallback) {
 	)
 	m.Query(cmd, cb)
 }
+
+func (m *QmpMonitor) QueryMachines(callback QueryMachinesCallback) {
+	var (
+		cb = func(res *Response) {
+			if res.ErrorVal != nil {
+				callback(nil, res.ErrorVal.Error())
+			} else {
+				machineInfoList := make([]MachineInfo, 0)
+				err := json.Unmarshal(res.Return, &machineInfoList)
+				if err != nil {
+					callback(nil, err.Error())
+				} else {
+					callback(machineInfoList, "")
+				}
+			}
+		}
+		cmd = &Command{
+			Execute: "query-machines",
+		}
+	)
+	m.Query(cmd, cb)
+}
