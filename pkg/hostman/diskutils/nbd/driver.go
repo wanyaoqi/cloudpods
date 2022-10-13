@@ -255,6 +255,7 @@ func (d *NBDDriver) FormatPartition(fs, uuid string) error {
 func (d *NBDDriver) ResizePartition() error {
 	if d.IsLVMPartition() {
 		// do not resize LVM partition
+		log.Infof("skip resize lvm partition %s", d.nbdDev)
 		return nil
 	}
 	return fsutils.ResizeDiskFs(d.nbdDev, 0)

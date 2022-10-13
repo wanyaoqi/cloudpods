@@ -133,7 +133,7 @@ func (d *SKVMGuestDisk) mountKvmRootfs(readonly bool) (fsdriver.IRootFsDriver, e
 	partitions := d.deployer.GetPartitions()
 	errs := []error{}
 	for i := 0; i < len(partitions); i++ {
-		log.Infof("detect partition %s", partitions[i].GetPartDev())
+		log.Infof("%s detect partition %s", d.kvmImagePath, partitions[i].GetPartDev())
 		mountFunc := partitions[i].Mount
 		if readonly {
 			mountFunc = partitions[i].MountPartReadOnly
@@ -141,7 +141,7 @@ func (d *SKVMGuestDisk) mountKvmRootfs(readonly bool) (fsdriver.IRootFsDriver, e
 		if mountFunc() {
 			fs, err := guestfs.DetectRootFs(partitions[i])
 			if err == nil {
-				log.Infof("Use rootfs %s, partition %s", fs, partitions[i].GetPartDev())
+				log.Infof("%s Use rootfs %s, partition %s", d.kvmImagePath, fs, partitions[i].GetPartDev())
 				return fs, nil
 			}
 			errs = append(errs, err)

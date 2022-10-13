@@ -134,6 +134,7 @@ func (*DeployerServer) ResizeFs(ctx context.Context, req *deployapi.ResizeFsPara
 		}
 	}()
 	log.Infof("********* Resize fs on %#v", apiDiskInfo(req.DiskInfo))
+	defer log.Infof("********* Finish Resize fs of %#v", apiDiskInfo(req.DiskInfo))
 	disk, err := diskutils.GetIDisk(diskutils.DiskParams{
 		Hypervisor: req.Hypervisor,
 		DiskInfo:   apiDiskInfo(req.GetDiskInfo()),
@@ -164,6 +165,7 @@ func (*DeployerServer) ResizeFs(ctx context.Context, req *deployapi.ResizeFsPara
 		return new(deployapi.Empty), errors.Wrapf(err, "disk.MountRootfs")
 	}
 	if !root.IsResizeFsPartitionSupport() {
+		log.Infof("disk %s is not support resize fs", root.GetPartition().GetPartDev())
 		err := unmount(root)
 		if err != nil {
 			return new(deployapi.Empty), err
