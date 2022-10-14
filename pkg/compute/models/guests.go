@@ -4549,9 +4549,13 @@ func (self *SGuest) GetJsonDescAtHypervisor(ctx context.Context, host *SHost) *a
 	}
 
 	cdroms, _ := self.getCdroms()
-	for _, cdrom := range cdroms {
-		cdromDesc := cdrom.getJsonDesc()
-		desc.Cdroms = append(desc.Cdroms, cdromDesc)
+	if len(cdroms) == 1 {
+		desc.Cdrom = cdroms[0].getJsonDesc()
+	} else {
+		for _, cdrom := range cdroms {
+			cdromDesc := cdrom.getJsonDesc()
+			desc.Cdroms = append(desc.Cdroms, cdromDesc)
+		}
 	}
 
 	//floppy
