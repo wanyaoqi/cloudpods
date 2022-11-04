@@ -417,6 +417,7 @@ Loop:
 				} else {
 					flatFile = strings.TrimSpace(output[:idx])
 				}
+				log.Errorf("proc stdouterr %s", output)
 				log.Infof("disk flat file mounted under %s", flatFile)
 				break Loop
 			}
@@ -436,6 +437,7 @@ func (vd *VDDKDisk) DisconnectBlockDevice() error {
 		if err != nil {
 			return errors.Wrap(err, "send 'y' to VDDKDisk.Proc")
 		}
+		log.Errorf("proc, stdouerr %s", vd.Proc.stdouterr)
 		return vd.Umount()
 	}
 	return fmt.Errorf("vddk disk has not connected")

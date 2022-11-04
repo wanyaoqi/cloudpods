@@ -317,6 +317,7 @@ func (*DeployerServer) ConnectEsxiDisks(
 			break
 		}
 		connectedEsxiDisks[flatFilePath] = disk
+		log.Errorf("save flat file path %s, req disk path is %s", flatFilePath, req.AccessInfo[i].DiskPath)
 		ret.Disks[i] = &deployapi.EsxiDiskInfo{DiskPath: flatFilePath}
 	}
 	if err != nil {
@@ -326,6 +327,7 @@ func (*DeployerServer) ConnectEsxiDisks(
 					log.Errorf("disconnect disk %s: %s", req.AccessInfo[i].DiskPath, e)
 				} else {
 					delete(connectedEsxiDisks, req.AccessInfo[i].DiskPath)
+					log.Errorf("remove flat file path %s", req.AccessInfo[i].DiskPath)
 				}
 			}
 		}
@@ -338,12 +340,15 @@ func (*DeployerServer) DisconnectEsxiDisks(
 	ctx context.Context, req *deployapi.EsxiDisksConnectionInfo,
 ) (*deployapi.Empty, error) {
 	log.Infof("********* Disconnect esxi disks ...")
+	log.Errorf("request connection info is %+v")
 	for i := 0; i < len(req.Disks); i++ {
+		log.Errorf("request disconnect disk path %s", req.Disks[i].DiskPath)
 		if disk, ok := connectedEsxiDisks[req.Disks[i].DiskPath]; ok {
 			if e := disk.DisconnectBlockDevice(); e != nil {
 				return new(deployapi.Empty), errors.Wrapf(e, "disconnect disk %s", req.Disks[i].DiskPath)
 			} else {
 				delete(connectedEsxiDisks, req.Disks[i].DiskPath)
+				log.Errorf("remove flat file path %s", req.Disks[i].DiskPath)
 			}
 		} else {
 			log.Warningf("esxi disk %s not connected", req.Disks[i].DiskPath)
