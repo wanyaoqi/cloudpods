@@ -3992,9 +3992,7 @@ func (self *SHost) PerformOnline(ctx context.Context, userCred mcclient.TokenCre
 			self.LastPingAt = time.Now()
 			self.HostStatus = api.HOST_ONLINE
 			self.EnableHealthCheck = true
-			if !self.IsMaintaining() {
-				self.Status = api.BAREMETAL_RUNNING
-			}
+			self.Status = api.BAREMETAL_RUNNING
 			return nil
 		})
 		if err != nil {
