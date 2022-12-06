@@ -1,0 +1,100 @@
+From dc91df1ad7fb1382f72e21f6da3916dc8c3a6105 Mon Sep 17 00:00:00 2001
+From: wanyaoqi <d3lx.yq@gmail.com>
+Date: Fri, 2 Dec 2022 17:18:40 +0800
+Subject: [PATCH] fix(host): live migration optimize
+
+Qemu will send `STOP` event on start last time migration, but this
+moment migration not completed. So we need wait magration complete.
+Configurable Auto converge max cpu throttle.
+---
+ pkg/hostman/guestman/guesttasks.go | 24 ++++++++++++++++++++++--
+ pkg/hostman/guestman/qemu-kvm.go   |  4 +---
+ pkg/hostman/options/options.go     |  3 ++-
+ 3 files changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/pkg/hostman/guestman/guesttasks.go b/pkg/hostman/guestman/guesttasks.go
+index 951baba74b..01e0d53be0 100644
+--- a/pkg/hostman/guestman/guesttasks.go
++++ b/pkg/hostman/guestman/guesttasks.go
+@@ -843,6 +843,7 @@ func (s *SGuestLiveMigrateTask) startMigrateStatusCheck(res string) {
+ func (s *SGuestLiveMigrateTask) onGetMigrateStats(stats *monitor.MigrationInfo, err error) {
+ 	if err != nil {
+ 		log.Errorf("%s get migrate stats failed %s", s.GetName(), err)
++		s.migrateFailed(fmt.Sprintf("%s get migrate stats failed %s", s.GetName(), err))
+ 		return
+ 	}
+ 	s.onGetMigrateStatus(stats)
+@@ -890,8 +891,7 @@ func (s *SGuestLiveMigrateTask) onGetMigrateStatus(stats *monitor.MigrationInfo)
+ 				return
+ 			}
+ 
+-			if *stats.CPUThrottlePercentage < 99 {
+-				// TODO: configureable tolerate cpu throttle percentage
++			if *stats.CPUThrottlePercentage < options.HostOptions.LiveMigrateCpuThrottleMax {
+ 				return
+ 			}
+ 
+@@ -929,6 +929,25 @@ func (s *SGuestLiveMigrateTask) onMigrateStartPostcopy(res string) {
+ 	}
+ }
+ 
++func (s *SGuestLiveMigrateTask) onMigrateReceivedStopEvent() {
++	s.Monitor.GetMigrateStats(func(stats *monitor.MigrationInfo, err error) {
++		if err != nil {
++			log.Errorf("%s get migrate stats failed %s", s.GetName(), err)
++			return
++		}
++
++		switch *stats.Status {
++		case "completed":
++			s.migrateComplete(jsonutils.Marshal(stats))
++		case "failed", "cancelled":
++			s.migrateFailed(fmt.Sprintf("Query migrate got status: %s", *stats.Status))
++		case "active":
++			time.Sleep(10 * time.Millisecond)
++			s.onMigrateReceivedStopEvent()
++		}
++	})
++}
++
+ func (s *SGuestLiveMigrateTask) migrateComplete(stats jsonutils.JSONObject) {
+ 	s.migrateTask = nil
+ 	if s.c != nil {
+@@ -942,6 +961,7 @@ func (s *SGuestLiveMigrateTask) migrateComplete(stats jsonutils.JSONObject) {
+ 		res.Set("migration_info", stats)
+ 	}
+ 	hostutils.TaskComplete(s.ctx, res)
++	hostutils.UpdateServerProgress(context.Background(), s.Id, 0.0, 0)
+ }
+ 
+ func (s *SGuestLiveMigrateTask) migrateFailed(msg string) {
+diff --git a/pkg/hostman/guestman/qemu-kvm.go b/pkg/hostman/guestman/qemu-kvm.go
+index 979040ec4c..91661838f3 100644
+--- a/pkg/hostman/guestman/qemu-kvm.go
++++ b/pkg/hostman/guestman/qemu-kvm.go
+@@ -690,10 +690,8 @@ func (s *SKVMGuestInstance) onReceiveQMPEvent(event *monitor.Event) {
+ 		s.eventGuestPaniced(event)
+ 	case event.Event == `"STOP"`:
+ 		if s.migrateTask != nil {
+-			// migrating complete
+-			s.migrateTask.migrateComplete(nil)
++			s.migrateTask.onMigrateReceivedStopEvent()
+ 		}
+-		hostutils.UpdateServerProgress(context.Background(), s.Id, 0.0, 0)
+ 	}
+ }
+ 
+diff --git a/pkg/hostman/options/options.go b/pkg/hostman/options/options.go
+index fd7ec75694..af066b2022 100644
+--- a/pkg/hostman/options/options.go
++++ b/pkg/hostman/options/options.go
+@@ -28,7 +28,8 @@ type SHostBaseOptions struct {
+ 
+ 	DisableSecurityGroup bool `help:"disable security group" default:"false"`
+ 
+-	HostCpuPassthrough bool `default:"true" help:"if it is true, set qemu cpu type as -cpu host, otherwise, qemu64. default is true"`
++	HostCpuPassthrough        bool  `default:"true" help:"if it is true, set qemu cpu type as -cpu host, otherwise, qemu64. default is true"`
++	LiveMigrateCpuThrottleMax int64 `default:"99" help:"live migrate auto converge cpu throttle max"`
+ 
+ 	DefaultQemuVersion string `help:"Default qemu version" default:"4.2.0"`
+ }

@@ -1,0 +1,64 @@
+From 992e310ebad8e4749e890ac476d174c54ac5cdb4 Mon Sep 17 00:00:00 2001
+From: wanyaoqi <d3lx.yq@gmail.com>
+Date: Thu, 1 Dec 2022 15:10:37 +0800
+Subject: [PATCH] fix(host): convert migrate set downtime value to float64
+
+---
+ pkg/hostman/guestman/guesttasks.go | 2 +-
+ pkg/hostman/monitor/hmp.go         | 2 +-
+ pkg/hostman/monitor/monitor.go     | 2 +-
+ pkg/hostman/monitor/qmp.go         | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/pkg/hostman/guestman/guesttasks.go b/pkg/hostman/guestman/guesttasks.go
+index dce6fd7ef4..951baba74b 100644
+--- a/pkg/hostman/guestman/guesttasks.go
++++ b/pkg/hostman/guestman/guesttasks.go
+@@ -914,7 +914,7 @@ func (s *SGuestLiveMigrateTask) onGetMigrateStatus(stats *monitor.MigrationInfo)
+ 						log.Errorf("failed set migrate downtime %s", res)
+ 					}
+ 				}
+-				s.Monitor.MigrateSetDowntime(float32(*stats.ExpectedDowntime/1000.0), cb)
++				s.Monitor.MigrateSetDowntime(float64(*stats.ExpectedDowntime)/1000.0, cb)
+ 			}
+ 		}
+ 	}
+diff --git a/pkg/hostman/monitor/hmp.go b/pkg/hostman/monitor/hmp.go
+index 6df03df452..78cb0e094b 100644
+--- a/pkg/hostman/monitor/hmp.go
++++ b/pkg/hostman/monitor/hmp.go
+@@ -294,7 +294,7 @@ func (m *HmpMonitor) DeviceAdd(dev string, params map[string]interface{}, callba
+ 	m.Query(fmt.Sprintf("device_add %s,%s", dev, strings.Join(paramsKvs, ",")), callback)
+ }
+ 
+-func (m *HmpMonitor) MigrateSetDowntime(dtSec float32, callback StringCallback) {
++func (m *HmpMonitor) MigrateSetDowntime(dtSec float64, callback StringCallback) {
+ 	m.Query(fmt.Sprintf("migrate_set_downtime %f", dtSec), callback)
+ }
+ 
+diff --git a/pkg/hostman/monitor/monitor.go b/pkg/hostman/monitor/monitor.go
+index 60553bc412..028ab475f9 100644
+--- a/pkg/hostman/monitor/monitor.go
++++ b/pkg/hostman/monitor/monitor.go
+@@ -321,7 +321,7 @@ type Monitor interface {
+ 	BlockReopenImage(drive, newImagePath, format string, cb StringCallback)
+ 	SnapshotBlkdev(drive, newImagePath, format string, reuse bool, cb StringCallback)
+ 
+-	MigrateSetDowntime(dtSec float32, callback StringCallback)
++	MigrateSetDowntime(dtSec float64, callback StringCallback)
+ 	MigrateSetCapability(capability, state string, callback StringCallback)
+ 	MigrateSetParameter(key string, val interface{}, callback StringCallback)
+ 	MigrateIncoming(address string, callback StringCallback)
+diff --git a/pkg/hostman/monitor/qmp.go b/pkg/hostman/monitor/qmp.go
+index 6c262435ee..a9d11a80b7 100644
+--- a/pkg/hostman/monitor/qmp.go
++++ b/pkg/hostman/monitor/qmp.go
+@@ -606,7 +606,7 @@ func (m *QmpMonitor) DeviceAdd(dev string, params map[string]interface{}, callba
+ 	// m.Query(cmd, cb)
+ }
+ 
+-func (m *QmpMonitor) MigrateSetDowntime(dtSec float32, callback StringCallback) {
++func (m *QmpMonitor) MigrateSetDowntime(dtSec float64, callback StringCallback) {
+ 	m.HumanMonitorCommand(fmt.Sprintf("migrate_set_downtime %f", dtSec), callback)
+ }
+ 

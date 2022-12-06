@@ -552,10 +552,9 @@ function nic_mtu() {
 		input.EnableSerialDevice = true
 	}
 
-	liveMigratePort, _ := data.Int("live_migrate_port")
+	liveMigratePort, _ := s.Desc.Int("live_migrate_dest_port")
 	if jsonutils.QueryBoolean(data, "need_migrate", false) {
 		input.NeedMigrate = true
-		s.Desc.Set("live_migrate_dest_port", jsonutils.NewInt(int64(liveMigratePort)))
 		input.LiveMigratePort = uint(liveMigratePort)
 		if jsonutils.QueryBoolean(data, "live_migrate_use_tls", false) {
 			input.LiveMigrateUseTLS = true
