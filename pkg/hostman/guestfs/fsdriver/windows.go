@@ -382,7 +382,7 @@ func (w *SWindowsRootFs) CommitChanges(part IDiskPartition) error {
 		return nil
 	}
 
-	tool.InstallGpeditStartScript(WIN_BOOT_SCRIPT_PATH)
+	// tool.InstallGpeditStartScript(WIN_BOOT_SCRIPT_PATH)
 
 	bootDir := path.Dir(BOOT_SCRIPT_PATH)
 	if err := w.rootFs.Mkdir(bootDir, syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IXUSR, true); err != nil {
