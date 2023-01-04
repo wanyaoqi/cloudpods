@@ -2286,7 +2286,7 @@ func (self *SGuest) moreExtraInfo(
 	out.CdromSupport, _ = self.GetDriver().IsSupportCdrom(self)
 	out.FloppySupport, _ = self.GetDriver().IsSupportFloppy(self)
 
-	out.MonitorUrl = self.GetDriver().FetchMonitorUrl(ctx, self)
+	out.MonitorUrl, _ = self.GetDriver().FetchMonitorUrl(ctx, self)
 
 	return out
 }
@@ -4541,7 +4541,10 @@ func (self *SGuest) GetDeployConfigOnHost(ctx context.Context, userCred mcclient
 	config.Add(jsonutils.NewString(onFinish), "on_finish")
 
 	if jsonutils.QueryBoolean(params, "deploy_telegraf", false) {
-		influxdbUrl := self.GetDriver().FetchMonitorUrl(ctx, self)
+		influxdbUrl, err := self.GetDriver().FetchMonitorUrl(ctx, self)
+		if err != nil {
+			return nil, err
+		}
 		config.Add(jsonutils.JSONTrue, "deploy_telegraf")
 		serverDetails, err := self.getDetails(ctx, userCred)
 		if err != nil {

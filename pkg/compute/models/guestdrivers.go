@@ -232,7 +232,7 @@ type IGuestDriver interface {
 	QgaRequestSetUserPassword(ctx context.Context, task taskman.ITask, host *SHost, guest *SGuest, input *api.ServerQgaSetPasswordInput) error
 	RequestQgaCommand(ctx context.Context, userCred mcclient.TokenCredential, body jsonutils.JSONObject, host *SHost, guest *SGuest) (jsonutils.JSONObject, error)
 
-	FetchMonitorUrl(ctx context.Context, guest *SGuest) string
+	FetchMonitorUrl(ctx context.Context, guest *SGuest) (string, error)
 }
 
 var guestDrivers map[string]IGuestDriver

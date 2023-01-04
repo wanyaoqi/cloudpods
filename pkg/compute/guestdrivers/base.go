@@ -23,7 +23,6 @@ import (
 
 	"yunion.io/x/cloudmux/pkg/cloudprovider"
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/billing"
 	"yunion.io/x/pkg/util/osprofile"
@@ -499,11 +498,11 @@ func (self *SBaseGuestDriver) RequestQgaCommand(ctx context.Context, userCred mc
 	return nil, httperrors.ErrNotImplemented
 }
 
-func (self *SBaseGuestDriver) FetchMonitorUrl(ctx context.Context, guest *models.SGuest) string {
+func (self *SBaseGuestDriver) FetchMonitorUrl(ctx context.Context, guest *models.SGuest) (string, error) {
 	s := auth.GetAdminSessionWithPublic(ctx, consts.GetRegion())
 	influxdbUrl, err := s.GetServiceURL(apis.SERVICE_TYPE_INFLUXDB, options.Options.MonitorEndpointType)
 	if err != nil {
-		log.Errorf("FetchMonitorUrl fail %s", err)
+		return "", err
 	}
-	return influxdbUrl
+	return influxdbUrl, nil
 }

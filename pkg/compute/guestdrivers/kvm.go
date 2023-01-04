@@ -1066,9 +1066,15 @@ func (self *SKVMGuestDriver) RequestQgaCommand(ctx context.Context, userCred mcc
 	return res, nil
 }
 
-func (self *SKVMGuestDriver) FetchMonitorUrl(ctx context.Context, guest *models.SGuest) string {
-	if options.Options.KvmMonitorAgentUseMetadataService {
-		return apis.MetaServiceMonitorAgentUrl
+func (self *SKVMGuestDriver) FetchMonitorUrl(ctx context.Context, guest *models.SGuest) (string, error) {
+	gns, err := guest.GetNetworks("")
+	if err != nil {
+		return "", errors.Wrap(err, "get networks")
+	}
+	if len(gns) > 0 && gns[0].Driver == api.NETWORK_DRIVER_VFIO {
+		return self.SVirtualizedGuestDriver.FetchMonitorUrl(ctx, guest)
+	} else if options.Options.KvmMonitorAgentUseMetadataService {
+		return apis.MetaServiceMonitorAgentUrl, nil
 	}
 	return self.SVirtualizedGuestDriver.FetchMonitorUrl(ctx, guest)
 }
