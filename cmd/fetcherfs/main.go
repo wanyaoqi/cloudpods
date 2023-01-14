@@ -51,7 +51,7 @@ func main() {
 				FileName: "fetcherfs.log",
 			},
 			RotateNum:  10,
-			RotateSize: 4096,
+			RotateSize: 4096 * 1024,
 		}
 		logFileHook.Init()
 		defer logFileHook.DeInit()

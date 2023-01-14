@@ -156,6 +156,7 @@ func (fs *FetcherFs) doRead(size int, offset int64) ([]byte, error) {
 		err        error
 	)
 
+	log.Infof("request start end: %d %d, size %d, offset %d", start, end, size, offset)
 	for idx := start; idx <= end; idx++ {
 		err = fs.fetchData(idx)
 		if err != nil {
@@ -197,7 +198,7 @@ func (fs *FetcherFs) doFetchData(idx int64) error {
 	if fs.blockReady(idx) {
 		return nil
 	}
-	log.Infof("start do fetch idx %d ", idx)
+	log.Errorf("start do fetch idx %d ", idx)
 
 	var start = idx * fs.blocksize
 	var end = start + fs.blocksize - 1

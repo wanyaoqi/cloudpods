@@ -49,7 +49,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed parse args %s", err)
 	}
-	log.Errorf("%v", opt)
+	//log.Errorf("%v", opt)
 	if opt.Blocksize <= 0 {
 		opt.Blocksize = BLOCK_SIZE
 	}
