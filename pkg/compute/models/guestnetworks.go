@@ -867,7 +867,28 @@ func (self *SGuestnetwork) GetVirtualIPs() []string {
 }
 
 func (self *SGuestnetwork) GetIfname() string {
+	if self.Driver == api.NETWORK_DRIVER_VFIO {
+		if dev, _ := self.GetIsolatedDevice(); dev != nil && dev.OvsOffloadInterface != "" {
+			return dev.OvsOffloadInterface
+		}
+	}
 	return self.Ifname
+}
+
+func (self *SGuestnetwork) GetIsolatedDevice() (*SIsolatedDevice, error) {
+	dev := SIsolatedDevice{}
+	q := IsolatedDeviceManager.Query().Equals("guest_id", self.GuestId).Equals("network_index", self.Index)
+	if cnt, err := q.CountWithError(); err != nil {
+		return nil, err
+	} else if cnt == 0 {
+		return nil, nil
+	}
+	err := q.First(&dev)
+	if err != nil {
+		return nil, err
+	}
+	dev.SetModelManager(IsolatedDeviceManager, &dev)
+	return &dev, nil
 }
 
 func (manager *SGuestnetworkManager) getRecentlyReleasedIPAddresses(networkId string, recentDuration time.Duration) map[string]bool {

@@ -1843,10 +1843,15 @@ func (h *SHostInfo) probeSyncIsolatedDevicesStep() {
 	h.deployAdminAuthorizedKeys()
 }
 
-func (h *SHostInfo) getNicsInterfaces() [][2]string {
-	res := [][2]string{}
+func (h *SHostInfo) getNicsInterfaces(nics []string) []isolated_device.HostNic {
+	if len(nics) == 0 {
+		return nil
+	}
+	res := []isolated_device.HostNic{}
 	for i := 0; i < len(h.Nics); i++ {
-		res = append(res, [2]string{h.Nics[i].Inter, h.Nics[i].WireId})
+		if utils.IsInStringArray(h.Nics[i].Inter, nics) {
+			res = append(res, isolated_device.HostNic{h.Nics[i].Bridge, h.Nics[i].Inter, h.Nics[i].WireId})
+		}
 	}
 	return res
 }
@@ -1854,7 +1859,7 @@ func (h *SHostInfo) getNicsInterfaces() [][2]string {
 func (h *SHostInfo) probeSyncIsolatedDevices() (*jsonutils.JSONArray, error) {
 	if err := h.IsolatedDeviceMan.ProbePCIDevices(
 		options.HostOptions.DisableGPU, options.HostOptions.DisableUSB,
-		options.HostOptions.DisableSRIOVNic, h.getNicsInterfaces(),
+		h.getNicsInterfaces(options.HostOptions.SRIOVNics), h.getNicsInterfaces(options.HostOptions.OvsOffloadNics),
 	); err != nil {
 		return nil, errors.Wrap(err, "ProbePCIDevices")
 	}
