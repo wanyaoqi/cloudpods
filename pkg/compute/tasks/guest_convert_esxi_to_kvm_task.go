@@ -51,6 +51,9 @@ func (self *GuestConvertEsxiToKvmTask) GetSchedParams() (*schedapi.ScheduleInput
 		preferHostId, _ := self.Params.GetString("prefer_host_id")
 		schedDesc.ServerConfig.PreferHost = preferHostId
 	}
+	for i := range schedDesc.Disks {
+		schedDesc.Disks[i].Backend = api.STORAGE_LOCAL
+	}
 	schedDesc.Hypervisor = api.HYPERVISOR_KVM
 	return schedDesc, nil
 }
