@@ -493,8 +493,7 @@ type HostUpdateInput struct {
 }
 
 type HostOfflineInput struct {
-	UpdateHealthStatus *bool `json:"update_health_status"`
-	Reason             string
+	Reason string
 }
 
 type SHostStorageStat struct {

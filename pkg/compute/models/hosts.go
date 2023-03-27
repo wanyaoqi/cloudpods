@@ -4030,9 +4030,6 @@ func (self *SHost) PerformOffline(ctx context.Context, userCred mcclient.TokenCr
 	if self.HostStatus != api.HOST_OFFLINE {
 		_, err := self.SaveUpdates(func() error {
 			self.HostStatus = api.HOST_OFFLINE
-			if input.UpdateHealthStatus != nil && *input.UpdateHealthStatus {
-				self.EnableHealthCheck = false
-			}
 			// Note: update host status to unknown on host offline
 			// we did not have host status after host offline
 			self.Status = api.BAREMETAL_UNKNOWN
@@ -5565,12 +5562,11 @@ func (manager *SHostManager) PingDetectionTask(ctx context.Context, userCred mcc
 		return
 	}
 
-	updateHealthStatus := false
 	for i := range hosts {
 		func() {
 			lockman.LockObject(ctx, &hosts[i])
 			defer lockman.ReleaseObject(ctx, &hosts[i])
-			hosts[i].PerformOffline(ctx, userCred, nil, &api.HostOfflineInput{UpdateHealthStatus: &updateHealthStatus, Reason: fmt.Sprintf("last ping detection at %s", deadline)})
+			hosts[i].PerformOffline(ctx, userCred, nil, &api.HostOfflineInput{Reason: fmt.Sprintf("last ping detection at %s", deadline)})
 			hosts[i].MarkGuestUnknown(userCred)
 		}()
 	}
@@ -5702,36 +5698,38 @@ func (host *SHost) OnHostDown(ctx context.Context, userCred mcclient.TokenCreden
 	log.Errorf("watched host down %s, status %s", host.Name, host.HostStatus)
 	hostHealthChecker.UnwatchHost(ctx, host.GetHostnameByName())
 
-	if host.HostStatus == api.HOST_OFFLINE && !host.EnableHealthCheck &&
-		!host.autoMigrateOnHostShutdown(ctx) {
+	if host.HostStatus == api.HOST_ONLINE {
+		host.PerformOffline(ctx, userCred, nil, &api.HostOfflineInput{Reason: "host healther detected host down"})
+		host.MarkGuestUnknown(userCred)
+	}
+
+	if !host.EnableHealthCheck && !host.autoMigrateOnHostShutdown(ctx) {
 		// hostagent requested offline, and not enable auto migrate on host shutdown
 		log.Infof("host not need auto migrate on host shutdown")
 		return
 	}
 
 	hostname := host.Name
-	if host.HostStatus == api.HOST_OFFLINE {
-		// host has been marked offline, check host status in k8s
-		coreCli, err := tokens.GetCoreClient()
-		if err != nil {
-			log.Errorf("failed get k8s client %s", err)
-			return
-		}
-		hostname = host.GetHostnameByName()
+	// host has been marked offline, check host status in k8s
+	coreCli, err := tokens.GetCoreClient()
+	if err != nil {
+		log.Errorf("failed get k8s client %s", err)
+		return
+	}
+	hostname = host.GetHostnameByName()
 
-		node, err := coreCli.Nodes().Get(context.TODO(), hostname, metav1.GetOptions{})
-		if err != nil {
-			log.Errorf("failed get node %s info %s", hostname, err)
-			return
-		}
+	node, err := coreCli.Nodes().Get(context.TODO(), hostname, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("failed get node %s info %s", hostname, err)
+		return
+	}
 
-		// check node status is ready
-		if length := len(node.Status.Conditions); length > 0 {
-			if node.Status.Conditions[length-1].Type == v1.NodeReady &&
-				node.Status.Conditions[length-1].Status == v1.ConditionTrue {
-				log.Infof("node %s status ready, no need entry rescue", hostname)
-				return
-			}
+	// check node status is ready
+	if length := len(node.Status.Conditions); length > 0 {
+		if node.Status.Conditions[length-1].Type == v1.NodeReady &&
+			node.Status.Conditions[length-1].Status == v1.ConditionTrue {
+			log.Infof("node %s status ready, no need entry rescue", hostname)
+			return
 		}
 	}
 
@@ -5739,7 +5737,6 @@ func (host *SHost) OnHostDown(ctx context.Context, userCred mcclient.TokenCreden
 	db.OpsLog.LogEvent(host, db.ACT_HOST_DOWN, "", userCred)
 	if _, err := host.SaveCleanUpdates(func() error {
 		host.EnableHealthCheck = false
-		host.HostStatus = api.HOST_OFFLINE
 		return nil
 	}); err != nil {
 		log.Errorf("update host %s failed %s", host.Id, err)
