@@ -87,6 +87,7 @@ type QemuOptions interface {
 	Daemonize() string
 	Nodefaults() string
 	Nodefconfig() string
+	NoHpet() string
 	Global() string
 	KeyboardLayoutLanguage(lang string) string
 	Name(name string) string
@@ -203,6 +204,10 @@ func (o baseOptions) FreezeCPU() string {
 
 func (o baseOptions) Nodefaults() string {
 	return "-nodefaults"
+}
+
+func (o baseOptions) NoHpet() string {
+	return "-no-hpet"
 }
 
 func (o baseOptions) Nodefconfig() string {

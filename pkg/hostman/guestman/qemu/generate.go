@@ -649,6 +649,7 @@ func GenerateStartOptions(
 		drvOpt.Nodefaults(),
 		drvOpt.Nodefconfig(),
 		// drvOpt.NoKVMPitReinjection(),
+		drvOpt.NoHpet(),
 		drvOpt.Global(),
 		generateMachineOption(input.GuestDesc.Machine, input.GuestDesc.MachineDesc),
 		drvOpt.KeyboardLayoutLanguage("en-us"),
