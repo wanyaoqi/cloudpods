@@ -90,6 +90,7 @@ type QemuOptions interface {
 	Daemonize() string
 	Nodefaults() string
 	Nodefconfig() string
+	NoHpet() string
 	NoKVMPitReinjection() string
 	Global() string
 	Machine(machineType string, accel string) string
@@ -221,6 +222,10 @@ func (o baseOptions) Nodefaults() string {
 
 func (o baseOptions) Nodefconfig() string {
 	return "-nodefconfig"
+}
+
+func (o baseOptions) NoHpet() string {
+	return "-no-hpet"
 }
 
 func (o baseOptions) NoKVMPitReinjection() string {
@@ -402,10 +407,6 @@ func (o *baseOptions_x86_64) CPU(input CPUOption, osName string) (string, string
 			} else if input.IsCPUAMD {
 				cpuType += ",+svm"
 			}
-		}
-
-		if !input.EnableNested {
-			cpuType += ",kvm=off"
 		}
 
 		if len(input.IsolatedDeviceCPU) > 0 {
