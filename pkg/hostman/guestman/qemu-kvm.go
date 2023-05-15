@@ -172,7 +172,11 @@ func (s *SKVMGuestInstance) initLiveDescFromSourceGuest(srcDesc *desc.SGuestDesc
 	for i := 0; i < len(srcDesc.Disks); i++ {
 		for j := 0; j < len(s.SourceDesc.Disks); j++ {
 			if srcDesc.Disks[i].Index == s.SourceDesc.Disks[j].Index {
-				srcDesc.Disks[i].GuestdiskJsonDesc = s.SourceDesc.Disks[j].GuestdiskJsonDesc
+				// srcDesc.Disks[i].GuestdiskJsonDesc = s.SourceDesc.Disks[j].GuestdiskJsonDesc
+				srcDesc.Disks[i].Path = s.SourceDesc.Disks[j].Path
+				srcDesc.Disks[i].ImagePath = s.SourceDesc.Disks[j].ImagePath
+				srcDesc.Disks[i].StorageType = s.SourceDesc.Disks[j].StorageType
+				srcDesc.Disks[i].StorageId = s.SourceDesc.Disks[j].StorageId
 			}
 		}
 	}
@@ -185,7 +189,7 @@ func (s *SKVMGuestInstance) initLiveDescFromSourceGuest(srcDesc *desc.SGuestDesc
 					vectors = *srcDesc.Nics[i].Vectors
 				}
 
-				srcDesc.Nics[i].GuestnetworkJsonDesc = s.SourceDesc.Nics[j].GuestnetworkJsonDesc
+				// srcDesc.Nics[i].GuestnetworkJsonDesc = s.SourceDesc.Nics[j].GuestnetworkJsonDesc
 				break
 			}
 		}
