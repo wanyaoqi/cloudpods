@@ -35,7 +35,6 @@ import (
 	"yunion.io/x/onecloud/pkg/util/netutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/seclib2"
-	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/onecloud/pkg/util/winutils"
 )
 
@@ -457,17 +456,18 @@ func (w *SWindowsRootFs) deployPublicKeyByGuest(uname, passwd string) bool {
 		`)`,
 	}, "\r\n")
 	w.appendGuestBootScript("chgpwd", bootScript)
-	logPath := w.guestDebugLogPath
-	chksum := stringutils2.GetMD5Hash(passwd + logPath[(len(logPath)-10):])
+	//logPath := w.guestDebugLogPath + "_password"
+	//chksum := stringutils2.GetMD5Hash(passwd + logPath[(len(logPath)-10):])
 
 	chgpwdScript := strings.Join([]string{
 		w.MakeGuestDebugCmd("change password step 1"),
-		strings.Join([]string{
-			`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`,
-			` -executionpolicy bypass %SystemRoot%\chgpwd.ps1`,
-			fmt.Sprintf(" %s %s %s %s", uname, passwd, chksum, logPath),
-		}, ""),
-		`del %SystemRoot%\chgpwd.ps1`,
+		//strings.Join([]string{
+		//	`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`,
+		//	` -executionpolicy bypass %SystemRoot%\chgpwd.ps1`,
+		//	fmt.Sprintf(" %s %s %s %s", uname, passwd, chksum, logPath),
+		//}, ""),
+		fmt.Sprintf("net user %s %s", uname, passwd),
+		//`del %SystemRoot%\chgpwd.ps1`,
 		w.MakeGuestDebugCmd("change password step 2"),
 	}, "\r\n")
 	if w.putGuestScriptContents("/windows/chgpwd.bat", chgpwdScript) != nil {
