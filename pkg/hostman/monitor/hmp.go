@@ -320,6 +320,11 @@ func (m *HmpMonitor) MigrateIncoming(address string, callback StringCallback) {
 	m.Query(cmd, callback)
 }
 
+func (m *HmpMonitor) MigrateContinue(state string, callback StringCallback) {
+	cmd := fmt.Sprintf("migrate_continue %s", state)
+	m.Query(cmd, callback)
+}
+
 func (m *HmpMonitor) Migrate(
 	destStr string, copyIncremental, copyFull bool, callback StringCallback,
 ) {
@@ -465,6 +470,10 @@ func (m *HmpMonitor) StartNbdServer(port int, exportAllDevice, writable bool, ca
 	}
 	cmd += fmt.Sprintf(" 0.0.0.0:%d", port)
 	m.Query(cmd, callback)
+}
+
+func (m *HmpMonitor) StopNbdServer(callback StringCallback) {
+	m.Query("nbd_server_stop", callback)
 }
 
 func (m *HmpMonitor) ResizeDisk(driveName string, sizeMB int64, callback StringCallback) {

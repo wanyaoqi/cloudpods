@@ -234,6 +234,7 @@ type Monitor interface {
 	MigrateSetParameter(key string, val interface{}, callback StringCallback)
 	MigrateIncoming(address string, callback StringCallback)
 	Migrate(destStr string, copyIncremental, copyFull bool, callback StringCallback)
+	MigrateContinue(state string, callback StringCallback)
 	GetMigrateStatus(callback StringCallback)
 	MigrateStartPostcopy(callback StringCallback)
 	GetMigrateStats(callback MigrateStatsCallback)
@@ -241,6 +242,7 @@ type Monitor interface {
 	ReloadDiskBlkdev(device, path string, callback StringCallback)
 	SetVncPassword(proto, password string, callback StringCallback)
 	StartNbdServer(port int, exportAllDevice, writable bool, callback StringCallback)
+	StopNbdServer(callback StringCallback)
 
 	ResizeDisk(driveName string, sizeMB int64, callback StringCallback)
 	BlockIoThrottle(driveName string, bps, iops int64, callback StringCallback)
