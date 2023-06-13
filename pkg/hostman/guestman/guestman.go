@@ -1171,18 +1171,24 @@ func (m *SGuestManager) Resume(ctx context.Context, sid string, isLiveMigrate bo
 	if guest.IsStopping() || guest.IsStopped() {
 		return nil, httperrors.NewInvalidStatusError("resume stopped server???")
 	}
-	var cb = func() {
+
+	var onLiveMigrateCleanup = func(res string) {
 		resumeTask := NewGuestResumeTask(ctx, guest, !isLiveMigrate, cleanTLS)
-		if isLiveMigrate {
-			guest.StartPresendArp()
-		}
 		resumeTask.Start()
 	}
+	var onMonitorConnected = func() {
+		if isLiveMigrate {
+			guest.StartPresendArp()
+			guest.Monitor.StopNbdServer(onLiveMigrateCleanup)
+		} else {
+			onLiveMigrateCleanup("")
+		}
+	}
 	if guest.Monitor == nil {
-		guest.StartMonitor(ctx, cb)
+		guest.StartMonitor(ctx, onMonitorConnected)
 		return nil, nil
 	} else {
-		cb()
+		onMonitorConnected()
 	}
 	return nil, nil
 }

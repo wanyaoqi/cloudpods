@@ -121,6 +121,7 @@ func GenerateStartOptions(
 		drvOpt.Daemonize(),
 		drvOpt.Nodefaults(),
 		drvOpt.Nodefconfig(),
+		drvOpt.NoHpet(),
 		drvOpt.NoKVMPitReinjection(),
 		drvOpt.Global(),
 		drvOpt.Machine(input.Machine, accel),

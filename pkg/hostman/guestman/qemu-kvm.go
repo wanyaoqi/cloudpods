@@ -690,19 +690,39 @@ func (s *SKVMGuestInstance) onReceiveQMPEvent(event *monitor.Event) {
 		s.eventGuestStop()
 	case `"QUORUM_REPORT_BAD"`:
 		s.eventQuorumReportBad(event)
+	case `"MIGRATION"`:
+		s.eventMigration(event)
+	}
+}
+
+func (s *SKVMGuestInstance) eventMigration(event *monitor.Event) {
+	if s.migrateTask == nil {
+		return
+	}
+
+	status, ok := event.Data["status"]
+	if !ok {
+		return
+	}
+	if status == "pre-switchover" {
+		// migrating complete
+		s.migrateTask.onMigrateReceivedPreSwitchoverEvent()
+		hostutils.UpdateServerProgress(context.Background(), s.Id, 0.0, 0)
+	} else if status == "completed" {
+		s.migrateTask.migrateComplete(nil)
 	}
 }
 
 func (s *SKVMGuestInstance) eventBlockJobError(event *monitor.Event) {
-	s.SyncMirrorJobFailed(event.String())
+	if s.migrateTask != nil {
+		s.migrateTask.onMigrateReceivedBlockJobError(event.String())
+	} else {
+		s.SyncMirrorJobFailed(event.String())
+	}
 }
 
 func (s *SKVMGuestInstance) eventGuestStop() {
-	if s.migrateTask != nil {
-		// migrating complete
-		s.migrateTask.onMigrateReceivedStopEvent()
-	}
-	hostutils.UpdateServerProgress(context.Background(), s.Id, 0.0, 0)
+	// do nothing
 }
 
 func (s *SKVMGuestInstance) eventQuorumReportBad(event *monitor.Event) {
@@ -753,6 +773,10 @@ func (s *SKVMGuestInstance) eventGuestPaniced(event *monitor.Event) {
 }
 
 func (s *SKVMGuestInstance) eventBlockJobReady(event *monitor.Event) {
+	if !s.IsSlave() {
+		return
+	}
+
 	itype, ok := event.Data["type"]
 	if !ok {
 		log.Errorf("block job missing event type")
@@ -789,25 +813,23 @@ func (s *SKVMGuestInstance) eventBlockJobReady(event *monitor.Event) {
 		return
 	}
 
-	if s.IsSlave() { // is backup server
-		disk, err := storageman.GetManager().GetDiskByPath(diskPath)
-		if err != nil {
-			log.Errorf("eventBlockJobReady failed get disk %s", diskPath)
-			return
-		}
-		disk.PostCreateFromImageFuse()
-		blockJobCount := s.BlockJobsCount()
-		if blockJobCount == 0 {
-			for {
-				_, err := modules.Servers.PerformAction(
-					hostutils.GetComputeSession(context.Background()), s.GetId(), "slave-block-stream-ready", nil,
-				)
-				if err != nil {
-					log.Errorf("onReceiveQMPEvent sync slave block stream ready error: %s", err)
-					time.Sleep(3 * time.Second)
-				} else {
-					break
-				}
+	disk, err := storageman.GetManager().GetDiskByPath(diskPath)
+	if err != nil {
+		log.Errorf("eventBlockJobReady failed get disk %s", diskPath)
+		return
+	}
+	disk.PostCreateFromImageFuse()
+	blockJobCount := s.BlockJobsCount()
+	if blockJobCount == 0 {
+		for {
+			_, err := modules.Servers.PerformAction(
+				hostutils.GetComputeSession(context.Background()), s.GetId(), "slave-block-stream-ready", nil,
+			)
+			if err != nil {
+				log.Errorf("onReceiveQMPEvent sync slave block stream ready error: %s", err)
+				time.Sleep(3 * time.Second)
+			} else {
+				break
 			}
 		}
 	} else {
@@ -903,6 +925,20 @@ func (s *SKVMGuestInstance) migrateEnableMultifd() error {
 	return <-err
 }
 
+func (s *SKVMGuestInstance) migrateStartNbdServer(nbdServerPort int) error {
+	var err = make(chan error)
+	onNbdServerStarted := func(res string) {
+		if len(res) > 0 {
+			err <- errors.Errorf("failed enable multifd %s", res)
+		} else {
+			err <- nil
+		}
+	}
+	log.Infof("migrate dest guest start nbd server on %d", nbdServerPort)
+	s.Monitor.StartNbdServer(nbdServerPort, true, true, onNbdServerStarted)
+	return <-err
+}
+
 func (s *SKVMGuestInstance) onGetQemuVersion(ctx context.Context, version string) {
 	s.QemuVersion = version
 	log.Infof("Guest(%s) qemu version %s", s.Id, s.QemuVersion)
@@ -915,6 +951,14 @@ func (s *SKVMGuestInstance) onGetQemuVersion(ctx context.Context, version string
 		migratePort, _ := s.Desc.Get("live_migrate_dest_port")
 		body := jsonutils.NewDict()
 		body.Set("live_migrate_dest_port", migratePort)
+		nbdServerPort := s.manager.GetNBDServerFreePort()
+		defer s.manager.unsetPort(nbdServerPort)
+		err = s.migrateStartNbdServer(nbdServerPort)
+		if err != nil {
+			hostutils.TaskFailed(ctx, err.Error())
+			return
+		}
+		body.Set("nbd_server_port", jsonutils.NewInt(int64(nbdServerPort)))
 		if jsonutils.QueryBoolean(s.Desc, "live_migrate_use_tls", false) {
 			s.setDestMigrateTLS(ctx, body)
 		} else {
