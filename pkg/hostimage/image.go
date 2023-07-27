@@ -91,6 +91,7 @@ func OpenQcow2(disk *qemuimg.SImageInfo, readonly bool) *QemuioBlkDev {
 		qb.encrypted = true
 	}
 
+	log.Infof("disk image options %s secret opts %s", disk.ImageOptions(), secOpt)
 	// qemu io open image
 	blk := C.open_qcow2(diskPath, imageOpts, secretOpts, C.bool(readonly))
 
@@ -132,7 +133,7 @@ func (qb *QemuioBlkDev) CloseQcow2() {
 	if qb.blk != nil && atomic.AddInt32(&qb.refCount, -1) == 0 {
 		var secId *C.char
 		if qb.encrypted {
-			secId = C.CString(filepath.Base(qb.imagePath))
+			secId = C.CString("sec-" + filepath.Base(qb.imagePath))
 		}
 
 		C.close_qcow2(qb.blk, secId)
@@ -171,7 +172,7 @@ func (img *SQcow2Image) newQemuImage(imagePath string, encryptInfo *apis.SEncryp
 	}
 
 	if encryptInfo != nil {
-		info.SetSecId(filepath.Base(imagePath))
+		info.SetSecId("sec-" + filepath.Base(imagePath))
 		info.Password = encryptInfo.Key
 		info.EncryptAlg = encryptInfo.Alg
 	}
