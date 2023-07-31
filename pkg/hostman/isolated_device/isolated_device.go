@@ -243,7 +243,17 @@ func (man *isolatedDeviceManager) probeNVMEDisks(nvmePciDisks []string) {
 }
 
 func (man *isolatedDeviceManager) probeAMDVgpus(amdVgpuPFs []string) {
-
+	if len(amdVgpuPFs) > 0 {
+		nvmeDisks, err := getAMDVgpus(amdVgpuPFs)
+		if err != nil {
+			log.Errorf("getPassthroughNVMEDisks: %v", err)
+			man.host.AppendError(fmt.Sprintf("get nvme passthrough disks %s", err.Error()), "isolated_devices", "", "")
+		} else {
+			for i := range nvmeDisks {
+				man.devices = append(man.devices, nvmeDisks[i])
+			}
+		}
+	}
 }
 
 func (man *isolatedDeviceManager) ProbePCIDevices(
