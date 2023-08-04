@@ -102,7 +102,7 @@ type IsolatedDeviceManager interface {
 	GetDevices() []IDevice
 	GetDeviceByIdent(vendorDevId string, addr string) IDevice
 	GetDeviceByAddr(addr string) IDevice
-	ProbePCIDevices(skipGPUs, skipUSBs, skipCustomDevs bool, sriovNics, ovsOffloadNics []HostNic, nvmePciDisks []string) error
+	ProbePCIDevices(skipGPUs, skipUSBs, skipCustomDevs bool, sriovNics, ovsOffloadNics []HostNic, nvmePciDisks, amdVgpuPFs []string)
 	StartDetachTask()
 	BatchCustomProbe()
 	AppendDetachedDevice(dev *CloudDeviceInfo)
@@ -129,68 +129,76 @@ func (man *isolatedDeviceManager) GetDevices() []IDevice {
 	return man.devices
 }
 
+func (man *isolatedDeviceManager) probeGPUS(skipGPUs bool) {
+	if skipGPUs {
+		return
+	}
+	gpus, err, warns := getPassthroughGPUS()
+	if err != nil {
+		// ignore getPassthroughGPUS error on old machines without VGA devices
+		log.Errorf("getPassthroughGPUS: %v", err)
+		man.host.AppendError(fmt.Sprintf("get passhtrough gpus %s", err.Error()), "isolated_devices", "", " ")
+	} else {
+		if len(warns) > 0 {
+			for i := 0; i < len(warns); i++ {
+				man.host.AppendError(warns[i].Error(), "isolated_devices", "", " ")
+			}
+		}
+		for idx, gpu := range gpus {
+			man.devices = append(man.devices, NewGPUHPCDevice(gpu))
+			log.Infof("Add GPU device: %d => %#v", idx, gpu)
+		}
+	}
+}
+
+func (man *isolatedDeviceManager) probeCustomPCIDevs(skipCustomDevs bool) {
+	if skipCustomDevs {
+		return
+	}
+	devModels, err := man.getCustomIsolatedDeviceModels()
+	if err != nil {
+		log.Errorf("get custom isolated device models %s", err.Error())
+		man.host.AppendError(fmt.Sprintf("get custom isolated device models %s", err.Error()), "isolated_devices", "", "")
+	} else {
+		for _, devModel := range devModels {
+			devs, err := getPassthroughPCIDevs(devModel)
+			if err != nil {
+				log.Errorf("getPassthroughPCIDevs %v: %s", devModel, err)
+				man.host.AppendError(fmt.Sprintf("get custom passthrough pci devices %s", err.Error()), "isolated_devices", "", "")
+				continue
+			}
+			for i, dev := range devs {
+				man.devices = append(man.devices, dev)
+				log.Infof("Add general pci device: %d => %#v", i, dev)
+			}
+		}
+	}
+}
+
+func (man *isolatedDeviceManager) probeUSBs(skipUSBs bool) {
+	if skipUSBs {
+		return
+	}
+
+	usbs, err := getPassthroughUSBs()
+	if err != nil {
+		log.Errorf("getPassthroughUSBs: %v", err)
+		man.host.AppendError(fmt.Sprintf("get passthrough usb devices %s", err.Error()), "isolated_devices", "", "")
+	} else {
+		for idx, usb := range usbs {
+			man.devices = append(man.devices, usb)
+			log.Infof("Add USB device: %d => %#v", idx, usb)
+		}
+	}
+}
+
 type HostNic struct {
 	Bridge    string
 	Interface string
 	Wire      string
 }
 
-func (man *isolatedDeviceManager) ProbePCIDevices(skipGPUs, skipUSBs, skipCustomDevs bool, sriovNics, ovsOffloadNics []HostNic, nvmePciDisks []string) error {
-	man.devices = make([]IDevice, 0)
-	if !skipGPUs {
-		gpus, err, warns := getPassthroughGPUS()
-		if err != nil {
-			// ignore getPassthroughGPUS error on old machines without VGA devices
-			log.Errorf("getPassthroughGPUS: %v", err)
-			man.host.AppendError(fmt.Sprintf("get passhtrough gpus %s", err.Error()), "isolated_devices", "", " ")
-		} else {
-			if len(warns) > 0 {
-				for i := 0; i < len(warns); i++ {
-					man.host.AppendError(warns[i].Error(), "isolated_devices", "", " ")
-				}
-			}
-			for idx, gpu := range gpus {
-				man.devices = append(man.devices, NewGPUHPCDevice(gpu))
-				log.Infof("Add GPU device: %d => %#v", idx, gpu)
-			}
-		}
-	}
-
-	if !skipCustomDevs {
-		devModels, err := man.getCustomIsolatedDeviceModels()
-		if err != nil {
-			log.Errorf("get custom isolated device models %s", err.Error())
-			man.host.AppendError(fmt.Sprintf("get custom isolated device models %s", err.Error()), "isolated_devices", "", "")
-		} else {
-			for _, devModel := range devModels {
-				devs, err := getPassthroughPCIDevs(devModel)
-				if err != nil {
-					log.Errorf("getPassthroughPCIDevs %v: %s", devModel, err)
-					man.host.AppendError(fmt.Sprintf("get custom passthrough pci devices %s", err.Error()), "isolated_devices", "", "")
-					continue
-				}
-				for i, dev := range devs {
-					man.devices = append(man.devices, dev)
-					log.Infof("Add general pci device: %d => %#v", i, dev)
-				}
-			}
-		}
-	}
-
-	if !skipUSBs {
-		usbs, err := getPassthroughUSBs()
-		if err != nil {
-			log.Errorf("getPassthroughUSBs: %v", err)
-			man.host.AppendError(fmt.Sprintf("get passthrough usb devices %s", err.Error()), "isolated_devices", "", "")
-		} else {
-			for idx, usb := range usbs {
-				man.devices = append(man.devices, usb)
-				log.Infof("Add USB device: %d => %#v", idx, usb)
-			}
-		}
-
-	}
-
+func (man *isolatedDeviceManager) probeSRIOVNics(sriovNics []HostNic) {
 	if len(sriovNics) > 0 {
 		nics, err := getSRIOVNics(sriovNics)
 		if err != nil {
@@ -203,6 +211,9 @@ func (man *isolatedDeviceManager) ProbePCIDevices(skipGPUs, skipUSBs, skipCustom
 			}
 		}
 	}
+}
+
+func (man *isolatedDeviceManager) probeOffloadNICS(ovsOffloadNics []HostNic) {
 	if len(ovsOffloadNics) > 0 {
 		nics, err := getOvsOffloadNics(ovsOffloadNics)
 		if err != nil {
@@ -215,7 +226,9 @@ func (man *isolatedDeviceManager) ProbePCIDevices(skipGPUs, skipUSBs, skipCustom
 			}
 		}
 	}
+}
 
+func (man *isolatedDeviceManager) probeNVMEDisks(nvmePciDisks []string) {
 	if len(nvmePciDisks) > 0 {
 		nvmeDisks, err := getPassthroughNVMEDisks(nvmePciDisks)
 		if err != nil {
@@ -227,8 +240,35 @@ func (man *isolatedDeviceManager) ProbePCIDevices(skipGPUs, skipUSBs, skipCustom
 			}
 		}
 	}
+}
 
-	return nil
+func (man *isolatedDeviceManager) probeAMDVgpus(amdVgpuPFs []string) {
+	if len(amdVgpuPFs) > 0 {
+		for idx := range amdVgpuPFs {
+			vgpus, err := getSRIOVGpus(amdVgpuPFs[idx])
+			if err != nil {
+				log.Errorf("getPassthroughNVMEDisks: %v", err)
+				man.host.AppendError(fmt.Sprintf("get nvme passthrough disks %s", err.Error()), "isolated_devices", "", "")
+			} else {
+				for i := range vgpus {
+					man.devices = append(man.devices, vgpus[i])
+				}
+			}
+		}
+	}
+}
+
+func (man *isolatedDeviceManager) ProbePCIDevices(
+	skipGPUs, skipUSBs, skipCustomDevs bool,
+	sriovNics, ovsOffloadNics []HostNic, nvmePciDisks, amdVgpuPFs []string,
+) {
+	man.devices = make([]IDevice, 0)
+	man.probeGPUS(skipGPUs)
+	man.probeUSBs(skipUSBs)
+	man.probeCustomPCIDevs(skipCustomDevs)
+	man.probeSRIOVNics(sriovNics)
+	man.probeOffloadNICS(ovsOffloadNics)
+	man.probeAMDVgpus(amdVgpuPFs)
 }
 
 type IsolatedDeviceModel struct {
