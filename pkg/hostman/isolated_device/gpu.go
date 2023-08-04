@@ -56,8 +56,12 @@ const (
 	DEFAULT_CPU_CMD = "host,kvm=off"
 )
 
-func getPassthroughGPUS() ([]*PCIDevice, error, []error) {
-	lines, err := getGPUPCIStr()
+func getPassthroughGPUS(amdVgpuPFs, nvidiaVgpuPFs []string) ([]*PCIDevice, error, []error) {
+	filteredAddrs := []string{}
+	filteredAddrs = append(filteredAddrs, amdVgpuPFs...)
+	filteredAddrs = append(filteredAddrs, nvidiaVgpuPFs...)
+
+	lines, err := getGPUPCIStr(filteredAddrs)
 	if err != nil {
 		return nil, err, nil
 	}
@@ -86,25 +90,14 @@ func getPassthroughGPUS() ([]*PCIDevice, error, []error) {
 	return ret, nil, warns
 }
 
-// merge to getPassthroughGPUS
-func detectGPUS() ([]*PCIDevice, error) {
-	lines, err := getGPUPCIStr()
-	if err != nil {
-		return nil, err
+func getGPUPCIStr(filteredAddrs []string) ([]string, error) {
+	cmd := "lspci -nnmm | egrep '3D|VGA'"
+	filterCmd := strings.Join(filteredAddrs, "\\|")
+	if len(filterCmd) > 0 {
+		cmd = fmt.Sprintf("%s | grep -v '%s'", cmd, filterCmd)
 	}
-	devs := []*PCIDevice{}
-	for _, line := range lines {
-		dev, err := NewPCIDevice(line)
-		if err != nil {
-			return nil, err
-		}
-		devs = append(devs, dev)
-	}
-	return devs, nil
-}
 
-func getGPUPCIStr() ([]string, error) {
-	ret, err := bashOutput("lspci -nnmm | egrep '3D|VGA'")
+	ret, err := bashOutput(cmd)
 	if err != nil {
 		return nil, err
 	}

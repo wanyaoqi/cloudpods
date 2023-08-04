@@ -1960,12 +1960,10 @@ func (h *SHostInfo) probeSyncIsolatedDevices() (*jsonutils.JSONArray, error) {
 		return nil, err
 	}
 	sriovNics := h.getNicsInterfaces(options.HostOptions.SRIOVNics)
-	if err := h.IsolatedDeviceMan.ProbePCIDevices(
+	h.IsolatedDeviceMan.ProbePCIDevices(
 		options.HostOptions.DisableGPU, options.HostOptions.DisableUSB, options.HostOptions.DisableCustomDevice,
-		sriovNics, offloadNics, options.HostOptions.PTNVMEConfigs,
-	); err != nil {
-		return nil, errors.Wrap(err, "ProbePCIDevices")
-	}
+		sriovNics, offloadNics, options.HostOptions.PTNVMEConfigs, options.HostOptions.AMDVgpuPFs, options.HostOptions.NVIDIAVgpuPFs,
+	)
 
 	objs, err := h.getRemoteIsolatedDevices()
 	if err != nil {
@@ -1976,7 +1974,7 @@ func (h *SHostInfo) probeSyncIsolatedDevices() (*jsonutils.JSONArray, error) {
 		if err := obj.Unmarshal(&info); err != nil {
 			return nil, errors.Wrapf(err, "unmarshal isolated device %s to cloud device info", obj)
 		}
-		dev := h.IsolatedDeviceMan.GetDeviceByIdent(info.VendorDeviceId, info.Addr)
+		dev := h.IsolatedDeviceMan.GetDeviceByIdent(info.VendorDeviceId, info.Addr, info.MdevId)
 		if dev != nil {
 			dev.SetDeviceInfo(info)
 		} else {
