@@ -26,14 +26,6 @@ func NewSRIOVGpuDevice(dev *PCIDevice, devType string) *sSRIOVGpuDevice {
 	}
 }
 
-func (dev *sSRIOVGpuDevice) GetHotPlugOptions(isolatedDev *desc.SGuestIsolatedDevice) ([]*HotPlugOption, error) {
-	panic("implement me")
-}
-
-func (dev *sSRIOVGpuDevice) GetHotUnplugOptions(isolatedDev *desc.SGuestIsolatedDevice) ([]*HotUnplugOption, error) {
-	panic("implement me")
-}
-
 func (dev *sSRIOVGpuDevice) GetPfName() string {
 	return ""
 }
@@ -42,42 +34,8 @@ func (dev *sSRIOVGpuDevice) GetVirtfn() int {
 	return -1
 }
 
-func (dev *sSRIOVGpuDevice) GetVGACmd() string {
-	return ""
-}
-
-func (dev *sSRIOVGpuDevice) GetCPUCmd() string {
-	return ""
-}
-
-func (dev *sSRIOVGpuDevice) GetQemuId() string {
-	return fmt.Sprintf("dev_%s", strings.ReplaceAll(dev.GetAddr(), ":", "_"))
-}
-
-func (dev *sSRIOVGpuDevice) GetWireId() string {
-	return ""
-}
-
-func (dev *sSRIOVGpuDevice) CustomProbe(idx int) error {
-	// check environments on first probe
-	if idx == 0 {
-		for _, driver := range []string{"vfio", "vfio_iommu_type1", "vfio-pci"} {
-			if err := procutils.NewRemoteCommandAsFarAsPossible("modprobe", driver).Run(); err != nil {
-				return fmt.Errorf("modprobe %s: %v", driver, err)
-			}
-		}
-	}
-
-	driver, err := dev.GetKernelDriver()
-	if err != nil {
-		return fmt.Errorf("Nic %s is occupied by another driver: %s", dev.GetAddr(), driver)
-	}
-	return nil
-}
-
 func getSRIOVGpus(gpuPF string) ([]*sSRIOVGpuDevice, error) {
-	sysDeviceDir := "/sys/bus/pci/devices"
-	devicePath := path.Join(sysDeviceDir, gpuPF)
+	devicePath := fmt.Sprintf("/sys/bus/pci/devices/0000:%s", gpuPF)
 	if !fileutils2.Exists(devicePath) {
 		return nil, errors.Errorf("unknown device %s", gpuPF)
 	}
@@ -101,7 +59,7 @@ func getSRIOVGpus(gpuPF string) ([]*sSRIOVGpuDevice, error) {
 			if err != nil {
 				return nil, err
 			}
-			sriovGPUs = append(sriovGPUs, NewSRIOVGpuDevice(vfDev, api.GPU_HPC_TYPE))
+			sriovGPUs = append(sriovGPUs, NewSRIOVGpuDevice(vfDev, api.SRIOV_VGPU_TYPE))
 		}
 	}
 	return nil, err

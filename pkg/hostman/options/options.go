@@ -175,7 +175,8 @@ type SHostOptions struct {
 	SRIOVNics           []string `help:"nics enable sriov" json:"sriov_nics"`
 	OvsOffloadNics      []string `help:"nics enable ovs offload" json:"ovs_offload_nics"`
 	PTNVMEConfigs       []string `help:"passthrough nvme disk pci address and size"`
-	AMDVgpuPFs          []string `help:"amd vgpu pf pci address"`
+	AMDVgpuPFs          []string `help:"amd vgpu pf pci addresses"`
+	NVIDIAVgpuPFs       []string `help:"nvidia vgpu pf pci addresses"`
 
 	EthtoolEnableGso bool `help:"use ethtool to turn on or off GSO(generic segment offloading)" default:"false" json:"ethtool_enable_gso"`
 

@@ -244,11 +244,20 @@ func (man *isolatedDeviceManager) probeNVMEDisks(nvmePciDisks []string) {
 
 func (man *isolatedDeviceManager) probeAMDVgpus(amdVgpuPFs []string) {
 	if len(amdVgpuPFs) > 0 {
+		pattern := `^([0-9a-f]{2}):([0-9a-f]{2})\.([0-9a-f])$`
 		for idx := range amdVgpuPFs {
+			matched, _ := regexp.MatchString(pattern, amdVgpuPFs[i])
+			if !matched {
+				err := errors.Errorf("probeAMDVgpus invaild input pci address %s", amdVgpuPFs[i])
+				log.Errorln(err)
+				man.host.AppendError(err.Error(), "isolated_devices", "", "")
+				continue
+			}
+
 			vgpus, err := getSRIOVGpus(amdVgpuPFs[idx])
 			if err != nil {
-				log.Errorf("getPassthroughNVMEDisks: %v", err)
-				man.host.AppendError(fmt.Sprintf("get nvme passthrough disks %s", err.Error()), "isolated_devices", "", "")
+				log.Errorf("getSRIOVGpus: %s", err)
+				man.host.AppendError(fmt.Sprintf("get amd sriov vgpus %s", err.Error()), "isolated_devices", "", "")
 			} else {
 				for i := range vgpus {
 					man.devices = append(man.devices, vgpus[i])
@@ -258,9 +267,34 @@ func (man *isolatedDeviceManager) probeAMDVgpus(amdVgpuPFs []string) {
 	}
 }
 
+func (man *isolatedDeviceManager) probeNVIDIAVgpus(nvidiaVgpuPFs []string) {
+	if len(nvidiaVgpuPFs) > 0 {
+		pattern := `^([0-9a-f]{2}):([0-9a-f]{2})\.([0-9a-f])$`
+		for idx := range nvidiaVgpuPFs {
+			matched, _ := regexp.MatchString(pattern, nvidiaVgpuPFs[i])
+			if !matched {
+				err := errors.Errorf("probeNVIDIAVgpus invaild input pci address %s", nvidiaVgpuPFs[i])
+				log.Errorln(err)
+				man.host.AppendError(err.Error(), "isolated_devices", "", "")
+				continue
+			}
+			vgpus, err := getNvidiaVGpus(nvidiaVgpuPFs[i])
+			if err != nil {
+				log.Errorf("getNvidiaVGpus: %s", err)
+				man.host.AppendError(fmt.Sprintf("get nvidia vgpus %s", err.Error()), "isolated_devices", "", "")
+			} else {
+				for i := range vgpus {
+					man.devices = append(man.devices, vgpu[i])
+				}
+			}
+		}
+	}
+}
+
 func (man *isolatedDeviceManager) ProbePCIDevices(
 	skipGPUs, skipUSBs, skipCustomDevs bool,
-	sriovNics, ovsOffloadNics []HostNic, nvmePciDisks, amdVgpuPFs []string,
+	sriovNics, ovsOffloadNics []HostNic,
+	nvmePciDisks, amdVgpuPFs, nvidiaVgpuPFs []string,
 ) {
 	man.devices = make([]IDevice, 0)
 	man.probeGPUS(skipGPUs)
@@ -269,6 +303,7 @@ func (man *isolatedDeviceManager) ProbePCIDevices(
 	man.probeSRIOVNics(sriovNics)
 	man.probeOffloadNICS(ovsOffloadNics)
 	man.probeAMDVgpus(amdVgpuPFs)
+	man.probeNVIDIAVgpus(nvidiaVgpuPFs)
 }
 
 type IsolatedDeviceModel struct {
