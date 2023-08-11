@@ -9,8 +9,10 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/util/qemuimgfmt"
 
 	api "yunion.io/x/onecloud/pkg/apis/compute"
+	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 	"yunion.io/x/onecloud/pkg/hostman/hostdeployer/deployclient"
 	"yunion.io/x/onecloud/pkg/hostman/hostutils"
@@ -19,6 +21,7 @@ import (
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/compute"
 	"yunion.io/x/onecloud/pkg/mcclient/modules/image"
 	"yunion.io/x/onecloud/pkg/util/procutils"
+	"yunion.io/x/onecloud/pkg/util/qemuimg"
 )
 
 type SLVMStorage struct {
@@ -314,4 +317,33 @@ func (s *SLVMStorage) Accessible() error {
 
 func (s *SLVMStorage) Detach() error {
 	return nil
+}
+
+func (s *SLVMStorage) GetCloneTargetDiskPath(ctx context.Context, targetDiskId string) string {
+	return path.Join("/dev", s.GetPath(), targetDiskId)
+}
+
+func (s *SLVMStorage) CloneDiskFromStorage(
+	ctx context.Context, srcStorage IStorage, srcDisk IDisk, targetDiskId string, fullCopy bool,
+) (*hostapi.ServerCloneDiskFromStorageResponse, error) {
+	srcDiskPath := srcDisk.GetPath()
+	srcImg, err := qemuimg.NewQemuImage(srcDiskPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get source image %q info", srcDiskPath)
+	}
+	targetDisk := NewLVMDisk(s, targetDiskId)
+	_, err = targetDisk.CreateRaw(ctx, srcImg.GetSizeMB(), "", "", nil, targetDiskId, "")
+	if err != nil {
+		return nil, errors.Wrap(err, "create lvm disk")
+	}
+	if fullCopy {
+		_, err = srcImg.Clone(targetDisk.GetPath(), qemuimgfmt.RAW, false)
+		if err != nil {
+			return nil, errors.Wrap(err, "clone lvm disk")
+		}
+	}
+	return &hostapi.ServerCloneDiskFromStorageResponse{
+		TargetAccessPath: targetDisk.GetPath(),
+		TargetFormat:     qemuimgfmt.RAW.String(),
+	}, nil
 }
