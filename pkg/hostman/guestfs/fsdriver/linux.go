@@ -105,8 +105,7 @@ FSFREEZE_HOOK_PATHNAME=/etc/qemu-ga/fsfreeze-hook"
 
 	if rootFs.Exists(etcSysconfigQemuga, false) {
 		if err := rootFs.FilePutContents(etcSysconfigQemuga, blackListContent, false, false); err != nil {
-			log.Errorf("etcSysconfigQemuga error: %v", err)
-			return err
+			return errors.Wrap(err, "etcSysconfigQemuga error")
 		}
 	}
 	return nil
@@ -217,8 +216,7 @@ FSFREEZE_HOOK_PATHNAME=/etc/qemu-ga/fsfreeze-hook"
 
 	if rootFs.Exists(etcSysconfigQemuga, false) {
 		if err := rootFs.FilePutContents(etcSysconfigQemuga, blackListContent, false, false); err != nil {
-			log.Errorf("etcSysconfigQemuga error: %v", err)
-			return err
+			return errors.Wrap(err, "etcSysconfigQemuga error")
 		}
 	}
 	return nil
