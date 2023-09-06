@@ -23,14 +23,11 @@ import (
 
 type SLVMStorage struct {
 	SBaseStorage
-
-	Index int
 }
 
-func NewLVMStorage(manager *SStorageManager, vgName string, index int) *SLVMStorage {
+func NewLVMStorage(manager *SStorageManager, vgName string) *SLVMStorage {
 	var ret = new(SLVMStorage)
 	ret.SBaseStorage = *NewBaseStorage(manager, vgName)
-	ret.Index = index
 	return ret
 }
 
@@ -43,7 +40,7 @@ func (s *SLVMStorage) IsLocal() bool {
 }
 
 func (s *SLVMStorage) GetComposedName() string {
-	return fmt.Sprintf("host_%s_%s_storage_%d", s.Manager.host.GetMasterIp(), s.StorageType(), s.Index)
+	return fmt.Sprintf("host_%s_%s_storage_%s", s.Manager.host.GetMasterIp(), s.StorageType(), s.Path)
 }
 
 func (s *SLVMStorage) GetMediumType() (string, error) {
@@ -314,4 +311,43 @@ func (s *SLVMStorage) Accessible() error {
 
 func (s *SLVMStorage) Detach() error {
 	return nil
+}
+
+/**************************** Shared lvm storage ****************************/
+
+func init() {
+	registerStorageFactory(&SSharedLVMStorageFactory{})
+}
+
+type SSharedLVMStorageFactory struct {
+}
+
+func (factory *SSharedLVMStorageFactory) NewStorage(manager *SStorageManager, mountPoint string) IStorage {
+	return NewSharedLVMStorage(manager, mountPoint)
+}
+
+func (factory *SSharedLVMStorageFactory) StorageType() string {
+	return api.STORAGE_GPFS
+}
+
+type SSharedLVMStorage struct {
+	*SLVMStorage
+}
+
+func NewSharedLVMStorage(manager *SStorageManager, vgName string) *SSharedLVMStorage {
+	var ret = new(SSharedLVMStorage)
+	ret.SLVMStorage = NewLVMStorage(manager, vgName)
+	return ret
+}
+
+func (s *SSharedLVMStorage) newDisk(diskId string) IDisk {
+	return NewGPFSDisk(s, diskId)
+}
+
+func (s *SSharedLVMStorage) StorageType() string {
+	return api.STORAGE_SHARED_LVM
+}
+
+func (s *SSharedLVMStorage) IsLocal() bool {
+	return false
 }

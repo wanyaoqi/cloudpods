@@ -91,8 +91,8 @@ func NewStorageManager(host hostutils.IHost) (*SStorageManager, error) {
 		}
 	}
 
-	for i, d := range options.HostOptions.LVMVolumeGroups {
-		s := NewLVMStorage(ret, d, i)
+	for _, d := range options.HostOptions.LVMVolumeGroups {
+		s := NewLVMStorage(ret, d)
 		if err := s.Accessible(); err == nil {
 			ret.Storages = append(ret.Storages, s)
 			if allFull && s.GetFreeSizeMb() > MINIMAL_FREE_SPACE {

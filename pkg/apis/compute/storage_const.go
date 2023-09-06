@@ -21,19 +21,20 @@ import (
 )
 
 const (
-	STORAGE_LOCAL     = compute.STORAGE_LOCAL
-	STORAGE_BAREMETAL = "baremetal"
-	STORAGE_SHEEPDOG  = "sheepdog"
-	STORAGE_RBD       = compute.STORAGE_RBD
-	STORAGE_DOCKER    = "docker"
-	STORAGE_NAS       = compute.STORAGE_NAS
-	STORAGE_VSAN      = "vsan"
-	STORAGE_NFS       = compute.STORAGE_NFS
-	STORAGE_GPFS      = "gpfs"
-	STORAGE_CIFS      = compute.STORAGE_CIFS
-	STORAGE_NVME_PT   = "nvme_pt" // nvme passthrough
-	STORAGE_NVME      = "nvme"    // nvme sriov
-	STORAGE_LVM       = "lvm"
+	STORAGE_LOCAL      = compute.STORAGE_LOCAL
+	STORAGE_BAREMETAL  = "baremetal"
+	STORAGE_SHEEPDOG   = "sheepdog"
+	STORAGE_RBD        = compute.STORAGE_RBD
+	STORAGE_DOCKER     = "docker"
+	STORAGE_NAS        = compute.STORAGE_NAS
+	STORAGE_VSAN       = "vsan"
+	STORAGE_NFS        = compute.STORAGE_NFS
+	STORAGE_GPFS       = "gpfs"
+	STORAGE_CIFS       = compute.STORAGE_CIFS
+	STORAGE_NVME_PT    = "nvme_pt" // nvme passthrough
+	STORAGE_NVME       = "nvme"    // nvme sriov
+	STORAGE_LVM        = "lvm"
+	STORAGE_SHARED_LVM = "shared_lvm"
 
 	STORAGE_PUBLIC_CLOUD     = compute.STORAGE_PUBLIC_CLOUD
 	STORAGE_CLOUD_EFFICIENCY = compute.STORAGE_CLOUD_EFFICIENCY
