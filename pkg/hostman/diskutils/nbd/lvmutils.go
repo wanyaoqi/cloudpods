@@ -226,8 +226,8 @@ func (p *SKVMGuestLVMPartition) UmountPartitions() error {
 				log.Errorf("failed umount part %s: %s", partPath, out)
 			}
 		}
+		return nil
 	}
-
 	if !os.IsNotExist(err) {
 		return errors.Errorf("unable to readir /dev/%s: %v", p.vgname, err)
 	}
@@ -273,7 +273,7 @@ func (p *SKVMGuestLVMPartition) lvs() ([]string, error) {
 
 func (p *SKVMGuestLVMPartition) PutdownDevice() bool {
 	var deactivate = false
-	for i := 0; i < 10; i++ {
+	for {
 		if !p.vgActivate(false) {
 			log.Errorf("failed deactivate %s", p.vgname)
 			if err := p.UmountPartitions(); err != nil {

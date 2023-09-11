@@ -201,6 +201,7 @@ func (d *NBDDriver) Disconnect() error {
 			defer lock.Unlock()
 		}
 		if !d.putdownLVMs() {
+			log.Errorf("failed putdown lvm devices %s", d.nbdDev)
 			return fmt.Errorf("failed putdown lvm devices %s", d.nbdDev)
 		}
 		return d.disconnect()

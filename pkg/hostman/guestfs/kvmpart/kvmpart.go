@@ -260,7 +260,7 @@ func (p *SKVMGuestDiskPartition) Umount() error {
 	var tries = 0
 	var err error
 	var out []byte
-	for tries < 10 {
+	for tries < 100 {
 		tries += 1
 		log.Infof("umount %s: %s", p.partDev, p.mountPath)
 		out, err = procutils.NewCommand("umount", p.mountPath).Output()
@@ -275,7 +275,11 @@ func (p *SKVMGuestDiskPartition) Umount() error {
 			return nil
 		} else {
 			log.Warningf("failed umount %s: %s %s", p.partDev, err, out)
-			time.Sleep(time.Second * 1)
+			out, efuser := procutils.NewCommand("fuser", "-muv", p.partDev).Output()
+			log.Warningf("fuser %s: out: %s, err: %s", p.partDev, out, efuser)
+			out, ell := procutils.NewCommand("ls", "-l", fmt.Sprintf("/proc/%d/fd/", os.Getpid())).Output()
+			log.Warningf("ll proc: out: %s, err: %s", out, ell)
+			time.Sleep(time.Second * 3)
 		}
 	}
 	return errors.Wrapf(err, "umount %s", p.mountPath)
