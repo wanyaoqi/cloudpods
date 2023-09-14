@@ -17,7 +17,6 @@ package models
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -965,15 +964,7 @@ func (self *SGuest) startSyncTask(ctx context.Context, userCred mcclient.TokenCr
 }
 
 func (self *SGuest) StartSyncTask(ctx context.Context, userCred mcclient.TokenCredential, firewallOnly bool, parentTaskId string) error {
-
-	data := jsonutils.NewDict()
-	if firewallOnly {
-		data.Add(jsonutils.JSONTrue, "fw_only")
-	} else if err := self.SetStatus(userCred, api.VM_SYNC_CONFIG, ""); err != nil {
-		log.Errorln(err)
-		return err
-	}
-	return self.doSyncTask(ctx, data, userCred, parentTaskId)
+	return self.startSyncTask(ctx, userCred, firewallOnly, parentTaskId, jsonutils.NewDict())
 }
 
 func (self *SGuest) StartSyncTaskWithoutSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, fwOnly bool, parentTaskId string) error {
@@ -2416,12 +2407,7 @@ func (self *SGuest) PerformChangeIpaddr(ctx context.Context, userCred mcclient.T
 		}
 		self.SetStatus(userCred, api.VM_RESTART_NETWORK, "restart network")
 	}
-	return nil, self.startSyncTask(ctx, userCred, true, "", taskData)
-}
-
-func (self *SGuest) PerformQgaStatus(ctx context.Context, userCred mcclient.TokenCredential) (jsonutils.JSONObject, error) {
-	//Judging the status based on the execution of the guest-info command
-	return self.PerformQgaPing(ctx, userCred, nil, nil)
+	return nil, self.startSyncTask(ctx, userCred, false, "", taskData)
 }
 
 func (self *SGuest) GetIfNameByMac(ctx context.Context, userCred mcclient.TokenCredential, mac string) (string, error) {
@@ -2432,7 +2418,7 @@ func (self *SGuest) GetIfNameByMac(ctx context.Context, userCred mcclient.TokenC
 	}
 	//Get the name of the network card
 	var parsedData []api.IfnameDetail
-	if err := json.Unmarshal([]byte(ifnameData.String()), &parsedData); err != nil {
+	if err := ifnameData.Unmarshal(&parsedData); err != nil {
 		return "", err
 	}
 	var ifnameDevice string
