@@ -37,14 +37,11 @@ import (
 
 type SLVMStorage struct {
 	SBaseStorage
-
-	Index int
 }
 
-func NewLVMStorage(manager *SStorageManager, vgName string, index int) *SLVMStorage {
+func NewLVMStorage(manager *SStorageManager, vgName string) *SLVMStorage {
 	var ret = new(SLVMStorage)
 	ret.SBaseStorage = *NewBaseStorage(manager, vgName)
-	ret.Index = index
 	return ret
 }
 
@@ -57,7 +54,7 @@ func (s *SLVMStorage) IsLocal() bool {
 }
 
 func (s *SLVMStorage) GetComposedName() string {
-	return fmt.Sprintf("host_%s_%s_storage_%d", s.Manager.host.GetMasterIp(), s.StorageType(), s.Index)
+	return fmt.Sprintf("host_%s_%s_storage_%s", s.Manager.host.GetMasterIp(), s.StorageType(), s.Path)
 }
 
 func (s *SLVMStorage) GetMediumType() (string, error) {
@@ -86,7 +83,7 @@ func (s *SLVMStorage) getAvailSizeMb() (int64, error) {
 		return -1, err
 	}
 
-	log.Infof("LVM Storage %s sizeMb %d", s.GetPath(), vgProps.VgSize/1024/1024)
+	log.Debugf("LVM Storage %s sizeMb %d", s.GetPath(), vgProps.VgSize/1024/1024)
 	return vgProps.VgSize / 1024 / 1024, nil
 }
 
@@ -323,9 +320,94 @@ func (s *SLVMStorage) GetImgsaveBackupPath() string {
 }
 
 func (s *SLVMStorage) Accessible() error {
+	out, err := procutils.NewRemoteCommandAsFarAsPossible("pvscan", "--cache").Output()
+	if err != nil {
+		return errors.Wrapf(err, "pvscan --cache failed %s", out)
+	}
+	if err := lvmutils.VgDisplay(s.Path); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (s *SLVMStorage) Detach() error {
+	return nil
+}
+
+/**************************** Shared lvm storage ****************************/
+
+func init() {
+	registerStorageFactory(&SCLVMStorageFactory{})
+}
+
+type SCLVMStorageFactory struct {
+}
+
+func (factory *SCLVMStorageFactory) NewStorage(manager *SStorageManager, mountPoint string) IStorage {
+	return NewCLVMStorage(manager, mountPoint)
+}
+
+func (factory *SCLVMStorageFactory) StorageType() string {
+	return api.STORAGE_CLVM
+}
+
+type SCLVMStorage struct {
+	*SLVMStorage
+}
+
+func NewCLVMStorage(manager *SStorageManager, vgName string) *SCLVMStorage {
+	var ret = new(SCLVMStorage)
+	ret.SLVMStorage = NewLVMStorage(manager, vgName)
+	return ret
+}
+
+func (s *SCLVMStorage) newDisk(diskId string) IDisk {
+	return NewCLVMDisk(s, diskId)
+}
+
+func (s *SCLVMStorage) StorageType() string {
+	return api.STORAGE_CLVM
+}
+
+func (s *SCLVMStorage) IsLocal() bool {
+	return false
+}
+
+func (s *SCLVMStorage) GetDiskById(diskId string) (IDisk, error) {
+	s.DiskLock.Lock()
+	defer s.DiskLock.Unlock()
+	for i := 0; i < len(s.Disks); i++ {
+		if s.Disks[i].GetId() == diskId {
+			err := s.Disks[i].Probe()
+			if err != nil {
+				return nil, errors.Wrapf(err, "disk.Probe")
+			}
+			return s.Disks[i], nil
+		}
+	}
+
+	out, err := procutils.NewRemoteCommandAsFarAsPossible("pvscan", "--cache").Output()
+	if err != nil {
+		return nil, errors.Wrapf(err, "pvscan --cache failed %s", out)
+	}
+
+	var disk = NewCLVMDisk(s, diskId)
+	if disk.Probe() == nil {
+		s.Disks = append(s.Disks, disk)
+		return disk, nil
+	}
+	return nil, errors.ErrNotFound
+}
+
+func (s *SCLVMStorage) SetStorageInfo(storageId, storageName string, conf jsonutils.JSONObject) error {
+	s.StorageId = storageId
+	s.StorageName = storageName
+	if dconf, ok := conf.(*jsonutils.JSONDict); ok {
+		s.StorageConf = dconf
+	}
+
+	if err := s.Accessible(); err != nil {
+		return err
+	}
 	return nil
 }

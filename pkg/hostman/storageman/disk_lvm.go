@@ -46,6 +46,10 @@ func (d *SLVMDisk) GetSnapshotDir() string {
 	return ""
 }
 
+func (d *SLVMDisk) GetType() string {
+	return api.STORAGE_LVM
+}
+
 // /dev/<vg>/<lvm>
 func (d *SLVMDisk) GetLvPath() string {
 	return path.Join("/dev", d.Storage.GetPath(), d.Id)
@@ -335,5 +339,19 @@ func (d *SLVMDisk) createFromTemplate(
 func NewLVMDisk(storage IStorage, id string) *SLVMDisk {
 	return &SLVMDisk{
 		SBaseDisk: *NewBaseDisk(storage, id),
+	}
+}
+
+type SCLVMDisk struct {
+	*SLVMDisk
+}
+
+func (d *SCLVMDisk) GetType() string {
+	return api.STORAGE_CLVM
+}
+
+func NewCLVMDisk(storage IStorage, id string) *SCLVMDisk {
+	return &SCLVMDisk{
+		SLVMDisk: NewLVMDisk(storage, id),
 	}
 }
