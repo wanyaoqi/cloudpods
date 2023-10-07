@@ -459,6 +459,8 @@ func (qga *QemuGuestAgent) QgaSetNetwork(qgaNetMod *monitor.NetworkModify) error
 	}
 }
 
+func (qga *QemuGuestAgent) QgaSetLinuxHostname()
+
 /*
 # @username: the user account whose password to change
 # @password: the new password entry string, base64 encoded
