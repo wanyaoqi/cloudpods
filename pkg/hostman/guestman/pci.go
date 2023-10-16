@@ -673,11 +673,35 @@ func (s *SKVMGuestInstance) ensurePciAddresses() error {
 			if err != nil {
 				return errors.Wrapf(err, "ensure nic %s pci address", s.Desc.Nics[i].Ifname)
 			}
+		} else if s.Desc.Nics[i].Driver == "vfio-pci" {
+			var j = 0
+			for ; j < len(s.Desc.IsolatedDevices); j++ {
+				if s.Desc.Nics[i].Index == s.Desc.IsolatedDevices[j].NetworkIndex {
+					break
+				}
+			}
+			if j >= len(s.Desc.IsolatedDevices) {
+				return errors.Errorf("failed find isolated device for nic index %d", s.Desc.Nics[i].Index)
+			}
+			if len(s.Desc.IsolatedDevices[j].VfioDevs) != 1 {
+				return errors.Errorf("nic %d isolated device found multi function", s.Desc.Nics[i].Index)
+			}
+			multiFunc := false
+			err = s.ensureDevicePciAddress(s.Desc.IsolatedDevices[j].VfioDevs[0].PCIDevice, 0, &multiFunc)
+			if err != nil {
+				return errors.Wrapf(err, "ensure isolated device %s pci address", s.Desc.IsolatedDevices[j].VfioDevs[0].PCIAddr)
+			}
 		}
 	}
 
 	for i := 0; i < len(s.Desc.IsolatedDevices); i++ {
 		if len(s.Desc.IsolatedDevices[i].VfioDevs) > 0 {
+			if s.Desc.IsolatedDevices[i].DevType == api.NIC_TYPE &&
+				s.Desc.IsolatedDevices[i].VfioDevs[0].PCIAddr != nil {
+				// Nic address already initialized on ensure guest network pci addresses
+				continue
+			}
+
 			multiFunc := len(s.Desc.IsolatedDevices[i].VfioDevs) > 1
 			err = s.ensureDevicePciAddress(s.Desc.IsolatedDevices[i].VfioDevs[0].PCIDevice, 0, &multiFunc)
 			if err != nil {
