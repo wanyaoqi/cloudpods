@@ -318,6 +318,30 @@ func (s *SKVMGuestInstance) initGuestNetworks(pciRoot, pciBridge *desc.PCIContro
 			case "vmxnet3":
 				s.Desc.Nics[i].Pci = desc.NewPCIDevice(cont.CType, "vmxnet3", id)
 			}
+		} else {
+			j := 0
+			for ; j < len(s.Desc.IsolatedDevices); j++ {
+				if s.Desc.Nics[i].Index == s.Desc.IsolatedDevices[j].NetworkIndex {
+					break
+				}
+			}
+			if j >= len(s.Desc.IsolatedDevices) {
+				return errors.Errorf("failed found isolated device for nic index %s", s.Desc.Nics[i].Index)
+			}
+
+			cType := s.getVfioDeviceHotPlugPciControllerType()
+			if cType == nil {
+				cType = &pciRoot.CType
+				if pciBridge != nil {
+					cType = &pciBridge.CType
+				}
+			}
+
+			manager := s.manager.GetHost().GetIsolatedDeviceManager()
+			dev := manager.GetDeviceByAddr(s.Desc.IsolatedDevices[j].Addr)
+			s.Desc.IsolatedDevices[j].VfioDevs = make([]*desc.VFIODevice, 0)
+			vfioDev := desc.NewVfioDevice(*cType, "vfio-pci", dev.GetQemuId(), dev.GetAddr(), false)
+			s.Desc.IsolatedDevices[j].VfioDevs = append(s.Desc.IsolatedDevices[j].VfioDevs, vfioDev)
 		}
 	}
 	return nil
@@ -334,6 +358,11 @@ func (s *SKVMGuestInstance) initIsolatedDevices(pciRoot, pciBridge *desc.PCICont
 
 	manager := s.manager.GetHost().GetIsolatedDeviceManager()
 	for i := 0; i < len(s.Desc.IsolatedDevices); i++ {
+		if s.Desc.IsolatedDevices[i].DevType == api.NIC_TYPE && len(s.Desc.IsolatedDevices[i].VfioDevs) > 0 {
+			// Already initialized in guest networks init
+			continue
+		}
+
 		dev := manager.GetDeviceByAddr(s.Desc.IsolatedDevices[i].Addr)
 		if s.Desc.IsolatedDevices[i].DevType == api.USB_TYPE {
 			s.Desc.IsolatedDevices[i].Usb = desc.NewUsbDevice("usb-host", dev.GetQemuId())
