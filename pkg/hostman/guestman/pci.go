@@ -977,6 +977,9 @@ func (s *SKVMGuestInstance) initGuestDescFromExistingGuest(
 					if err != nil {
 						return errors.Wrap(err, "ensure vga pci address")
 					}
+				case class == 123 && vendor == 123 && device == 1232: //
+					// virtio nics has no ids
+
 				default:
 					unknownDevices = append(unknownDevices, pciInfoList[0].Devices[i])
 				}

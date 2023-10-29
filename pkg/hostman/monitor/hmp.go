@@ -603,6 +603,37 @@ func (m *HmpMonitor) GetScsiNumQueues(callback func(int64)) {
 	m.Query("info qtree", cb)
 }
 
+func getDriverNumQueues(output, diskDriver string) int64 {
+	var lines = strings.Split(strings.TrimSuffix(output, "\r\n"), "\r\n")
+	for i, line := range lines {
+		line := strings.TrimSpace(line)
+		if strings.HasPrefix(line, "dev: virtio-scsi-device") {
+			if len(lines) <= i+1 {
+				log.Errorf("failed parse num queues")
+				return -1
+			}
+			line = strings.TrimSpace(lines[i+1])
+			segs := strings.Split(line, " ")
+			numQueue, err := strconv.ParseInt(segs[2], 10, 0)
+			if err != nil {
+				log.Errorf("failed parse num queue %s", err)
+				return -1
+			} else {
+				return numQueue
+			}
+		}
+	}
+	return -1
+}
+
+func (m *HmpMonitor) GetDiskDriverNumQueues(callback func(int64), diskDriver string) {
+	cb := func(output string) {
+		numQueues := getDriverNumQueues(output, diskDriver)
+		callback(numQueues)
+	}
+	m.Query("info qtree", cb)
+}
+
 func (m *HmpMonitor) GetHotPluggableCpus(callback HotpluggableCPUListCallback) {
 	go callback(nil, "unsupported get hotpluggable cpu list for hmp")
 }

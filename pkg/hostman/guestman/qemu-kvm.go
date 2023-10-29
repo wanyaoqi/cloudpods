@@ -1097,10 +1097,17 @@ func (s *SKVMGuestInstance) collectGuestDescription() error {
 		return errors.Wrap(err, "query mem devs")
 	}
 	scsiNumQueues := s.getScsiNumQueues()
+	for i := range s.Desc.Disks {
+		if s.Desc.Disks[i].Driver == "virtio" {
+			s.Desc.Disks[i].NumQueues = s.getDiskDriverNumQueues()
+		}
+	}
+
 	err = s.initGuestDescFromExistingGuest(cpuList, pciInfoList, memoryDevicesInfoList, memDevs, scsiNumQueues)
 	if err != nil {
 		return errors.Wrap(err, "failed init guest devices")
 	}
+
 	if err := s.SaveLiveDesc(s.Desc); err != nil {
 		return errors.Wrap(err, "failed save live desc")
 	}
@@ -1124,6 +1131,15 @@ func (s *SKVMGuestInstance) getHotpluggableCPUList() ([]monitor.HotpluggableCPU,
 }
 
 func (s *SKVMGuestInstance) getScsiNumQueues() int64 {
+	var numQueueChan = make(chan int64)
+	cb := func(numQueues int64) {
+		numQueueChan <- numQueues
+	}
+	s.Monitor.GetScsiNumQueues(cb)
+	return <-numQueueChan
+}
+
+func (s *SKVMGuestInstance) getDiskDriverNumQueues() int64 {
 	var numQueueChan = make(chan int64)
 	cb := func(numQueues int64) {
 		numQueueChan <- numQueues
