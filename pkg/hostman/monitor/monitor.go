@@ -282,7 +282,7 @@ type QueryPciCallback func(pciInfoList []PCIInfo, err string)
 
 type Monitor interface {
 	Connect(host string, port int) error
-	ConnectWithSocket(address string) error
+	ConnectWithSocket(address string, timeout time.Duration) error
 	Disconnect()
 	IsConnected() bool
 
@@ -395,6 +395,12 @@ func (m *SBaseMonitor) onConnectSuccess(conn net.Conn) {
 	conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 	// set rwc hand
 	m.rwc = conn
+}
+
+func (m *SBaseMonitor) SetReadDeadlineTimeout(duration time.Duration) {
+	if m.rwc != nil {
+		m.rwc.SetReadDeadline(time.Now().Add(duration))
+	}
 }
 
 func (m *SBaseMonitor) Connect(host string, port int) error {

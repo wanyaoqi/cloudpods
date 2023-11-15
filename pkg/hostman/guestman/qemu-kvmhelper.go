@@ -606,6 +606,20 @@ eval $CMD`
 	return cmd, nil
 }
 
+func (s *SKVMGuestInstance) getRescueInitrdPath() string {
+	if s.manager.GetHost().IsAarch64() {
+		return path.Join(s.GetRescueDirPath(), api.GUEST_RESCUE_INITRAMFS_ARM64)
+	}
+	return path.Join(s.GetRescueDirPath(), api.GUEST_RESCUE_INITRAMFS)
+}
+
+func (s *SKVMGuestInstance) getRescueKernelPath() string {
+	if s.manager.GetHost().IsAarch64() {
+		return path.Join(s.GetRescueDirPath(), api.GUEST_RESCUE_KERNEL_ARM64)
+	}
+	return path.Join(s.GetRescueDirPath(), api.GUEST_RESCUE_KERNEL)
+}
+
 func (s *SKVMGuestInstance) slaveDiskPrepare(input *qemu.GenerateStartOptionsInput, diskUri string) error {
 	for i := 0; i < len(input.Disks); i++ {
 		diskPath := input.Disks[i].Path

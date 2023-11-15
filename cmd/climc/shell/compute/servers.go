@@ -950,6 +950,7 @@ func init() {
 		}
 		return nil
 	})
+<<<<<<< HEAD
 
 	R(&options.ServerConvertToKvmOptions{}, "server-convert-to-kvm", "Convert esxi server to kvm", func(s *mcclient.ClientSession, opts *options.ServerConvertToKvmOptions) error {
 		params := jsonutils.Marshal(opts)
@@ -962,4 +963,6 @@ func init() {
 		printObject(result)
 		return nil
 	})
+=======
+>>>>>>> feat(host-deployer): use qemu-kvm as default deploy dirver
 }

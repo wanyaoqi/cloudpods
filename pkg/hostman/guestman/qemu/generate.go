@@ -571,3 +571,249 @@ func getMigrateOptions(drvOpt QemuOptions, input *GenerateStartOptionsInput) []s
 	}
 	return opts
 }
+<<<<<<< HEAD
+=======
+
+type GenerateStartOptionsInput struct {
+	QemuVersion Version
+	QemuArch    Arch
+
+	GuestDesc    *desc.SGuestDesc
+	IsKVMSupport bool
+	NicTraffics  map[string]api.SNicTrafficRecord
+
+	EnableUUID       bool
+	OsName           string
+	HugepagesEnabled bool
+	EnableMemfd      bool
+
+	OVNIntegrationBridge string
+	Devices              []string
+	OVMFPath             string
+	VNCPort              uint
+	VNCPassword          bool
+	EnableLog            bool
+	HMPMonitor           *Monitor
+	QMPMonitor           *Monitor
+	IsVdiSpice           bool
+	SpicePort            uint
+	PidFilePath          string
+	HomeDir              string
+	ExtraOptions         []string
+	EnableRNGRandom      bool
+	EnableSerialDevice   bool
+	NeedMigrate          bool
+	LiveMigratePort      uint
+	LiveMigrateUseTLS    bool
+	EnablePvpanic        bool
+
+	EncryptKeyPath string
+
+	RescueInitrdPath string // rescue initramfs path
+	RescueKernelPath string // rescue kernel path
+}
+
+func (input *GenerateStartOptionsInput) HasBootIndex() bool {
+	for _, cdrom := range input.GuestDesc.Cdroms {
+		if cdrom.BootIndex != nil && *cdrom.BootIndex >= 0 {
+			return true
+		}
+	}
+	for _, disk := range input.GuestDesc.Disks {
+		if disk.BootIndex != nil && *disk.BootIndex >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func GenerateStartOptions(
+	input *GenerateStartOptionsInput,
+) (string, error) {
+	drv, ok := GetCommand(input.QemuVersion, input.QemuArch)
+	if !ok {
+		return "", errors.Errorf("Qemu comand driver %s %s not registered", input.QemuVersion, input.QemuArch)
+	}
+	drvOpt := drv.GetOptions()
+
+	opts := make([]string, 0)
+
+	// generate cpu options
+	cpuOpt := generateCPUOption(input.GuestDesc.CpuDesc)
+	opts = append(opts, drvOpt.FreezeCPU(), cpuOpt)
+
+	if input.EnableLog {
+		opts = append(opts, drvOpt.Log(input.EnableLog))
+	}
+
+	// TODO hmp - -
+	opts = append(opts, getMonitorOptions(drvOpt, input.HMPMonitor)...)
+	if input.QMPMonitor != nil {
+		opts = append(opts, getMonitorOptions(drvOpt, input.QMPMonitor)...)
+	}
+
+	if input.GuestDesc.NoHpet != nil && *input.GuestDesc.NoHpet {
+		opts = append(opts, drvOpt.NoHpet())
+	}
+	opts = append(opts,
+		drvOpt.RTC(),
+		// drvOpt.Daemonize(),
+		drvOpt.Nodefaults(),
+		drvOpt.Nodefconfig(),
+		// drvOpt.NoKVMPitReinjection(),
+		drvOpt.Global(),
+		generateMachineOption(input.GuestDesc.Machine, input.GuestDesc.MachineDesc),
+		drvOpt.KeyboardLayoutLanguage("en-us"),
+		generateSMPOption(input.GuestDesc.CpuDesc),
+		drvOpt.Name(input.GuestDesc.Name),
+		drvOpt.UUID(input.EnableUUID, input.GuestDesc.Uuid),
+		generateMemoryOption(input.GuestDesc.MemDesc),
+	)
+
+	// bootOrder
+	enableMenu := false
+	for _, cdrom := range input.GuestDesc.Cdroms {
+		if cdrom.Path != "" {
+			enableMenu = true
+		}
+	}
+
+	// Note that it does not make sense to use the bootindex property together
+	// with the "-boot order=..." (or "-boot once=...") parameter.
+	var bootOrder *string
+	if !input.HasBootIndex() {
+		bootOrder = &input.GuestDesc.BootOrder
+	}
+	opts = append(opts, drvOpt.Boot(bootOrder, enableMenu))
+
+	// bios
+	if input.GuestDesc.Bios == BIOS_UEFI {
+		if input.OVMFPath == "" {
+			return "", errors.Errorf("input OVMF path is empty")
+		}
+		fmOpt, err := drvOpt.BIOS(input.OVMFPath, input.HomeDir)
+		if err != nil {
+			return "", errors.Wrap(err, "bios option")
+		}
+		opts = append(opts, fmOpt)
+	}
+
+	if input.OsName == OS_NAME_MACOS {
+		opts = append(opts, drvOpt.Device("isa-applesmc,osk=ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"))
+	}
+
+	if input.GuestDesc.Vga != "none" && input.GuestDesc.VgaDevice != nil {
+		opts = append(opts, generatePCIDeviceOption(input.GuestDesc.VgaDevice.PCIDevice))
+	}
+
+	// vdi spice
+	if input.IsVdiSpice && input.GuestDesc.VdiDevice != nil && input.GuestDesc.VdiDevice.Spice != nil {
+		opts = append(opts, generateSpiceOptions(input.SpicePort, input.GuestDesc.VdiDevice.Spice)...)
+	} else {
+		opts = append(opts, drvOpt.VNC(input.VNCPort, input.VNCPassword))
+	}
+
+	// iothread object
+	opts = append(opts, drvOpt.Object("iothread", map[string]string{"id": "iothread0"}))
+
+	isEncrypt := false
+	if len(input.EncryptKeyPath) > 0 {
+		opts = append(opts, drvOpt.Object("secret", map[string]string{"id": "sec0", "file": input.EncryptKeyPath, "format": "base64"}))
+		isEncrypt = true
+	}
+
+	if input.GuestDesc.VirtioSerial != nil {
+		opts = append(opts, generatePCIDeviceOption(input.GuestDesc.VirtioSerial.PCIDevice))
+	}
+
+	opts = append(opts, generatePciControllerOptions(input.GuestDesc.PCIControllers)...)
+
+	if input.GuestDesc.VirtioScsi != nil {
+		opts = append(opts, generateScsiOptions(input.GuestDesc.VirtioScsi))
+	} else if input.GuestDesc.PvScsi != nil {
+		opts = append(opts, generatePCIDeviceOption(input.GuestDesc.PvScsi.PCIDevice))
+	}
+
+	// generate initrd and kernel options
+	if input.GuestDesc.LightMode {
+		opts = append(opts, generateInitrdOptions(
+			drvOpt,
+			input.RescueInitrdPath,
+			input.RescueKernelPath,
+		)...)
+	}
+
+	// generate disk options
+	opts = append(opts, generateDisksOptions(
+		drvOpt, input.GuestDesc.Disks, isEncrypt, input.GuestDesc.IsMaster)...)
+
+	// cdrom
+	opts = append(opts, generateCdromOptions(drvOpt, input.GuestDesc.Cdroms)...)
+
+	//floppy
+	opts = append(opts, generateFloppyOptions(drvOpt, input.GuestDesc.Floppys)...)
+
+	// generate nics
+	nicOpts, err := generateNicOptions(drvOpt, input)
+	if err != nil {
+		return "", errors.Wrap(err, "generateNicOptions")
+	}
+	opts = append(opts, nicOpts...)
+
+	if input.QemuArch == Arch_aarch64 {
+		if input.GuestDesc.Usb != nil {
+			opts = append(opts, generatePCIDeviceOption(input.GuestDesc.Usb.PCIDevice))
+			for _, device := range input.Devices {
+				opts = append(opts, drvOpt.Device(device))
+			}
+		}
+	} else {
+		opts = append(opts, drvOpt.USB())
+		for _, device := range input.Devices {
+			opts = append(opts, drvOpt.Device(device))
+		}
+		if input.GuestDesc.Usb != nil {
+			opts = append(opts, generatePCIDeviceOption(input.GuestDesc.Usb.PCIDevice))
+		}
+	}
+
+	// isolated devices
+	if len(input.GuestDesc.IsolatedDevices) > 0 && !input.GuestDesc.LightMode {
+		opts = append(opts, generateIsolatedDeviceOptions(input.GuestDesc)...)
+	}
+
+	// pidfile
+	opts = append(opts, drvOpt.Pidfile(input.PidFilePath))
+
+	// extra options
+	if len(input.ExtraOptions) != 0 {
+		opts = append(opts, input.ExtraOptions...)
+	}
+
+	// qga
+	// opts = append(opts, drvOpt.QGA(input.HomeDir)...)
+	if input.GuestDesc.Qga != nil {
+		opts = append(opts, generateQgaOptions(input.GuestDesc)...)
+	}
+
+	// random device
+	if input.GuestDesc.Rng != nil {
+		opts = append(opts, getRNGRandomOptions(input.GuestDesc.Rng)...)
+	}
+
+	// serial device
+	if input.GuestDesc.IsaSerial != nil {
+		opts = append(opts, generateISASerialOptions(input.GuestDesc.IsaSerial)...)
+	}
+
+	// migrate options
+	opts = append(opts, getMigrateOptions(drvOpt, input)...)
+
+	// pvpanic device
+	if input.GuestDesc.Pvpanic != nil {
+		opts = append(opts, generatePvpanicDeviceOption(input.GuestDesc.Pvpanic))
+	}
+
+	return strings.Join(opts, " "), nil
+}
+>>>>>>> feat(host-deployer): use qemu-kvm as default deploy dirver

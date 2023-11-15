@@ -333,6 +333,7 @@ func (o baseOptions) USB() string {
 	return "-usb"
 }
 
+<<<<<<< HEAD
 func (o baseOptions) VdiSpice(spicePort uint, pciBus string) []string {
 	return []string{
 		o.Device("intel-hda,id=sound0"),
@@ -353,6 +354,14 @@ func (o baseOptions) VdiSpice(spicePort uint, pciBus string) []string {
 		o.Chardev("spicevmc", "usbredirchardev2", "usbredir"),
 		o.Device("usb-redir,chardev=usbredirchardev2,id=usbredirdev2"),
 	}
+=======
+func (o baseOptions) Initrd(initrdPath string) string {
+	return "-initrd " + initrdPath
+}
+
+func (o baseOptions) Kernel(kernelPath string) string {
+	return "-kernel " + kernelPath
+>>>>>>> feat(host-deployer): use qemu-kvm as default deploy dirver
 }
 
 func (o baseOptions) VNC(port uint, usePasswd bool) string {
