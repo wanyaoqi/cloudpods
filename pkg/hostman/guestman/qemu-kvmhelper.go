@@ -405,6 +405,15 @@ func (s *SKVMGuestInstance) generateStartScript(data *jsonutils.JSONDict) (strin
 	cmd += "sleep 1\n"
 	cmd += fmt.Sprintf("echo %d > %s\n", input.VNCPort, s.GetVncFilePath())
 
+	if s.Desc.IsSlave && !jsonutils.QueryBoolean(data, "block_ready", false) {
+		diskUri, err := data.GetString("disk_uri")
+		if err != nil {
+			return "", errors.Wrap(err, "guest start missing disk uri")
+		}
+		if err := s.slaveDiskPrepare(input, diskUri); err != nil {
+			return "", err
+		}
+	}
 	diskScripts, err := s.generateDiskSetupScripts(s.Desc.Disks)
 	if err != nil {
 		return "", errors.Wrap(err, "generateDiskSetupScripts")
@@ -546,16 +555,6 @@ function nic_mtu() {
 	} else if s.Desc.IsSlave {
 		log.Infof("backup guest with dest port %v", s.LiveMigrateDestPort)
 		input.LiveMigratePort = uint(*s.LiveMigrateDestPort)
-	}
-
-	if s.Desc.IsSlave && !jsonutils.QueryBoolean(data, "block_ready", false) {
-		diskUri, err := data.GetString("disk_uri")
-		if err != nil {
-			return "", errors.Wrap(err, "guest start missing disk uri")
-		}
-		if err := s.slaveDiskPrepare(input, diskUri); err != nil {
-			return "", err
-		}
 	}
 
 	qemuOpts, err := qemu.GenerateStartOptions(input)
