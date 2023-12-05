@@ -2933,6 +2933,7 @@ func (self *SGuest) DoPendingDelete(ctx context.Context, userCred mcclient.Token
 		eip.DoPendingDelete(ctx, userCred)
 	}
 
+	models.IsolatedDeviceManager.ReleaseGPUDevicesOfGuest(ctx, guest, self.UserCred)
 	disks, _ := self.GetDisks()
 	for i := range disks {
 		if !disks[i].IsDetachable() {
