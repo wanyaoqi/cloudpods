@@ -79,7 +79,7 @@ func NewStorageManager(host hostutils.IHost) (*SStorageManager, error) {
 				allFull = false
 			}
 		} else {
-			log.Errorf("storage %s not accessible error: %v", s.Path, err)
+			log.Errorf("storage %s not accessible error: %v", s.OriginPath, err)
 		}
 	}
 
@@ -99,7 +99,7 @@ func NewStorageManager(host hostutils.IHost) (*SStorageManager, error) {
 				allFull = false
 			}
 		} else {
-			log.Errorf("lvm storage %s not accessible error: %v", s.Path, err)
+			log.Errorf("lvm storage %s not accessible error: %v", s.OriginPath, err)
 		}
 	}
 

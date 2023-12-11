@@ -72,11 +72,11 @@ func NewLocalStorage(manager *SStorageManager, path string, index int) *SLocalSt
 }
 
 func (s *SLocalStorage) GetFuseTmpPath() string {
-	return path.Join(s.Path, _FUSE_TMP_PATH_)
+	return path.Join(s.GetPath(), _FUSE_TMP_PATH_)
 }
 
 func (s *SLocalStorage) GetFuseMountPath() string {
-	return path.Join(s.Path, _FUSE_MOUNT_PATH_)
+	return path.Join(s.GetPath(), _FUSE_MOUNT_PATH_)
 }
 
 func (s *SLocalStorage) StorageType() string {
@@ -84,7 +84,7 @@ func (s *SLocalStorage) StorageType() string {
 }
 
 func (s *SLocalStorage) GetSnapshotDir() string {
-	return path.Join(s.Path, _SNAPSHOT_PATH_)
+	return path.Join(s.OriginPath(), _SNAPSHOT_PATH_)
 }
 
 func (s *SLocalStorage) GetSnapshotPathByIds(diskId, snapshotId string) string {
@@ -309,22 +309,22 @@ func (s *SLocalStorage) CreateDisk(diskId string) IDisk {
 func (s *SLocalStorage) Accessible() error {
 	var c = make(chan error)
 	go func() {
-		if !fileutils2.Exists(s.Path) {
-			if err := procutils.NewCommand("mkdir", "-p", s.Path).Run(); err != nil {
+		if !fileutils2.Exists(s.OriginPath) {
+			if err := procutils.NewCommand("mkdir", "-p", s.OriginPath).Run(); err != nil {
 				c <- err
 				return
 			}
 		}
-		if !fileutils2.IsDir(s.Path) {
-			c <- fmt.Errorf("path %s isn't directory", s.Path)
+		if !fileutils2.IsDir(s.OriginPath) {
+			c <- fmt.Errorf("path %s isn't directory", s.OriginPath)
 			return
 		}
-		if err := s.BindMountStoragePath(s.Path); err != nil {
+		if err := s.BindMountStoragePath(); err != nil {
 			c <- err
 			return
 		}
-		if !fileutils2.Writable(s.Path) {
-			c <- fmt.Errorf("dir %s not writable", s.Path)
+		if !fileutils2.Writable(s.OriginPath) {
+			c <- fmt.Errorf("dir %s not writable", s.OriginPath)
 			return
 		}
 		c <- nil
@@ -420,7 +420,7 @@ func (s *SLocalStorage) getRecyclePath() string {
 }
 
 func (s *SLocalStorage) getSubdirPath(subdir string) string {
-	spath := path.Join(s.Path, subdir)
+	spath := path.Join(s.GetPath(), subdir)
 	today := timeutils.CompactTime(time.Now())
 	return path.Join(spath, today)
 }

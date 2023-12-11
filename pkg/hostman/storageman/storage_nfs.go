@@ -17,7 +17,6 @@ package storageman
 import (
 	"context"
 	"fmt"
-	"path"
 	"strings"
 	"time"
 
@@ -94,13 +93,13 @@ func (s *SNFSStorage) SetStorageInfo(storageId, storageName string, conf jsonuti
 		s.StorageConf = dconf
 	}
 	if err := s.checkAndMount(); err != nil {
-		return errors.Errorf("Fail to mount storage to mountpoint: %s, %s", s.Path, err)
+		return errors.Errorf("Fail to mount storage to mountpoint: %s, %s", s.OriginPath, err)
 	}
-	return s.BindMountStoragePath(s.Path)
+	return s.BindMountStoragePath()
 }
 
 func (s *SNFSStorage) checkAndMount() error {
-	if err := procutils.NewRemoteCommandAsFarAsPossible("mountpoint", s.Path).Run(); err == nil {
+	if err := procutils.NewRemoteCommandAsFarAsPossible("mountpoint", s.OriginPath).Run(); err == nil {
 		return nil
 	}
 	if s.StorageConf == nil {
@@ -117,7 +116,7 @@ func (s *SNFSStorage) checkAndMount() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err = procutils.NewRemoteCommandContextAsFarAsPossible(ctx,
-		"mount", "-t", "nfs", fmt.Sprintf("%s:%s", host, sharedDir), s.Path).Run()
+		"mount", "-t", "nfs", fmt.Sprintf("%s:%s", host, sharedDir), s.OriginPath).Run()
 	if err != nil {
 		return err
 	}
@@ -125,20 +124,19 @@ func (s *SNFSStorage) checkAndMount() error {
 }
 
 func (s *SNFSStorage) Detach() error {
-	if !strings.HasPrefix(s.Path, "/opt/cloud") {
-		tmpPath := path.Join(TempBindMountPath, s.Path)
-		out, err := procutils.NewCommand("umount", s.Path).Output()
+	if !strings.HasPrefix(s.OriginPath, "/opt/cloud") {
+		out, err := procutils.NewCommand("umount", s.OriginPath).Output()
 		if err != nil {
-			return errors.Wrapf(err, "1. umount %s failed %s", s.Path, out)
+			return errors.Wrapf(err, "1. umount %s failed %s", s.OriginPath, out)
 		}
-		out, err = procutils.NewRemoteCommandAsFarAsPossible("umount", tmpPath).Output()
+		out, err = procutils.NewRemoteCommandAsFarAsPossible("umount", s.BindMountPath).Output()
 		if err != nil {
-			return errors.Wrapf(err, "2. umount %s failed %s", tmpPath, out)
+			return errors.Wrapf(err, "2. umount %s failed %s", s.BindMountPath, out)
 		}
 	}
-	out, err := procutils.NewRemoteCommandAsFarAsPossible("umount", s.Path).Output()
+	out, err := procutils.NewRemoteCommandAsFarAsPossible("umount", s.OriginPath).Output()
 	if err != nil {
-		return errors.Wrapf(err, "3. umount %s failed %s", s.Path, out)
+		return errors.Wrapf(err, "3. umount %s failed %s", s.OriginPath, out)
 	}
 	return nil
 }

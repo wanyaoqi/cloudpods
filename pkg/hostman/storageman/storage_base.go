@@ -151,7 +151,8 @@ type IStorage interface {
 type SBaseStorage struct {
 	Manager          *SStorageManager
 	StorageId        string
-	Path             string
+	OriginPath       string
+	BindMountPath    string
 	StorageName      string
 	StorageConf      *jsonutils.JSONDict
 	StoragecacheId   string
@@ -166,7 +167,7 @@ func NewBaseStorage(manager *SStorageManager, path string) *SBaseStorage {
 	ret.Disks = make([]IDisk, 0)
 	ret.DiskLock = new(sync.Mutex)
 	ret.Manager = manager
-	ret.Path = path
+	ret.OriginPath = path
 	return ret
 }
 
@@ -203,11 +204,14 @@ func (s *SBaseStorage) GetName(generateName func() string) string {
 }
 
 func (s *SBaseStorage) GetPath() string {
-	return s.Path
+	if s.BindMountPath != "" {
+		return s.BindMountPath
+	}
+	return s.OriginPath
 }
 
 func (s *SBaseStorage) SetPath(p string) {
-	s.Path = p
+	s.OriginPath = p
 }
 
 func (s *SBaseStorage) GetZoneId() string {
@@ -227,9 +231,9 @@ func (s *SBaseStorage) GetAvailSizeMb() int {
 }
 
 func (s *SBaseStorage) GetUsedSizeMb() int {
-	size, err := storageutils.GetUsedSizeMb(s.Path)
+	size, err := storageutils.GetUsedSizeMb(s.OriginPath)
 	if err != nil {
-		log.Errorf("failed get %s used size: %s", s.Path, err)
+		log.Errorf("failed get %s used size: %s", s.OriginPath, err)
 		return -1
 	}
 	return size
@@ -240,18 +244,18 @@ func (s *SBaseStorage) GetUsedSizeMb() int {
 }*/
 
 func (s *SBaseStorage) GetFreeSizeMb() int {
-	size, err := storageutils.GetFreeSizeMb(s.Path)
+	size, err := storageutils.GetFreeSizeMb(s.OriginPath)
 	if err != nil {
-		log.Errorf("failed get %s free size: %s", s.Path, err)
+		log.Errorf("failed get %s free size: %s", s.OriginPath, err)
 		return -1
 	}
 	return size
 }
 
 func (s *SBaseStorage) GetTotalSizeMb() int {
-	size, err := storageutils.GetTotalSizeMb(s.Path)
+	size, err := storageutils.GetTotalSizeMb(s.OriginPath)
 	if err != nil {
-		log.Errorf("failed get %s total size: %s", s.Path, err)
+		log.Errorf("failed get %s total size: %s", s.OriginPath, err)
 		return -1
 	}
 	return size
@@ -263,7 +267,7 @@ func (s *SBaseStorage) SetStorageInfo(storageId, storageName string, conf jsonut
 	if dconf, ok := conf.(*jsonutils.JSONDict); ok {
 		s.StorageConf = dconf
 	}
-	s.BindMountStoragePath(s.Path)
+	s.BindMountStoragePath()
 	return nil
 }
 
@@ -276,45 +280,46 @@ func (s *SBaseStorage) SyncStorageSize() (api.SHostStorageStat, error) {
 	return stat, nil
 }
 
-func (s *SBaseStorage) BindMountStoragePath(sPath string) error {
-	if strings.HasPrefix(sPath, "/opt/cloud") {
+func (s *SBaseStorage) BindMountStoragePath() error {
+	if strings.HasPrefix(s.OriginPath, "/opt/cloud") {
 		return nil
 	}
 	if s.isSetStorageInfo || !options.HostOptions.EnableRemoteExecutor {
 		return nil
 	}
 
-	err := s.bindMountTo(sPath)
+	bindMountPath, err := s.bindMountTo(s.OriginPath)
 	if err == nil {
 		s.isSetStorageInfo = true
+		s.BindMountPath = bindMountPath
 	}
 	return err
 }
 
-func (s *SBaseStorage) bindMountTo(sPath string) error {
+func (s *SBaseStorage) bindMountTo(sPath string) (string, error) {
 	tempPath := path.Join(TempBindMountPath, sPath)
 	out, err := procutils.NewCommand("mkdir", "-p", tempPath).Output()
 	if err != nil {
-		return errors.Errorf("mkdir temp mount path %s failed %s", tempPath, out)
+		return "", errors.Errorf("mkdir temp mount path %s failed %s", tempPath, out)
 	}
 	out, err = procutils.NewCommand("mkdir", "-p", sPath).Output()
 	if err != nil {
-		return errors.Errorf("mkdir mount path %s failed %s", sPath, out)
+		return "", errors.Errorf("mkdir mount path %s failed %s", sPath, out)
 	}
 	if procutils.NewCommand("mountpoint", tempPath).Run() != nil {
 		out, err = procutils.NewRemoteCommandAsFarAsPossible("mount", "--bind", sPath, tempPath).Output()
 		if err != nil {
-			return errors.Errorf("bind mount to temp path failed %s", out)
+			return "", errors.Errorf("bind mount to temp path failed %s", out)
 		}
 	}
 	if procutils.NewCommand("mountpoint", sPath).Run() != nil {
 		out, err = procutils.NewCommand("mount", "--bind", tempPath, sPath).Output()
 		if err != nil {
-			return errors.Errorf("bind mount temp path to local image path failed %s", out)
+			return "", errors.Errorf("bind mount temp path to local image path failed %s", out)
 		}
 	}
 	log.Infof("bind mount %s -> %s", tempPath, sPath)
-	return nil
+	return tempPath, nil
 }
 
 func (s *SBaseStorage) RemoveDisk(d IDisk) {
@@ -456,7 +461,7 @@ func (s *SBaseStorage) CloneDiskFromStorage(
 }
 
 func (s *SBaseStorage) GetBackupDir() string {
-	return path.Join(s.Path, _BACKUP_PATH_)
+	return path.Join(s.GetPath(), _BACKUP_PATH_)
 }
 
 func (s *SBaseStorage) CreateDiskFromBackup(ctx context.Context, disk IDisk, input *SDiskCreateByDiskinfo) error {

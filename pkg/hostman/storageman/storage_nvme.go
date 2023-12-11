@@ -172,7 +172,7 @@ func (s *SNVMEStorage) StorageType() string {
 }
 
 func (s *SNVMEStorage) GetComposedName() string {
-	p := strings.ReplaceAll(s.Path, ".", "_")
-	p = strings.ReplaceAll(s.Path, ":", "_")
+	p := strings.ReplaceAll(s.OriginPath, ".", "_")
+	p = strings.ReplaceAll(s.OriginPath, ":", "_")
 	return fmt.Sprintf("host_%s_%s_storage_%s", s.Manager.host.GetMasterIp(), s.StorageType(), p)
 }
