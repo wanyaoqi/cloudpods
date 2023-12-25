@@ -1952,6 +1952,16 @@ func (h *SHostInfo) getNicsOvsOffloadInterfaces(nics []string) ([]isolated_devic
 	}
 
 	res := []isolated_device.HostNic{}
+	for _, nic := range nics {
+		var found = false
+		for i := 0; i < len(h.Nics); i++ {
+			if h.Nics[i].Inter == nic {
+				found = true
+
+			}
+		}
+	}
+
 	for i := 0; i < len(h.Nics); i++ {
 		if utils.IsInStringArray(h.Nics[i].Inter, nics) {
 			if fileutils2.Exists(fmt.Sprintf("/sys/class/net/%s/bonding/slaves", h.Nics[i].Inter)) {
