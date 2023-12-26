@@ -36,6 +36,7 @@ func getSRIOVNics(hostNics []HostNic) ([]*sSRIOVNicDevice, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	nics := []HostNic{}
 	for i := 0; i < len(files); i++ {
 		nicPath, err := filepath.EvalSymlinks(path.Join(sysfsNetDir, files[i].Name()))
@@ -56,6 +57,17 @@ func getSRIOVNics(hostNics []HostNic) ([]*sSRIOVNicDevice, error) {
 	log.Infof("host nics %s detected support sriov nics %v", hostNics, nics)
 	sriovNics := make([]*sSRIOVNicDevice, 0)
 	for i := 0; i < len(nics); i++ {
+		nicType, err := fileutils2.FileGetContents(path.Join(sysfsNetDir, nics[i].Interface, "type"))
+		if err != nil {
+			return nil, errors.Wrap(err, "failed get nic type")
+		}
+		var isInfinibandNic = false
+		if strings.TrimSpace(nicType) == "32" {
+			// include/uapi/linux/if_arp.h
+			// #define ARPHRD_INFINIBAND 32		/* InfiniBand			*/
+			isInfinibandNic = true
+		}
+
 		nicDir := path.Join(sysfsNetDir, nics[i].Interface, "device")
 		err = ensureNumvfsEqualTotalvfs(nicDir)
 		if err != nil {
@@ -80,28 +92,30 @@ func getSRIOVNics(hostNics []HostNic) ([]*sSRIOVNicDevice, error) {
 				if err != nil {
 					return nil, err
 				}
-				sriovNics = append(sriovNics, NewSRIOVNicDevice(vfDev, api.NIC_TYPE, nics[i].Wire, nics[i].Interface, virtfn))
+				sriovNics = append(sriovNics, NewSRIOVNicDevice(vfDev, api.NIC_TYPE, nics[i].Wire, nics[i].Interface, virtfn, isInfinibandNic))
 			}
 		}
 	}
 	return sriovNics, nil
 }
 
-func NewSRIOVNicDevice(dev *PCIDevice, devType, wireId, pfName string, virtfn int) *sSRIOVNicDevice {
+func NewSRIOVNicDevice(dev *PCIDevice, devType, wireId, pfName string, virtfn int, isInfinibandNic bool) *sSRIOVNicDevice {
 	return &sSRIOVNicDevice{
 		sSRIOVBaseDevice: newSRIOVBaseDevice(dev, devType),
 		WireId:           wireId,
 		pfName:           pfName,
 		virtfn:           virtfn,
+		isInfinibandNic:  isInfinibandNic,
 	}
 }
 
 type sSRIOVNicDevice struct {
 	*sSRIOVBaseDevice
 
-	WireId string
-	pfName string
-	virtfn int
+	WireId          string
+	pfName          string
+	virtfn          int
+	isInfinibandNic bool
 }
 
 func (dev *sSRIOVNicDevice) GetPfName() string {
@@ -114,6 +128,10 @@ func (dev *sSRIOVNicDevice) GetVirtfn() int {
 
 func (dev *sSRIOVNicDevice) GetWireId() string {
 	return dev.WireId
+}
+
+func (dev *sSRIOVNicDevice) IsInfinibandNic() bool {
+	return dev.isInfinibandNic
 }
 
 func getOvsOffloadNics(hostNics []HostNic) ([]*sOvsOffloadNicDevice, error) {
@@ -270,7 +288,7 @@ type sOvsOffloadNicDevice struct {
 
 func NewSRIOVOffloadNicDevice(dev *PCIDevice, devType, wireId, pfName string, virtfn int, ifname string) *sOvsOffloadNicDevice {
 	return &sOvsOffloadNicDevice{
-		sSRIOVNicDevice: NewSRIOVNicDevice(dev, devType, wireId, pfName, virtfn),
+		sSRIOVNicDevice: NewSRIOVNicDevice(dev, devType, wireId, pfName, virtfn, false),
 		interfaceName:   ifname,
 	}
 }

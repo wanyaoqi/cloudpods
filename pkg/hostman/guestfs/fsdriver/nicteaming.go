@@ -19,6 +19,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 
+	computeapi "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/cloudcommon/types"
 	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 )
@@ -94,7 +95,12 @@ func convertNicConfigs(nics []*types.SServerNic) ([]*types.SServerNic, []*types.
 		if teamNic == nil {
 			// no teaming nic
 			nnic := nics[i]
-			nnic.Name = fmt.Sprintf("%s%d", netDevPrefix, nnic.Index)
+			if nnic.NicType == computeapi.NIC_TYPE_INFINIBAND {
+				nnic.Name = fmt.Sprintf("%s%d", GetIBNetDevPrefix(), nnic.Index)
+			} else {
+				nnic.Name = fmt.Sprintf("%s%d", netDevPrefix, nnic.Index)
+			}
+
 			allNics = append(allNics, nnic)
 			continue
 		}

@@ -97,6 +97,7 @@ type GuestnetworkBaseDesc struct {
 	Index          int8                 `json:"index"`
 	RxTrafficLimit int64                `json:"rx_traffic_limit"`
 	TxTrafficLimit int64                `json:"tx_traffic_limit"`
+	NicType        string               `json:"nic_type"`
 
 	Bridge    string `json:"bridge"`
 	WireId    string `json:"wire_id"`
@@ -130,8 +131,8 @@ type GuestnetworkJsonDesc struct {
 	// baremetal
 	Rate        int    `json:"rate"`
 	BaremetalId string `json:"baremetal_id"`
-	NicType     string `json:"nic_type"`
-	LinkUp      bool   `json:"link_up"`
+
+	LinkUp bool `json:"link_up"`
 }
 
 type SNicTrafficRecord struct {

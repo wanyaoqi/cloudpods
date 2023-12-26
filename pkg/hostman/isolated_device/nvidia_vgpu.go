@@ -27,6 +27,10 @@ type sNVIDIAVgpuDevice struct {
 	profile map[string]string
 }
 
+func (dev *sNVIDIAVgpuDevice) IsInfinibandNic() bool {
+	return false
+}
+
 func (dev *sNVIDIAVgpuDevice) String() string {
 	return jsonutils.Marshal(dev).String()
 }

@@ -57,8 +57,9 @@ const (
 	HOST_OFFLINE  = compute.HOST_OFFLINE
 	HOST_DISABLED = "offline"
 
-	NIC_TYPE_IPMI  = compute.NIC_TYPE_IPMI
-	NIC_TYPE_ADMIN = compute.NIC_TYPE_ADMIN
+	NIC_TYPE_IPMI       = compute.NIC_TYPE_IPMI
+	NIC_TYPE_ADMIN      = compute.NIC_TYPE_ADMIN
+	NIC_TYPE_INFINIBAND = "infiniband"
 	// #NIC_TYPE_NORMAL = 'normal'
 
 	BAREMETAL_INIT           = "init"

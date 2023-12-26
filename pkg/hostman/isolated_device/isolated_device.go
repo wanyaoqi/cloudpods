@@ -71,6 +71,7 @@ type IDevice interface {
 	SetHostId(hId string)
 	GetGuestId() string
 	GetWireId() string
+	IsInfinibandNic() bool
 	GetOvsOffloadInterfaceName() string
 	GetVendorDeviceId() string
 	GetAddr() string
@@ -507,6 +508,10 @@ func (dev *sBaseDevice) GetOvsOffloadInterfaceName() string {
 	return ""
 }
 
+func (dev *sBaseDevice) IsInfinibandNic() bool {
+	return false
+}
+
 func (dev *sBaseDevice) GetNVMESizeMB() int {
 	return -1
 }
@@ -554,6 +559,9 @@ func GetApiResourceData(dev IDevice) *jsonutils.JSONDict {
 	}
 	if len(dev.GetWireId()) != 0 {
 		data["wire_id"] = dev.GetWireId()
+	}
+	if dev.IsInfinibandNic() {
+		data["is_infiniband_nic"] = true
 	}
 	if len(dev.GetOvsOffloadInterfaceName()) != 0 {
 		data["ovs_offload_interface"] = dev.GetOvsOffloadInterfaceName()
