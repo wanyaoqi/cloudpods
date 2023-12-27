@@ -92,11 +92,9 @@ func (self *GuestQgaSetPasswordTask) OnQgaSetUserPassword(ctx context.Context, g
 	self.GetParams().Unmarshal(input)
 	info := make(map[string]interface{})
 	loginAccount := guest.GetMetadata(ctx, "login_account", self.UserCred)
-	if loginAccount == input.Username || loginAccount == "" {
-		secret, _ := utils.EncryptAESBase64(guest.Id, input.Password)
-		info["login_key"] = secret
-		info["login_key_timestamp"] = timeutils.UtcNow()
-	}
+	secret, _ := utils.EncryptAESBase64(guest.Id, input.Password)
+	info["login_key"] = secret
+	info["login_key_timestamp"] = timeutils.UtcNow()
 	if loginAccount == "" {
 		info["login_account"] = input.Username
 	}
