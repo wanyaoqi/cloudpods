@@ -80,6 +80,7 @@ import (
 const (
 	STATE_FILE_PREFIX             = "STATEFILE"
 	MONITOR_PORT_BASE             = 55900
+	QMPPORT_MINUS_HMPPORT         = 200
 	LIVE_MIGRATE_PORT_BASE        = 4396
 	BUILT_IN_NBD_SERVER_PORT_BASE = 7777
 	MAX_TRY                       = 3
@@ -1545,7 +1546,7 @@ func (s *SKVMGuestInstance) GetQmpMonitorPort(vncPort int) int {
 		vncPort = s.GetVncPort()
 	}
 	if vncPort > 0 {
-		return vncPort + MONITOR_PORT_BASE + 200
+		return vncPort + MONITOR_PORT_BASE + QMPPORT_MINUS_HMPPORT
 	} else {
 		return -1
 	}
