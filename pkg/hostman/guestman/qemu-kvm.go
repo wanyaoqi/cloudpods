@@ -2475,7 +2475,7 @@ func (s *SKVMGuestInstance) setCgroupCPUSet() {
 		log.Errorf("Do CPUSet error: %v", err)
 		return
 	}
-	s.Desc.VcpuPin = []desc.CpuPin{
+	s.Desc.VcpuPin = []desc.SCpuPin{
 		{
 			Vcpus: fmt.Sprintf("0-%d", s.Desc.Cpu-1),
 			Pcpus: cpuset.NewCPUSet(cpus...).String(),

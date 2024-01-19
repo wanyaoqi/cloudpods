@@ -895,10 +895,10 @@ func (s *SKVMGuestInstance) initCpuDesc(cpuMax uint) error {
 	return nil
 }
 
-func (s *SKVMGuestInstance) initMemDesc(memSizeMB int64) {
+func (s *SKVMGuestInstance) initMemDesc(memSizeMB int64) error {
 	s.Desc.MemDesc = s.archMan.GenerateMemDesc()
 	s.Desc.MemDesc.SizeMB = memSizeMB
-	s.initDefaultMemObject(memSizeMB)
+	return s.initGuestMemObjects(memSizeMB)
 }
 
 func (s *SKVMGuestInstance) memObjectType() string {
@@ -911,24 +911,49 @@ func (s *SKVMGuestInstance) memObjectType() string {
 	}
 }
 
+func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
+	if s.Desc.MemNumaPin == nil {
+		s.initDefaultMemObject(memSizeMB)
+		return nil
+	}
+	var numaMems int64
+	for i := 0; i < len(s.Desc.MemNumaPin); i++ {
+		numaMems += s.Desc.MemNumaPin[i].SizeMB
+		memId := "mem"
+		nodeId := uint16(i)
+		if i > 0 {
+			memId += strconv.Itoa(i)
+		}
+		memDesc := desc.NewMemDesc(s.memObjectType(), memId, s.Desc.MemNumaPin[i].HostNodes, &nodeId, vcpus)
+	}
+
+	if numaMems != memSizeMB {
+		return errors.Errorf("numa memory size not equal request mem size")
+	}
+
+	return nil
+}
+
 func (s *SKVMGuestInstance) initDefaultMemObject(memSizeMB int64) {
-	s.Desc.MemDesc.Mem = desc.NewObject(s.memObjectType(), "mem")
+	defaultDesc := desc.NewMemDesc(s.memObjectType(), "mem", nil, nil, nil)
 	if s.manager.host.IsHugepagesEnabled() {
-		s.Desc.MemDesc.Mem.Options = map[string]string{
+		defaultDesc.Options = map[string]string{
 			"mem-path": fmt.Sprintf("/dev/hugepages/%s", s.Desc.Uuid),
 			"size":     fmt.Sprintf("%dM", memSizeMB),
 			"share":    "on", "prealloc": "on",
 		}
 	} else if s.isMemcleanEnabled() {
-		s.Desc.MemDesc.Mem.Options = map[string]string{
+		defaultDesc.Options = map[string]string{
 			"size":  fmt.Sprintf("%dM", memSizeMB),
 			"share": "on", "prealloc": "on",
 		}
 	} else {
-		s.Desc.MemDesc.Mem.Options = map[string]string{
+		defaultDesc.Options = map[string]string{
 			"size": fmt.Sprintf("%dM", memSizeMB),
 		}
 	}
+
+	s.Desc.MemDesc.Mem = desc.NewMemsDesc(defaultDesc, nil)
 }
 
 func (s *SKVMGuestInstance) defaultMemNodeHasObject(memDevs []monitor.Memdev) bool {
