@@ -16,8 +16,12 @@ package guestman
 
 import (
 	"container/heap"
+	"fmt"
+	"path"
 	"sync"
 
+	"github.com/jaypipes/ghw/pkg/topology"
+	"github.com/pkg/errors"
 	"yunion.io/x/cloudmux/pkg/multicloud/esxi/vcenter"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -28,6 +32,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/storageman"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/cgrouputils/cpuset"
+	"yunion.io/x/onecloud/pkg/util/fileutils2"
 )
 
 type SBaseParams struct {
@@ -190,19 +195,22 @@ type SQgaGuestSetPassword struct {
 }
 
 type CpuSetCounter struct {
-	Nodes []*NumaNode
-	Lock  sync.Mutex
+	Nodes       []*NumaNode
+	NumaEnabled bool
+	Lock        sync.Mutex
 }
 
-func NewGuestCpuSetCounter(info *hostapi.HostTopology, reservedCpus *cpuset.CPUSet) *CpuSetCounter {
+func NewGuestCpuSetCounter(info *hostapi.HostTopology, reservedCpus *cpuset.CPUSet, hugepageEnabled bool, hugepageSizeKB int) (*CpuSetCounter, error) {
 	log.Infof("NewGuestCpuSetCounter from topo: %s", jsonutils.Marshal(info))
 	cpuSetCounter := new(CpuSetCounter)
 	cpuSetCounter.Nodes = make([]*NumaNode, len(info.Nodes))
+	cpuSetCounter.NumaEnabled = info.Architecture == topology.ARCHITECTURE_NUMA && hugepageEnabled
 	hasL3Cache := false
 	for i := 0; i < len(info.Nodes); i++ {
-		node := new(NumaNode)
-		node.LogicalProcessors = cpuset.NewCPUSet()
-		node.NodeId = info.Nodes[i].ID
+		node, err := NewNumaNode(info.Nodes[i].ID, info.Architecture, hugepageEnabled, hugepageSizeKB)
+		if err != nil {
+			return nil, err
+		}
 		cpuDies := make([]*CPUDie, 0)
 		for j := 0; j < len(info.Nodes[i].Caches); j++ {
 			if info.Nodes[i].Caches[j].Level != 3 {
@@ -243,11 +251,12 @@ func NewGuestCpuSetCounter(info *hostapi.HostTopology, reservedCpus *cpuset.CPUS
 		node.CpuDies = cpuDies
 		cpuSetCounter.Nodes[i] = node
 	}
+
 	heap.Init(cpuSetCounter)
-	return cpuSetCounter
+	return cpuSetCounter, nil
 }
 
-func (pq *CpuSetCounter) AllocCpuset(vcpuCount int) map[int][]int {
+func (pq *CpuSetCounter) AllocCpuset(vcpuCount int, memSizeMB int) map[int][]int {
 	res := map[int][]int{}
 	sourceVcpuCount := vcpuCount
 	pq.Lock.Lock()
@@ -318,7 +327,14 @@ func (pq *CpuSetCounter) LoadCpus(cpus []int, vcpuCpunt int) {
 func (pq CpuSetCounter) Len() int { return len(pq.Nodes) }
 
 func (pq CpuSetCounter) Less(i, j int) bool {
-	return pq.Nodes[i].VcpuCount < pq.Nodes[j].VcpuCount
+	if pq.NumaEnabled {
+		if pq.Nodes[i].NumaHugeFreeMemSize == pq.Nodes[i].NumaHugeFreeMemSize {
+			return pq.Nodes[i].VcpuCount < pq.Nodes[j].VcpuCount
+		}
+		return pq.Nodes[i].NumaHugeFreeMemSize < pq.Nodes[i].NumaHugeFreeMemSize
+	} else {
+		return pq.Nodes[i].VcpuCount < pq.Nodes[j].VcpuCount
+	}
 }
 
 func (pq CpuSetCounter) Swap(i, j int) {
@@ -343,7 +359,38 @@ type NumaNode struct {
 	LogicalProcessors cpuset.CPUSet
 	VcpuCount         int
 	CpuCount          int
-	NodeId            int
+
+	NodeId              int
+	NumaHugeMemSize     int64
+	NumaHugeFreeMemSize int64
+}
+
+func NewNumaNode(nodeId int, arch topology.Architecture, hugepageEnabled bool, hugepageSizeKB int) (*NumaNode, error) {
+	n := new(NumaNode)
+	n.LogicalProcessors = cpuset.NewCPUSet()
+	n.NodeId = nodeId
+
+	if arch == topology.ARCHITECTURE_NUMA && hugepageEnabled {
+		nodeHugepagePath := fmt.Sprintf("/sys/devices/system/node/node%d/hugepages/hugepages-%dkB", nodeId, hugepageSizeKB)
+		if !fileutils2.Exists(nodeHugepagePath) {
+			return n, nil
+		}
+
+		nrHugepage, err := fileutils2.FileGetIntContent(path.Join(nodeHugepagePath, "nr_hugepages"))
+		if err != nil {
+			log.Errorf("failed get node %d nr hugepage %s", nodeId, err)
+			return nil, errors.Wrap(err, "get numa node nr hugepage")
+		}
+		n.NumaHugeMemSize = int64(nrHugepage) * int64(hugepageSizeKB)
+
+		freeHugepage, err := fileutils2.FileGetIntContent(path.Join(nodeHugepagePath, "free_hugepages"))
+		if err != nil {
+			log.Errorf("failed get node %d free hugepage %s", nodeId, err)
+			return nil, errors.Wrap(err, "get numa node free hugepage")
+		}
+		n.NumaHugeFreeMemSize = int64(freeHugepage) * int64(hugepageSizeKB)
+	}
+	return n, nil
 }
 
 func (n *NumaNode) AllocCpuset(vcpuCount int) []int {

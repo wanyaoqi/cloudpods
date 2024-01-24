@@ -2543,7 +2543,7 @@ func (task *SGuestHotplugCpuMemTask) onGetSlotIndex(index int) {
 	options["id"] = id
 	cb := func(reason string) {
 		if reason == "" {
-			memObj := desc.NewObject(objType, id)
+			memObj := desc.NewMemDesc(objType, id, nil, nil)
 			memObj.Options = options
 			task.memSlot = new(desc.SMemSlot)
 			task.memSlot.MemObj = memObj

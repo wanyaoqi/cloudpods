@@ -148,6 +148,8 @@ type SHost struct {
 	MemCmtbound float32 `nullable:"true" default:"1" list:"domain" update:"domain" create:"domain_optional"`
 	// 页大小
 	PageSizeKB int `nullable:"false" default:"4" list:"domain" update:"domain" create:"domain_optional"`
+	//// 宿主机 NUMA 内存信息
+	//MemNumaInfo jsonutils.JSONObject `nullable:"true" get:"domain" update:"domain" create:"domain_optional"`
 
 	// 存储大小,单位Mb
 	StorageSize int64 `nullable:"true" list:"domain" update:"domain" create:"domain_optional"`

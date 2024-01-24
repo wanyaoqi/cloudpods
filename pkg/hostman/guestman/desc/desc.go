@@ -50,19 +50,17 @@ type SMemDevice struct {
 type SMemSlot struct {
 	SizeMB int64
 
-	MemObj *SMemsDesc
+	MemObj *SMemDesc
 	MemDev *SMemDevice
 }
 
 type SMemNumaPin struct {
 	SizeMB    int64
-	HostNodes []uint16
+	HostNodes []uint16 `json:",omitempty"`
 }
 
 type SMemDesc struct {
 	*Object
-
-	HostNodes []uint16 `json:",omitempty"`
 
 	NodeId *uint16 `json:",omitempty"`
 	Cpus   *string `json:",omitempty"`
@@ -71,7 +69,7 @@ type SMemDesc struct {
 type SMemsDesc struct {
 	*SMemDesc
 
-	Mems []SMemDesc `json:",omitempty"`
+	Mems []*SMemDesc `json:",omitempty"`
 }
 
 type SGuestMem struct {
@@ -93,8 +91,8 @@ type SGuestHardwareDesc struct {
 	// Clock   *SGuestClock `json:",omitempty"`
 
 	Mem        int64
-	MemDesc    *SGuestMem    `json:",omitempty"`
-	MemNumaPin []SMemNumaPin `json:",omitempty"`
+	MemDesc    *SGuestMem     `json:",omitempty"`
+	MemNumaPin []*SMemNumaPin `json:",omitempty"`
 
 	Bios      string
 	BootOrder string

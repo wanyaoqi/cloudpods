@@ -40,6 +40,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/monitor"
 	"yunion.io/x/onecloud/pkg/hostman/options"
 	"yunion.io/x/onecloud/pkg/hostman/storageman"
+	"yunion.io/x/onecloud/pkg/util/cgrouputils/cpuset"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/qemutils"
@@ -892,12 +893,15 @@ func (s *SKVMGuestInstance) initCpuDesc(cpuMax uint) error {
 		return err
 	}
 	s.Desc.CpuDesc = cpuDesc
+
+	//s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem)
 	return nil
 }
 
 func (s *SKVMGuestInstance) initMemDesc(memSizeMB int64) error {
 	s.Desc.MemDesc = s.archMan.GenerateMemDesc()
 	s.Desc.MemDesc.SizeMB = memSizeMB
+
 	return s.initGuestMemObjects(memSizeMB)
 }
 
@@ -916,7 +920,10 @@ func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
 		s.initDefaultMemObject(memSizeMB)
 		return nil
 	}
+
 	var numaMems int64
+	var numaCpus = int(s.Desc.CpuDesc.MaxCpus) / len(s.Desc.MemNumaPin)
+	var mems = make([]*desc.SMemDesc, len(s.Desc.MemNumaPin))
 	for i := 0; i < len(s.Desc.MemNumaPin); i++ {
 		numaMems += s.Desc.MemNumaPin[i].SizeMB
 		memId := "mem"
@@ -924,35 +931,51 @@ func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
 		if i > 0 {
 			memId += strconv.Itoa(i)
 		}
-		memDesc := desc.NewMemDesc(s.memObjectType(), memId, s.Desc.MemNumaPin[i].HostNodes, &nodeId, vcpus)
+		vcpus := fmt.Sprintf("%d-%d", i*numaCpus, 2*i*numaCpus-1)
+		memDesc := desc.NewMemDesc(s.memObjectType(), memId, &nodeId, &vcpus)
+		memDesc.Options = s.getMemObjectOptions(s.Desc.MemNumaPin[i].SizeMB, s.Desc.Uuid, s.Desc.MemNumaPin[i].HostNodes)
+		mems = append(mems, memDesc)
 	}
 
 	if numaMems != memSizeMB {
 		return errors.Errorf("numa memory size not equal request mem size")
 	}
-
+	s.Desc.MemDesc.Mem = desc.NewMemsDesc(mems[0], mems[1:])
 	return nil
 }
 
-func (s *SKVMGuestInstance) initDefaultMemObject(memSizeMB int64) {
-	defaultDesc := desc.NewMemDesc(s.memObjectType(), "mem", nil, nil, nil)
+func (s *SKVMGuestInstance) getMemObjectOptions(memSizeMB int64, memPathSuffix string, hostNodes []uint16) map[string]string {
+	var opts map[string]string
 	if s.manager.host.IsHugepagesEnabled() {
-		defaultDesc.Options = map[string]string{
-			"mem-path": fmt.Sprintf("/dev/hugepages/%s", s.Desc.Uuid),
+		opts = map[string]string{
+			"mem-path": fmt.Sprintf("/dev/hugepages/%s", memPathSuffix),
 			"size":     fmt.Sprintf("%dM", memSizeMB),
 			"share":    "on", "prealloc": "on",
 		}
+		if hostNodes != nil {
+			hostNodesInt := make([]int, len(hostNodes))
+			for i := range hostNodes {
+				hostNodesInt[i] = int(hostNodes[i])
+			}
+			cpusets := cpuset.NewCPUSet(hostNodesInt...)
+			opts["host-nodes"] = cpusets.String()
+		}
 	} else if s.isMemcleanEnabled() {
-		defaultDesc.Options = map[string]string{
+		opts = map[string]string{
 			"size":  fmt.Sprintf("%dM", memSizeMB),
 			"share": "on", "prealloc": "on",
 		}
 	} else {
-		defaultDesc.Options = map[string]string{
+		opts = map[string]string{
 			"size": fmt.Sprintf("%dM", memSizeMB),
 		}
 	}
+	return opts
+}
 
+func (s *SKVMGuestInstance) initDefaultMemObject(memSizeMB int64) {
+	defaultDesc := desc.NewMemDesc(s.memObjectType(), "mem", nil, nil)
+	defaultDesc.Options = s.getMemObjectOptions(memSizeMB, s.Desc.Uuid, nil)
 	s.Desc.MemDesc.Mem = desc.NewMemsDesc(defaultDesc, nil)
 }
 
@@ -977,7 +1000,7 @@ func (s *SKVMGuestInstance) initMemDescFromMemoryInfo(
 		memSize -= (memoryDevicesInfoList[i].Data.Size / 1024 / 1024)
 		memSlots = append(memSlots, &desc.SMemSlot{
 			SizeMB: memoryDevicesInfoList[i].Data.Size / 1024 / 1024,
-			MemObj: desc.NewObject(s.memObjectType(), path.Base(memoryDevicesInfoList[i].Data.Memdev)),
+			MemObj: desc.NewMemDesc(s.memObjectType(), path.Base(memoryDevicesInfoList[i].Data.Memdev), nil, nil),
 			MemDev: &desc.SMemDevice{
 				Type: "pc-dimm", Id: *memoryDevicesInfoList[i].Data.ID,
 			},

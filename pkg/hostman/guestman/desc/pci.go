@@ -397,18 +397,17 @@ func NewUsbController(masterbus string, port int) *UsbController {
 	return uc
 }
 
-func NewMemDesc(objType, id string, hostNodes []uint16, nodeId *uint16, cpus *string) *SMemDesc {
+func NewMemDesc(objType, id string, nodeId *uint16, cpus *string) *SMemDesc {
 	md := &SMemDesc{
-		Object:    NewObject(objType, id),
-		HostNodes: hostNodes,
-		NodeId:    nodeId,
-		Cpus:      cpus,
+		Object: NewObject(objType, id),
+		NodeId: nodeId,
+		Cpus:   cpus,
 	}
 
 	return md
 }
 
-func NewMemsDesc(defaultDesc *SMemDesc, appendDesc []SMemDesc) *SMemsDesc {
+func NewMemsDesc(defaultDesc *SMemDesc, appendDesc []*SMemDesc) *SMemsDesc {
 	return &SMemsDesc{
 		SMemDesc: defaultDesc,
 		Mems:     appendDesc,

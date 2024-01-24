@@ -101,11 +101,12 @@ type SGuestManager struct {
 	qemuMachineCpuMax map[string]uint
 	qemuMaxMem        int
 
-	cpuSet     *CpuSetCounter
+	cpuSet *CpuSetCounter
+	//numaNodes  *NumaNodes
 	pythonPath string
 }
 
-func NewGuestManager(host hostutils.IHost, serversPath string) *SGuestManager {
+func NewGuestManager(host hostutils.IHost, serversPath string) (*SGuestManager, error) {
 	manager := &SGuestManager{}
 	manager.host = host
 	manager.ServersPath = serversPath
@@ -116,15 +117,22 @@ func NewGuestManager(host hostutils.IHost, serversPath string) *SGuestManager {
 	manager.ServersLock = &sync.Mutex{}
 	manager.TrafficLock = &sync.Mutex{}
 	manager.GuestStartWorker = appsrv.NewWorkerManager("GuestStart", 1, appsrv.DEFAULT_BACKLOG, false)
-	manager.cpuSet = NewGuestCpuSetCounter(host.GetHostTopology(), host.GetReservedCpusInfo())
+	cpuSet, err := NewGuestCpuSetCounter(host.GetHostTopology(), host.GetReservedCpusInfo(), host.IsHugepagesEnabled(), host.HugepageSizeKb())
+	if err != nil {
+		return nil, err
+	}
+	manager.cpuSet = cpuSet
 	// manager.StartCpusetBalancer()
 	manager.LoadExistingGuests()
 	manager.host.StartDHCPServer()
 	manager.dirtyServersChan = make(chan struct{})
 	manager.dirtyServers = make([]*SKVMGuestInstance, 0)
 	manager.qemuMachineCpuMax = make(map[string]uint, 0)
-	procutils.NewCommand("mkdir", "-p", manager.QemuLogDir()).Run()
-	return manager
+	err = procutils.NewCommand("mkdir", "-p", manager.QemuLogDir()).Run()
+	if err != nil {
+		return nil, errors.Wrap(err, "mkdir qemu log dir")
+	}
+	return manager, nil
 }
 
 func (m *SGuestManager) InitQemuMaxCpus(machineCaps []monitor.MachineInfo, kvmMaxCpus uint) {
@@ -1653,12 +1661,17 @@ func Stop() {
 	guestManager.ExitGuestCleanup()
 }
 
-func Init(host hostutils.IHost, serversPath string) {
+func Init(host hostutils.IHost, serversPath string) error {
 	if guestManager == nil {
-		guestManager = NewGuestManager(host, serversPath)
+		manager, err := NewGuestManager(host, serversPath)
+		if err != nil {
+			return err
+		}
+		guestManager = manager
 		types.HealthCheckReactor = guestManager
 		types.GuestDescGetter = guestManager
 	}
+	return nil
 }
 
 func GetGuestManager() *SGuestManager {
