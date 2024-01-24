@@ -2486,7 +2486,7 @@ func (s *SKVMGuestInstance) setCgroupCPUSet() {
 
 func (s *SKVMGuestInstance) allocGuestCpuset() []int {
 	var cpuset = []int{}
-	numaCpus := s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu))
+	numaCpus := s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem*1024)
 	for _, cpus := range numaCpus {
 		cpuset = append(cpuset, cpus...)
 	}

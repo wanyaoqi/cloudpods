@@ -18,6 +18,7 @@ import (
 	"container/heap"
 	"fmt"
 	"path"
+	"sort"
 	"sync"
 
 	"github.com/jaypipes/ghw/pkg/topology"
@@ -256,22 +257,103 @@ func NewGuestCpuSetCounter(info *hostapi.HostTopology, reservedCpus *cpuset.CPUS
 	return cpuSetCounter, nil
 }
 
-func (pq *CpuSetCounter) AllocCpuset(vcpuCount int, memSizeMB int) map[int][]int {
-	res := map[int][]int{}
+type SAllocNumaCpus struct {
+	Cpuset  []int
+	MemSize int64
+
+	Regular bool
+}
+
+func (pq *CpuSetCounter) AllocCpuset(vcpuCount int, memSizeKB int64) map[int]SAllocNumaCpus {
+	res := map[int]SAllocNumaCpus{}
 	sourceVcpuCount := vcpuCount
 	pq.Lock.Lock()
 	defer pq.Lock.Unlock()
-	for vcpuCount > 0 {
-		count := vcpuCount
-		if vcpuCount > pq.Nodes[0].CpuCount {
-			count = vcpuCount/2 + vcpuCount%2
+
+	if pq.NumaEnabled {
+		pq.AllocNumaNodes(vcpuCount, memSizeKB, res)
+		return res
+		//heap.Init(pq)
+	} else {
+		for vcpuCount > 0 {
+			count := vcpuCount
+			if vcpuCount > pq.Nodes[0].CpuCount {
+				count = vcpuCount/2 + vcpuCount%2
+			}
+			res[pq.Nodes[0].NodeId] = SAllocNumaCpus{
+				Cpuset: pq.Nodes[0].AllocCpuset(count),
+				//MemSize: memSizeKB,
+			}
+			pq.Nodes[0].VcpuCount += sourceVcpuCount
+			sort.Sort(pq)
+			//heap.Fix(pq, 0)
+			vcpuCount -= count
 		}
-		res[pq.Nodes[0].NodeId] = pq.Nodes[0].AllocCpuset(count)
-		pq.Nodes[0].VcpuCount += sourceVcpuCount
-		heap.Fix(pq, 0)
-		vcpuCount -= count
 	}
+
 	return res
+}
+
+func (pq *CpuSetCounter) AllocNumaNodes(vcpuCount int, memSizeKB int64, res map[int]SAllocNumaCpus) {
+	var allocated = false
+	for nodeCount := 1; nodeCount <= len(pq.Nodes); nodeCount *= 2 {
+		if ok := pq.nodesFreeMemSizeEnough(nodeCount, memSizeKB); !ok {
+			continue
+		}
+		allocated = true
+		var nodeAllocSize = memSizeKB / int64(nodeCount)
+		var pcpuCount = vcpuCount / nodeCount
+		var remPcpuCount = vcpuCount % nodeCount
+		for i := 0; i < nodeCount; i++ {
+			var npcpuCount = pcpuCount
+			if remPcpuCount > 0 {
+				npcpuCount += 1
+				remPcpuCount -= 1
+			}
+			res[pq.Nodes[i].NodeId] = SAllocNumaCpus{
+				Cpuset:  pq.Nodes[i].AllocCpuset(npcpuCount),
+				MemSize: nodeAllocSize,
+				Regular: true,
+			}
+			pq.Nodes[i].NumaHugeFreeMemSizeKB -= nodeAllocSize
+			pq.Nodes[i].VcpuCount += npcpuCount
+		}
+	}
+
+	if !allocated {
+		for i := range pq.Nodes {
+			allocMem := memSizeKB
+			if allocMem > pq.Nodes[i].NumaHugeFreeMemSizeKB {
+				allocMem = pq.Nodes[i].NumaHugeFreeMemSizeKB
+			}
+
+			var npcpuCount = int(int64(vcpuCount)*allocMem/memSizeKB +
+				(int64(vcpuCount)*allocMem)%memSizeKB)
+			res[pq.Nodes[i].NodeId] = SAllocNumaCpus{
+				Cpuset:  pq.Nodes[i].AllocCpuset(npcpuCount),
+				MemSize: allocMem,
+				Regular: false,
+			}
+
+			memSizeKB -= allocMem
+			vcpuCount -= npcpuCount
+			pq.Nodes[i].NumaHugeFreeMemSizeKB -= allocMem
+			pq.Nodes[i].VcpuCount += npcpuCount
+		}
+	}
+	sort.Sort(pq)
+}
+
+func (pq *CpuSetCounter) nodesFreeMemSizeEnough(nodeCount int, memSizeKB int64) bool {
+	var freeMem int64 = 0
+	var leastFree = memSizeKB / int64(nodeCount)
+	for i := 0; i < nodeCount; i++ {
+		if pq.Nodes[i].NumaHugeFreeMemSizeKB < leastFree {
+			return false
+		}
+		freeMem += pq.Nodes[i].NumaHugeFreeMemSizeKB
+	}
+	return freeMem > memSizeKB
 }
 
 func (pq *CpuSetCounter) ReleaseCpus(cpus []int, vcpuCount int) {
@@ -328,10 +410,10 @@ func (pq CpuSetCounter) Len() int { return len(pq.Nodes) }
 
 func (pq CpuSetCounter) Less(i, j int) bool {
 	if pq.NumaEnabled {
-		if pq.Nodes[i].NumaHugeFreeMemSize == pq.Nodes[i].NumaHugeFreeMemSize {
+		if pq.Nodes[i].NumaHugeFreeMemSizeKB == pq.Nodes[i].NumaHugeFreeMemSizeKB {
 			return pq.Nodes[i].VcpuCount < pq.Nodes[j].VcpuCount
 		}
-		return pq.Nodes[i].NumaHugeFreeMemSize < pq.Nodes[i].NumaHugeFreeMemSize
+		return pq.Nodes[i].NumaHugeFreeMemSizeKB < pq.Nodes[i].NumaHugeFreeMemSizeKB
 	} else {
 		return pq.Nodes[i].VcpuCount < pq.Nodes[j].VcpuCount
 	}
@@ -360,9 +442,9 @@ type NumaNode struct {
 	VcpuCount         int
 	CpuCount          int
 
-	NodeId              int
-	NumaHugeMemSize     int64
-	NumaHugeFreeMemSize int64
+	NodeId                int
+	NumaHugeMemSizeKB     int64
+	NumaHugeFreeMemSizeKB int64
 }
 
 func NewNumaNode(nodeId int, arch topology.Architecture, hugepageEnabled bool, hugepageSizeKB int) (*NumaNode, error) {
@@ -381,14 +463,14 @@ func NewNumaNode(nodeId int, arch topology.Architecture, hugepageEnabled bool, h
 			log.Errorf("failed get node %d nr hugepage %s", nodeId, err)
 			return nil, errors.Wrap(err, "get numa node nr hugepage")
 		}
-		n.NumaHugeMemSize = int64(nrHugepage) * int64(hugepageSizeKB)
+		n.NumaHugeMemSizeKB = int64(nrHugepage) * int64(hugepageSizeKB)
 
 		freeHugepage, err := fileutils2.FileGetIntContent(path.Join(nodeHugepagePath, "free_hugepages"))
 		if err != nil {
 			log.Errorf("failed get node %d free hugepage %s", nodeId, err)
 			return nil, errors.Wrap(err, "get numa node free hugepage")
 		}
-		n.NumaHugeFreeMemSize = int64(freeHugepage) * int64(hugepageSizeKB)
+		n.NumaHugeFreeMemSizeKB = int64(freeHugepage) * int64(hugepageSizeKB)
 	}
 	return n, nil
 }
