@@ -57,13 +57,17 @@ type SMemSlot struct {
 type SMemNumaPin struct {
 	SizeMB    int64
 	HostNodes []uint16 `json:",omitempty"`
+
+	Vcpus *string `json:",omitempty"`
+	Pcpus *string `json:",omitempty"`
 }
 
 type SMemDesc struct {
 	*Object
 
 	NodeId *uint16 `json:",omitempty"`
-	Cpus   *string `json:",omitempty"`
+	// vcpus
+	Cpus *string `json:",omitempty"`
 }
 
 type SMemsDesc struct {

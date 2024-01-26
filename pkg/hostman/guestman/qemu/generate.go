@@ -136,14 +136,24 @@ func generatePciControllerOptions(controllers []*desc.PCIController) []string {
 	return opts
 }
 
-func generateNumaOption(memId string) string {
-	return fmt.Sprintf("-numa node,memdev=%s,nodeid=%d,cpus=%s", memId)
+func generateNumaOption(memId string, nodeId *uint16, cpus *string) string {
+	cmd := fmt.Sprintf("-numa node,memdev=%s", memId)
+	if nodeId != nil {
+		cmd += fmt.Sprintf(",nodeid=%d", *nodeId)
+	}
+	if cpus != nil {
+		cpuSegs := strings.Split(*cpus, ",")
+		for _, cpuSeg := range cpuSegs {
+			cmd += fmt.Sprintf(",cpus=%s", cpuSeg)
+		}
+	}
+	return cmd
 }
 
 func generateMemObjectWithNumaOptions(mem *desc.SMemDesc) string {
 	cmds := []string{}
 	cmds = append(cmds, generateObjectOption(mem.Object))
-	cmds = append(cmds, generateNumaOption(mem.Id))
+	cmds = append(cmds, generateNumaOption(mem.Id, mem.NodeId, mem.Cpus))
 	return strings.Join(cmds, " ")
 }
 

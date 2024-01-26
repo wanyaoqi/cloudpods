@@ -894,7 +894,11 @@ func (s *SKVMGuestInstance) initCpuDesc(cpuMax uint) error {
 	}
 	s.Desc.CpuDesc = cpuDesc
 
-	//s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem)
+	err = s.allocGuestNumaCpuset()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -916,13 +920,14 @@ func (s *SKVMGuestInstance) memObjectType() string {
 }
 
 func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
-	if s.Desc.MemNumaPin == nil {
+	if len(s.Desc.MemNumaPin) == 0 {
 		s.initDefaultMemObject(memSizeMB)
 		return nil
 	}
 
 	var numaMems int64
 	var numaCpus = int(s.Desc.CpuDesc.MaxCpus) / len(s.Desc.MemNumaPin)
+	var leastCpus = int(s.Desc.CpuDesc.MaxCpus) % len(s.Desc.MemNumaPin)
 	var mems = make([]*desc.SMemDesc, len(s.Desc.MemNumaPin))
 	for i := 0; i < len(s.Desc.MemNumaPin); i++ {
 		numaMems += s.Desc.MemNumaPin[i].SizeMB
@@ -931,9 +936,16 @@ func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
 		if i > 0 {
 			memId += strconv.Itoa(i)
 		}
-		vcpus := fmt.Sprintf("%d-%d", i*numaCpus, 2*i*numaCpus-1)
+
+		cpuStart := i * numaCpus
+		cpuEnd := (i+1)*numaCpus - 1
+		if i+1 == len(s.Desc.MemNumaPin) {
+			cpuEnd += leastCpus
+		}
+		vcpus := fmt.Sprintf("%d-%d", cpuStart, cpuEnd)
 		memDesc := desc.NewMemDesc(s.memObjectType(), memId, &nodeId, &vcpus)
 		memDesc.Options = s.getMemObjectOptions(s.Desc.MemNumaPin[i].SizeMB, s.Desc.Uuid, s.Desc.MemNumaPin[i].HostNodes)
+		s.Desc.MemNumaPin[i].Vcpus = &vcpus
 		mems = append(mems, memDesc)
 	}
 

@@ -22,10 +22,11 @@ import (
 	"sync"
 
 	"github.com/jaypipes/ghw/pkg/topology"
-	"github.com/pkg/errors"
+
 	"yunion.io/x/cloudmux/pkg/multicloud/esxi/vcenter"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
@@ -264,16 +265,15 @@ type SAllocNumaCpus struct {
 	Regular bool
 }
 
-func (pq *CpuSetCounter) AllocCpuset(vcpuCount int, memSizeKB int64) map[int]SAllocNumaCpus {
+func (pq *CpuSetCounter) AllocCpuset(vcpuCount int, memSizeKB int64) (map[int]SAllocNumaCpus, error) {
 	res := map[int]SAllocNumaCpus{}
 	sourceVcpuCount := vcpuCount
 	pq.Lock.Lock()
 	defer pq.Lock.Unlock()
 
 	if pq.NumaEnabled {
-		pq.AllocNumaNodes(vcpuCount, memSizeKB, res)
-		return res
-		//heap.Init(pq)
+		err := pq.AllocNumaNodes(vcpuCount, memSizeKB, res)
+		return res, err
 	} else {
 		for vcpuCount > 0 {
 			count := vcpuCount
@@ -282,19 +282,16 @@ func (pq *CpuSetCounter) AllocCpuset(vcpuCount int, memSizeKB int64) map[int]SAl
 			}
 			res[pq.Nodes[0].NodeId] = SAllocNumaCpus{
 				Cpuset: pq.Nodes[0].AllocCpuset(count),
-				//MemSize: memSizeKB,
 			}
 			pq.Nodes[0].VcpuCount += sourceVcpuCount
 			sort.Sort(pq)
-			//heap.Fix(pq, 0)
 			vcpuCount -= count
 		}
+		return res, nil
 	}
-
-	return res
 }
 
-func (pq *CpuSetCounter) AllocNumaNodes(vcpuCount int, memSizeKB int64, res map[int]SAllocNumaCpus) {
+func (pq *CpuSetCounter) AllocNumaNodes(vcpuCount int, memSizeKB int64, res map[int]SAllocNumaCpus) error {
 	var allocated = false
 	for nodeCount := 1; nodeCount <= len(pq.Nodes); nodeCount *= 2 {
 		if ok := pq.nodesFreeMemSizeEnough(nodeCount, memSizeKB); !ok {
@@ -321,6 +318,9 @@ func (pq *CpuSetCounter) AllocNumaNodes(vcpuCount int, memSizeKB int64, res map[
 	}
 
 	if !allocated {
+		if ok := pq.nodesFreeMemSizeEnough(len(pq.Nodes), memSizeKB); !ok {
+			return errors.Errorf("free hugepage is not enough")
+		}
 		for i := range pq.Nodes {
 			allocMem := memSizeKB
 			if allocMem > pq.Nodes[i].NumaHugeFreeMemSizeKB {
@@ -342,6 +342,7 @@ func (pq *CpuSetCounter) AllocNumaNodes(vcpuCount int, memSizeKB int64, res map[
 		}
 	}
 	sort.Sort(pq)
+	return nil
 }
 
 func (pq *CpuSetCounter) nodesFreeMemSizeEnough(nodeCount int, memSizeKB int64) bool {

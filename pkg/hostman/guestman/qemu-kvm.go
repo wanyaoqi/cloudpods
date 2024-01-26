@@ -2454,43 +2454,60 @@ func (s *SKVMGuestInstance) setCgroupCpu() {
 }
 
 func (s *SKVMGuestInstance) setCgroupCPUSet() {
-	var cpus []int
-	if cpuset, ok := s.Desc.Metadata[api.VM_METADATA_CGROUP_CPUSET]; ok {
-		cpusetJson, err := jsonutils.ParseString(cpuset)
-		if err != nil {
-			log.Errorf("failed parse server %s cpuset %s: %s", s.Id, cpuset, err)
-			return
-		}
-		input := new(api.ServerCPUSetInput)
-		err = cpusetJson.Unmarshal(input)
-		if err != nil {
-			log.Errorf("failed unmarshal server %s cpuset %s", s.Id, err)
-			return
-		}
-		cpus = input.CPUS
-	} else {
-		cpus = s.allocGuestCpuset()
-	}
 	if _, err := s.CPUSet(context.Background(), cpus); err != nil {
 		log.Errorf("Do CPUSet error: %v", err)
 		return
 	}
-	s.Desc.VcpuPin = []desc.SCpuPin{
-		{
-			Vcpus: fmt.Sprintf("0-%d", s.Desc.Cpu-1),
-			Pcpus: cpuset.NewCPUSet(cpus...).String(),
-		},
-	}
+
 	s.SaveLiveDesc(s.Desc)
 }
 
-func (s *SKVMGuestInstance) allocGuestCpuset() []int {
-	var cpuset = []int{}
-	numaCpus := s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem*1024)
-	for _, cpus := range numaCpus {
-		cpuset = append(cpuset, cpus...)
+func (s *SKVMGuestInstance) allocGuestNumaCpuset() error {
+	var cpus = make([]int, 0)
+	var memNumaPin = make([]*desc.SMemNumaPin, 0)
+
+	nodeNumaCpus, err := s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem*1024)
+	if err != nil {
+		return nil, err
 	}
-	return cpuset
+	for nodeId, numaCpus := range nodeNumaCpus {
+		if numaCpus.Regular {
+			pcpus := cpuset.NewCPUSet(numaCpus.Cpuset...).String()
+			memPin := &desc.SMemNumaPin{
+				SizeMB:    numaCpus.MemSize / 1024, // MB
+				HostNodes: []uint16{uint16(nodeId)},
+				Pcpus:     pcpus,
+			}
+			memNumaPin = append(memNumaPin, memPin)
+		}
+		cpus = append(cpus, numaCpus.Cpuset...)
+	}
+	if len(memNumaPin) > 0 {
+		s.Desc.MemNumaPin = memNumaPin
+	} else {
+		if scpuset, ok := s.Desc.Metadata[api.VM_METADATA_CGROUP_CPUSET]; ok {
+			cpusetJson, err := jsonutils.ParseString(scpuset)
+			if err != nil {
+				log.Errorf("failed parse server %s cpuset %s: %s", s.Id, scpuset, err)
+				return errors.Errorf("failed parse server %s cpuset %s: %s", s.Id, scpuset, err)
+			}
+			input := new(api.ServerCPUSetInput)
+			err = cpusetJson.Unmarshal(input)
+			if err != nil {
+				log.Errorf("failed unmarshal server %s cpuset %s", s.Id, err)
+				return errors.Errorf("failed unmarshal server %s cpuset %s", s.Id, err)
+			}
+			cpus = input.CPUS
+		}
+
+		s.Desc.VcpuPin = []desc.SCpuPin{
+			{
+				Vcpus: fmt.Sprintf("0-%d", s.Desc.Cpu-1),
+				Pcpus: cpuset.NewCPUSet(cpus...).String(),
+			},
+		}
+	}
+	return nil
 }
 
 func (s *SKVMGuestInstance) CreateFromDesc(desc *desc.SGuestDesc) error {
@@ -2645,9 +2662,38 @@ func (s *SKVMGuestInstance) doBlockIoThrottle() {
 	}
 }
 
+func (s *SKVMGuestInstance) startHotPlugVcpus(vcpuSet []int) error {
+	if len(vcpuSet) == 0 {
+		return nil
+	}
+
+	// skip vcpu 0, added on qemu cmdline -smp 1
+	if vcpuSet[0] == 0 {
+		return s.startHotPlugVcpus(vcpuSet[1:])
+	}
+
+	// var
+	s.Monitor.AddCpu()
+}
+
+func (s *SKVMGuestInstance) hotPlugCpus() error {
+	var vcpuSet = make([]int, 0)
+	for i := range s.Desc.MemNumaPin {
+		vcpus, err := cpuset.Parse(*s.Desc.MemNumaPin[i].Vcpus)
+		if err != nil {
+			return errors.Wrap(err, "parse vcpus")
+		}
+		vcpuSet = append(vcpuSet, vcpus.ToSlice()...)
+	}
+	return s.startHotPlugVcpus(vcpuSet)
+}
+
 func (s *SKVMGuestInstance) onGuestPrelaunch() error {
 	s.LiveMigrateDestPort = nil
 	if !s.Desc.IsSlave {
+		if err := s.hotPlugCpus(); err != nil {
+			return err
+		}
 		if options.HostOptions.SetVncPassword {
 			s.SetVncPassword()
 		}
