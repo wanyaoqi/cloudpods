@@ -2663,17 +2663,26 @@ func (s *SKVMGuestInstance) doBlockIoThrottle() {
 }
 
 func (s *SKVMGuestInstance) startHotPlugVcpus(vcpuSet []int) error {
-	if len(vcpuSet) == 0 {
-		return nil
-	}
+	var c = make(chan error)
 
-	// skip vcpu 0, added on qemu cmdline -smp 1
-	if vcpuSet[0] == 0 {
-		return s.startHotPlugVcpus(vcpuSet[1:])
-	}
+	for i := range vcpuSet {
+		if vcpuSet[i] == 0 {
+			// skip vcpu 0, added on qemu cmdline -smp 1
+			continue
+		}
 
-	// var
-	s.Monitor.AddCpu()
+		s.Monitor.AddCpu(vcpuSet[i], func(res string) {
+			var e error = nil
+			if len(res) > 0 {
+				e = errors.Errorf("failed add cpu %d: %s", cpuSet[i], res)
+			}
+			c <- struct{}{}
+		})
+		if err, _ := <-c; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *SKVMGuestInstance) hotPlugCpus() error {
@@ -3161,14 +3170,22 @@ func (s *SKVMGuestInstance) CPUSet(ctx context.Context, input []int) (*api.Serve
 	if !s.IsRunning() {
 		return nil, nil
 	}
+	cgName := s.GetCgroupName()
+	if cgName == "" {
+		return nil, errors.Errorf("failed get cgroup name")
+	}
 
 	var cpusetStr string
-	if input != nil {
+	if len(s.Desc.MemNumaPin) == 0 {
 		cpus := []string{}
-		for _, id := range input {
-			cpus = append(cpus, fmt.Sprintf("%d", id))
+		for _, vcpuPin := range s.Desc.VcpuPin {
+			cpus = append(cpus, fmt.Sprintf("%d", vcpuPin))
 		}
 		cpusetStr = strings.Join(cpus, ",")
+	} else {
+		for i := range s.Desc.MemNumaPin {
+
+		}
 	}
 
 	task := cgrouputils.NewCGroupCPUSetTask(

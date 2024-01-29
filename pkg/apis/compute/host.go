@@ -498,7 +498,7 @@ type HostUpdateInput struct {
 	// 主机启动模式, 可能值位PXE和ISO
 	BootMode string `json:"boot_mode"`
 
-	EnableNumaAllocate bool `json:"enable_numa_allocate"`
+	EnableNumaAllocate *bool `json:"enable_numa_allocate"`
 }
 
 type HostOfflineInput struct {
