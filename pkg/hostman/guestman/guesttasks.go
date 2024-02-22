@@ -875,6 +875,11 @@ func (s *SGuestLiveMigrateTask) mirrorDisks(res string) {
 	storageType, _ := disks[i].GetString("storage_type")
 	index, _ := disks[i].Int("index")
 	format, _ := disks[i].GetString("format")
+
+	if storageType == "" {
+		storageId, _ := disks[i].GetString("storage_id")
+		storageType = storageman.GetManager().GetStorage(storageId).StorageType()
+	}
 	if utils.IsInStringArray(storageType, api.STORAGE_LOCAL_TYPES) {
 		s.Monitor.DriveMirror(
 			s.mirrorDisks, fmt.Sprintf("drive_%d", index),
