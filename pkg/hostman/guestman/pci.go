@@ -856,7 +856,7 @@ func (s *SKVMGuestInstance) initGuestDescFromExistingGuest(
 					return errors.Wrap(err, "ensure pvscsi pci address")
 				}
 			}
-		case "video0":
+		case "video0", "video1":
 			if s.Desc.VgaDevice == nil {
 				s.initGuestVga(pciRoot)
 			}
