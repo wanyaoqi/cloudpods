@@ -64,10 +64,12 @@ type QemuDeployManager struct {
 	cpuArch         string
 	hugepage        bool
 	hugepageSizeKB  int
-	portsInUse      *sync.Map
 	lastUsedSshPort int
 	qemuCmd         string
 	memSizeMb       int
+
+	portLock   *sync.Mutex
+	portsInUse *sync.Map
 
 	c chan struct{}
 }
@@ -127,6 +129,9 @@ func (m *QemuDeployManager) Release() {
 }
 
 func (m *QemuDeployManager) GetFreePortByBase(basePort int) int {
+	m.portLock.Lock()
+	defer m.portLock.Unlock()
+
 	var port = 1
 	for {
 		if netutils2.IsTcpPortUsed("0.0.0.0", basePort+port) {
@@ -229,6 +234,7 @@ func InitQemuDeployManager(
 			hugepageSizeKB: hugepageSizeKB,
 			memSizeMb:      memSizeMb,
 			portsInUse:     new(sync.Map),
+			portLock:       new(sync.Mutex),
 			c:              make(chan struct{}, deployConcurrent),
 			qemuCmd:        qemuCmd,
 		}
