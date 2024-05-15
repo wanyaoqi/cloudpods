@@ -29,6 +29,7 @@ import (
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 
+	api "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/hostman/guestman/qemu"
@@ -1240,6 +1241,7 @@ type SGuestStreamDisksTask struct {
 
 	c          chan struct{}
 	streamDevs []string
+	lvmBacking []string
 }
 
 func NewGuestStreamDisksTask(ctx context.Context, guest *SKVMGuestInstance, callback func(), disksIdx []int) *SGuestStreamDisksTask {
@@ -1274,6 +1276,7 @@ func (s *SGuestStreamDisksTask) checkBlockDrives() {
 
 func (s *SGuestStreamDisksTask) onBlockDrivesSucc(blocks []monitor.QemuBlock) {
 	s.streamDevs = []string{}
+	s.lvmBacking = []string{}
 	for _, block := range blocks {
 		if len(block.Inserted.File) > 0 && len(block.Inserted.BackingFile) > 0 {
 			var stream = false
@@ -1286,7 +1289,12 @@ func (s *SGuestStreamDisksTask) onBlockDrivesSucc(blocks []monitor.QemuBlock) {
 			if !stream {
 				continue
 			}
+
 			s.streamDevs = append(s.streamDevs, block.Device)
+			disk, err := storageman.GetManager().GetDiskByPath(block.Inserted.File)
+			if err != nil && disk.GetType() == api.STORAGE_SLVM {
+				s.lvmBacking = append(s.lvmBacking, block.Inserted.BackingFile)
+			}
 		}
 	}
 	log.Infof("Stream devices %s: %v", s.GetName(), s.streamDevs)
@@ -1334,7 +1342,14 @@ func (s *SGuestStreamDisksTask) checkStreamJobs(jobs int) {
 	}
 }
 
+func (s *SGuestStreamDisksTask) deactivateLvmBackingFile() {
+	for _, lvPath := range s.lvmBacking {
+		storageman.TryDeactivateBackingLvs(lvPath)
+	}
+}
+
 func (s *SGuestStreamDisksTask) taskComplete() {
+	s.deactivateLvmBackingFile()
 	hostutils.UpdateServerProgress(context.Background(), s.Id, 100.0, 0.0)
 	s.SyncStatus("Guest Disks Block Stream Complete")
 
