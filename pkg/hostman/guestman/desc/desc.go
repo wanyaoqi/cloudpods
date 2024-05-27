@@ -59,7 +59,13 @@ type SCpuNumaPin struct {
 	Regular   bool
 	HostNodes *uint16 `json:",omitempty"`
 	Vcpus     *string `json:",omitempty"`
-	Pcpus     *string `json:",omitempty"`
+
+	VcpuPin []SVCpuPin `json:",omitempty"`
+}
+
+type SVCpuPin struct {
+	Vcpu int
+	Pcpu int
 }
 
 type SMemDesc struct {

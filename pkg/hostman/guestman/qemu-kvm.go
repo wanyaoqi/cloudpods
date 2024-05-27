@@ -162,25 +162,11 @@ func (s *SKVMGuestInstance) updateGuestDesc() error {
 
 func (s *SKVMGuestInstance) releaseCpuNumaPin(cpuNumaPin []*desc.SCpuNumaPin) {
 	for _, numaCpus := range cpuNumaPin {
-		pcpuSet, err := cpuset.Parse(*numaCpus.Pcpus)
-		if err != nil {
-			log.Errorf("failed parse %s pcpus: %s", s.GetName(), *numaCpus.Pcpus)
-			continue
+		pcpus := make([]int, 0)
+		for i := range numaCpus.VcpuPin {
+			pcpus = append(pcpus, numaCpus.VcpuPin[i].Pcpu)
 		}
-		vcpuCount := int(s.Desc.Cpu)
-		if numaCpus.Vcpus != nil {
-			vcpuSet, err := cpuset.Parse(*numaCpus.Vcpus)
-			if err != nil {
-				log.Errorf("failed parse %s vcpus: %s", s.GetName(), *numaCpus.Vcpus)
-				continue
-			}
-			vcpuCount = vcpuSet.Size()
-		}
-		hostNodes := -1
-		if numaCpus.HostNodes != nil {
-			hostNodes = int(*numaCpus.HostNodes)
-		}
-		s.manager.cpuSet.ReleaseNumaCpus(numaCpus.SizeMB, hostNodes, pcpuSet.ToSlice(), vcpuCount)
+		s.manager.cpuSet.ReleaseNumaCpus(numaCpus.SizeMB, int(*numaCpus.HostNodes), pcpus, len(numaCpus.VcpuPin))
 	}
 }
 
@@ -217,11 +203,14 @@ func (s *SKVMGuestInstance) reallocateMigrateNumaNodes() error {
 	if len(nodeNumaCpus) > 0 {
 		for nodeId, numaCpus := range nodeNumaCpus {
 			unodeId := uint16(nodeId)
-			pcpus := cpuset.NewCPUSet(numaCpus.Cpuset...).String()
+			vcpuPin := make([]desc.SVCpuPin, len(numaCpus.Cpuset))
+			for i := range numaCpus.Cpuset {
+				vcpuPin[i].Pcpu = numaCpus.Cpuset[i]
+			}
 			memPin := &desc.SCpuNumaPin{
 				SizeMB:    numaCpus.MemSizeKB / 1024, // MB
 				HostNodes: &unodeId,
-				Pcpus:     &pcpus,
+				VcpuPin:   vcpuPin,
 				Regular:   numaCpus.Regular,
 			}
 			cpuNumaPin = append(cpuNumaPin, memPin)
@@ -244,11 +233,13 @@ func (s *SKVMGuestInstance) reallocateMigrateNumaNodes() error {
 	return nil
 }
 
-func (s *SKVMGuestInstance) validateNumaAllocated(keywords string, isMigrate, isHotPlug bool, vcpuOrder []string) error {
+func (s *SKVMGuestInstance) validateNumaAllocated(keywords string, isMigrate, isHotPlug bool, vcpuOrder [][]int) error {
 	if len(s.Desc.CpuNumaPin) > 0 {
 		if isMigrate {
 			for i := range s.Desc.CpuNumaPin {
-				s.Desc.CpuNumaPin[i].Vcpus = &vcpuOrder[i]
+				for j := range s.Desc.CpuNumaPin[i].VcpuPin {
+					s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = vcpuOrder[i][j]
+				}
 			}
 			return s.SaveLiveDesc(s.Desc)
 		}
@@ -316,11 +307,15 @@ func (s *SKVMGuestInstance) validateNumaAllocated(keywords string, isMigrate, is
 	var cpuNumaPin = make([]*desc.SCpuNumaPin, 0)
 	for nodeId, numaCpus := range nodeNumaCpus {
 		unodeId := uint16(nodeId)
-		pcpus := cpuset.NewCPUSet(numaCpus.Cpuset...).String()
+		vcpuPin := make([]desc.SVCpuPin, len(numaCpus.Cpuset))
+		for i := range numaCpus.Cpuset {
+			vcpuPin[i].Pcpu = numaCpus.Cpuset[i]
+		}
+
 		memPin := &desc.SCpuNumaPin{
 			SizeMB:    numaCpus.MemSizeKB / 1024, // MB
 			HostNodes: &unodeId,
-			Pcpus:     &pcpus,
+			VcpuPin:   vcpuPin,
 			Regular:   numaCpus.Regular,
 		}
 		cpuNumaPin = append(cpuNumaPin, memPin)
@@ -333,7 +328,9 @@ func (s *SKVMGuestInstance) validateNumaAllocated(keywords string, isMigrate, is
 
 	if len(vcpuOrder) > 0 {
 		for i := range cpuNumaPin {
-			cpuNumaPin[i].Vcpus = &vcpuOrder[i]
+			for j := range cpuNumaPin[i].VcpuPin {
+				cpuNumaPin[i].VcpuPin[j].Vcpu = vcpuOrder[i][j]
+			}
 		}
 	}
 
@@ -396,11 +393,15 @@ func (s *SKVMGuestInstance) initLiveDescFromSourceGuest(srcDesc *desc.SGuestDesc
 	for nodeId, numaCpus := range nodeNumaCpus {
 		if s.manager.numaAllocate {
 			unodeId := uint16(nodeId)
-			pcpus := cpuset.NewCPUSet(numaCpus.Cpuset...).String()
+			vcpuPin := make([]desc.SVCpuPin, len(numaCpus.Cpuset))
+			for i := range numaCpus.Cpuset {
+				vcpuPin[i].Pcpu = numaCpus.Cpuset[i]
+			}
+
 			memPin := &desc.SCpuNumaPin{
 				SizeMB:    numaCpus.MemSizeKB / 1024, // MB
 				HostNodes: &unodeId,
-				Pcpus:     &pcpus,
+				VcpuPin:   vcpuPin,
 				Regular:   numaCpus.Regular,
 			}
 			cpuNumaPin = append(cpuNumaPin, memPin)
@@ -785,7 +786,7 @@ func (s *SKVMGuestInstance) asyncScriptStart(ctx context.Context, params interfa
 		return nil, errors.Wrap(err, "fuse mount")
 	}
 
-	var vcpuOrder = make([]string, 0)
+	var vcpuOrder = make([][]int, 0)
 	isMigrate := jsonutils.QueryBoolean(data, "need_migrate", false)
 	if isMigrate {
 		var sourceDesc = new(desc.SGuestDesc)
@@ -794,10 +795,11 @@ func (s *SKVMGuestInstance) asyncScriptStart(ctx context.Context, params interfa
 			return nil, errors.Wrap(err, "unmarshal src desc")
 		}
 		for i := range sourceDesc.CpuNumaPin {
-			if sourceDesc.CpuNumaPin[i].Vcpus != nil {
-				vcpus := *sourceDesc.CpuNumaPin[i].Vcpus
-				vcpuOrder = append(vcpuOrder, vcpus)
+			vcpus := make([]int, 0)
+			for j := range sourceDesc.CpuNumaPin[i].VcpuPin {
+				vcpus = append(vcpus, sourceDesc.CpuNumaPin[i].VcpuPin[j].Vcpu)
 			}
+			vcpuOrder = append(vcpuOrder, vcpus)
 		}
 		err = s.initLiveDescFromSourceGuest(sourceDesc)
 	} else {
@@ -2831,9 +2833,13 @@ func (s *SKVMGuestInstance) setCgroupCPUSet() error {
 		}
 		cpusetStr = strings.Join(cpus, ",")
 	} else {
+		pcpuSetBuilder := cpuset.NewBuilder()
 		for i := range s.Desc.CpuNumaPin {
-			cpusetStr += fmt.Sprintf(",%s", *s.Desc.CpuNumaPin[i].Pcpus)
+			for j := range s.Desc.CpuNumaPin[i].VcpuPin {
+				pcpuSetBuilder.Add(s.Desc.CpuNumaPin[i].VcpuPin[j].Pcpu)
+			}
 		}
+		cpusetStr = pcpuSetBuilder.Result().String()
 	}
 
 	guestPid := strconv.Itoa(s.GetPid())
@@ -2849,20 +2855,18 @@ func (s *SKVMGuestInstance) setCgroupCPUSet() error {
 	}
 
 	for i := range s.Desc.CpuNumaPin {
-		if !s.Desc.CpuNumaPin[i].Regular || s.Desc.CpuNumaPin[i].Vcpus == nil {
+		if !s.Desc.CpuNumaPin[i].Regular || s.Desc.CpuNumaPin[i].VcpuPin == nil {
 			continue
 		}
 
-		vcpuSet, _ := cpuset.Parse(*s.Desc.CpuNumaPin[i].Vcpus)
-		pcpuSet := *s.Desc.CpuNumaPin[i].Pcpus
-		for _, vcpuId := range vcpuSet.ToSlice() {
-			vcpuThreadId, ok := vcpuThreads[vcpuId]
+		for j := range s.Desc.CpuNumaPin[i].VcpuPin {
+			vcpuThreadId, ok := vcpuThreads[s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu]
 			if !ok {
-				return errors.Errorf("failed get vcpu %d thread id from %v", vcpuId, vcpuThreads)
+				return errors.Errorf("failed get vcpu %d thread id from %v", s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu, vcpuThreads)
 			}
-
+			pcpu := s.Desc.CpuNumaPin[i].VcpuPin[j].Pcpu
 			vcpuCgname := path.Join(cgName, vcpuThreadId)
-			taskVcpu := cgrouputils.NewCGroupSubCPUSetTask(guestPid, vcpuCgname, 0, pcpuSet, []string{vcpuThreadId})
+			taskVcpu := cgrouputils.NewCGroupSubCPUSetTask(guestPid, vcpuCgname, 0, strconv.Itoa(pcpu), []string{vcpuThreadId})
 			if !taskVcpu.SetTask() {
 				return errors.Errorf("Vcpu set cgroup cpuset task failed")
 			}
@@ -2890,11 +2894,15 @@ func (s *SKVMGuestInstance) allocGuestNumaCpuset() error {
 	for nodeId, numaCpus := range nodeNumaCpus {
 		if s.manager.numaAllocate {
 			unodeId := uint16(nodeId)
-			pcpus := cpuset.NewCPUSet(numaCpus.Cpuset...).String()
+			vcpuPin := make([]desc.SVCpuPin, len(numaCpus.Cpuset))
+			for i := range numaCpus.Cpuset {
+				vcpuPin[i].Pcpu = numaCpus.Cpuset[i]
+			}
+
 			memPin := &desc.SCpuNumaPin{
 				SizeMB:    numaCpus.MemSizeKB / 1024, // MB
 				HostNodes: &unodeId,
-				Pcpus:     &pcpus,
+				VcpuPin:   vcpuPin,
 				Regular:   numaCpus.Regular,
 			}
 			cpuNumaPin = append(cpuNumaPin, memPin)
@@ -3115,11 +3123,9 @@ func (s *SKVMGuestInstance) hotPlugCpus() error {
 	var vcpuSet = make([]int, 0)
 	if len(s.Desc.MemDesc.Mem.Mems) > 0 {
 		for i := range s.Desc.CpuNumaPin {
-			vcpus, err := cpuset.Parse(*s.Desc.CpuNumaPin[i].Vcpus)
-			if err != nil {
-				return errors.Wrap(err, "parse vcpus")
+			for j := range s.Desc.CpuNumaPin[i].VcpuPin {
+				vcpuSet = append(vcpuSet, s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu)
 			}
-			vcpuSet = append(vcpuSet, vcpus.ToSlice()...)
 		}
 	}
 	return s.startHotPlugVcpus(vcpuSet)

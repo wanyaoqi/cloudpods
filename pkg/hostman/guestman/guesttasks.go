@@ -2431,12 +2431,14 @@ func (task *SGuestHotplugCpuMemTask) buildVcpusMap() {
 		}
 	}
 
+	allocatedVcpus := make([]int, 0)
 	for i := range task.Desc.CpuNumaPin {
-		if task.Desc.CpuNumaPin[i].Vcpus != nil {
-			allocedVcpus, _ := cpuset.Parse(*task.Desc.CpuNumaPin[i].Vcpus)
-			vcpuSet = vcpuSet.Difference(allocedVcpus)
+		for j := range task.Desc.CpuNumaPin[i].VcpuPin {
+			allocatedVcpus = append(allocatedVcpus, task.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu)
 		}
 	}
+	allocatedCpuset := cpuset.NewCPUSet(allocatedVcpus...)
+	vcpuSet = vcpuSet.Difference(allocatedCpuset)
 
 	task.startAddCpusWithFreeVcpuSet(vcpuSet.ToSlice())
 }
@@ -2457,12 +2459,15 @@ func (task *SGuestHotplugCpuMemTask) startAddCpusWithFreeVcpuSet(vcpuSet []int) 
 
 		cpus, _ := task.manager.cpuSet.AllocCpuset(1, 0, -1)
 		for _, cpus := range cpus {
-			pcpus := cpuset.NewCPUSet(cpus.Cpuset...).String()
-			vcpus := fmt.Sprintf("%d-%d", vcpuId, vcpuId)
+			//pcpus := cpuset.NewCPUSet(cpus.Cpuset...).String()
+			//vcpus := fmt.Sprintf("%d-%d", vcpuId, vcpuId)
+
+			vcpuPin := make([]desc.SVCpuPin, 1)
+			vcpuPin[0].Pcpu = cpus.Cpuset[0]
+			vcpuPin[0].Vcpu = vcpuId
 			cpuPin := &desc.SCpuNumaPin{
 				SizeMB:  0,
-				Pcpus:   &pcpus,
-				Vcpus:   &vcpus,
+				VcpuPin: vcpuPin,
 				Regular: true,
 			}
 			task.Desc.CpuNumaPin = append(task.Desc.CpuNumaPin, cpuPin)

@@ -455,26 +455,12 @@ func (m *SGuestManager) loadGuestCpuset(guest *SKVMGuestInstance) {
 			m.cpuSet.LoadCpus(pcpuSet.ToSlice(), vcpuSet.Size())
 		}
 		for _, numaCpuset := range guest.Desc.CpuNumaPin {
-			pcpuSet, err := cpuset.Parse(*numaCpuset.Pcpus)
-			if err != nil {
-				log.Errorf("failed parse %s pcpus: %s", guest.GetName(), *numaCpuset.Pcpus)
-				continue
-			}
-			vcpuCount := int(guest.Desc.Cpu)
-			if numaCpuset.Vcpus != nil {
-				vcpuSet, err := cpuset.Parse(*numaCpuset.Vcpus)
-				if err != nil {
-					log.Errorf("failed parse %s vcpus: %s", guest.GetName(), *numaCpuset.Vcpus)
-					continue
-				}
-				vcpuCount = vcpuSet.Size()
-			}
-			hostNodes := -1
-			if numaCpuset.HostNodes != nil {
-				hostNodes = int(*numaCpuset.HostNodes)
+			pcpus := make([]int, 0)
+			for i := range numaCpuset.VcpuPin {
+				pcpus = append(pcpus, numaCpuset.VcpuPin[i].Pcpu)
 			}
 
-			m.cpuSet.LoadNumaCpus(numaCpuset.SizeMB, hostNodes, pcpuSet.ToSlice(), vcpuCount)
+			m.cpuSet.LoadNumaCpus(numaCpuset.SizeMB, int(*numaCpuset.HostNodes), pcpus, len(numaCpuset.VcpuPin))
 		}
 	}
 }
