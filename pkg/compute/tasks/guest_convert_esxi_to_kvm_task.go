@@ -46,6 +46,13 @@ func (task *GuestConvertEsxiToKvmTask) OnInit(ctx context.Context, obj db.IStand
 func (task *GuestConvertEsxiToKvmTask) GetSchedParams() (*schedapi.ScheduleInput, error) {
 	obj := task.GetObject()
 	guest := obj.(*models.SGuest)
+
+	input := new(api.ServerCreateInput)
+	err := task.Params.Unmarshal(input, "input")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed unmarshal create input")
+	}
+
 	schedDesc := guest.ToSchedDesc()
 	if task.Params.Contains("prefer_host_id") {
 		preferHostId, _ := task.Params.GetString("prefer_host_id")
@@ -56,6 +63,7 @@ func (task *GuestConvertEsxiToKvmTask) GetSchedParams() (*schedapi.ScheduleInput
 		schedDesc.Disks[i].Medium = ""
 		schedDesc.Disks[i].Storage = ""
 	}
+	schedDesc.Networks = input.Networks
 	schedDesc.Hypervisor = api.HYPERVISOR_KVM
 	return schedDesc, nil
 }
