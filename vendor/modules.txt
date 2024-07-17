@@ -674,8 +674,8 @@ github.com/influxdata/promql/v2
 github.com/influxdata/promql/v2/pkg/labels
 github.com/influxdata/promql/v2/pkg/value
 github.com/influxdata/promql/v2/util/strutil
-# github.com/jaypipes/ghw v0.11.0
-## explicit; go 1.18
+# github.com/jaypipes/ghw v0.12.1-0.20240403050139-e576a6aaf646
+## explicit; go 1.19
 github.com/jaypipes/ghw/pkg/context
 github.com/jaypipes/ghw/pkg/cpu
 github.com/jaypipes/ghw/pkg/linuxpath
@@ -687,6 +687,8 @@ github.com/jaypipes/ghw/pkg/snapshot
 github.com/jaypipes/ghw/pkg/topology
 github.com/jaypipes/ghw/pkg/unitutil
 github.com/jaypipes/ghw/pkg/util
+# github.com/jaypipes/pcidb v1.0.0
+## explicit; go 1.17
 # github.com/jdcloud-api/jdcloud-sdk-go v1.55.0
 ## explicit
 github.com/jdcloud-api/jdcloud-sdk-go/core
@@ -1512,6 +1514,8 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
+# howett.net/plist v1.0.0
+## explicit; go 1.12
 # k8s.io/api v0.19.3
 ## explicit; go 1.15
 k8s.io/api/admissionregistration/v1

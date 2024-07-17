@@ -36,7 +36,7 @@ require (
 	github.com/hugozhu/godingtalk v1.0.6
 	github.com/influxdata/influxql v1.1.0
 	github.com/influxdata/promql/v2 v2.12.0
-	github.com/jaypipes/ghw v0.11.0
+	github.com/jaypipes/ghw v0.12.1-0.20240403050139-e576a6aaf646
 	github.com/koding/websocketproxy v0.0.0-20181220232114-7ed82d81a28c
 	github.com/lestrrat-go/jwx v1.0.2
 	github.com/lestrrat/go-jwx v0.0.0-20180221005942-b7d4802280ae
@@ -203,6 +203,7 @@ require (
 	github.com/huandu/xstrings v1.2.0 // indirect
 	github.com/huaweicloud/huaweicloud-sdk-go v1.0.26 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
+	github.com/jaypipes/pcidb v1.0.0 // indirect
 	github.com/jdcloud-api/jdcloud-sdk-go v1.55.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -300,6 +301,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	howett.net/plist v1.0.0 // indirect
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.0.1 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
