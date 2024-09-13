@@ -29,8 +29,6 @@ import (
 	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
-	"yunion.io/x/onecloud/pkg/util/fileutils2"
-	"yunion.io/x/onecloud/pkg/util/procutils"
 )
 
 type CephClient struct {
@@ -41,6 +39,8 @@ type CephClient struct {
 	keyConf  string
 
 	timeout int
+
+	driver ICephCommonDriver
 }
 
 func (cli *CephClient) Close() error {
@@ -93,53 +93,11 @@ func (cli *CephClient) Output(name string, opts []string) (jsonutils.JSONObject,
 }
 
 func (cli *CephClient) output(name string, opts []string, timeout bool) (jsonutils.JSONObject, error) {
-	cmds := []string{name, "--format", "json"}
-	cmds = append(cmds, opts...)
-	if timeout {
-		cmds = append([]string{"timeout", "--signal=KILL", fmt.Sprintf("%ds", cli.timeout)}, cmds...)
-	}
-	proc := procutils.NewRemoteCommandAsFarAsPossible(cmds[0], cmds[1:]...)
-	outb, err := proc.StdoutPipe()
-	if err != nil {
-		return nil, errors.Wrap(err, "stdout pipe")
-	}
-	defer outb.Close()
-
-	errb, err := proc.StderrPipe()
-	if err != nil {
-		return nil, errors.Wrap(err, "stderr pipe")
-	}
-	defer errb.Close()
-
-	if err := proc.Start(); err != nil {
-		return nil, errors.Wrap(err, "start ceph process")
-	}
-
-	stdoutPut, err := ioutil.ReadAll(outb)
-	if err != nil {
-		return nil, err
-	}
-	stderrPut, err := ioutil.ReadAll(errb)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := proc.Wait(); err != nil {
-		return nil, errors.Wrapf(err, "stderr %q", stderrPut)
-	}
-	return jsonutils.Parse(stdoutPut)
+	return cli.driver.Output(name, opts, timeout)
 }
 
 func (cli *CephClient) run(name string, opts []string, timeout bool) error {
-	cmds := append([]string{name}, opts...)
-	if timeout {
-		cmds = append([]string{"timeout", "--signal=KILL", fmt.Sprintf("%ds", cli.timeout)}, cmds...)
-	}
-	output, err := procutils.NewRemoteCommandAsFarAsPossible(cmds[0], cmds[1:]...).Output()
-	if err != nil {
-		return errors.Wrapf(err, "%s %s", name, string(output))
-	}
-	return nil
+	return cli.driver.Run(name, opts, timeout)
 }
 
 func (cli *CephClient) options() []string {
@@ -209,11 +167,11 @@ func writeFile(pattern string, content string) (string, error) {
 }
 
 func (cli *CephClient) ShowConf() error {
-	conf, err := fileutils2.FileGetContents(cli.cephConf)
+	conf, err := cli.driver.FileGetConfig(cli.cephConf)
 	if err != nil {
 		return errors.Errorf("fail to open conf file")
 	}
-	key, err := fileutils2.FileGetContents(cli.keyConf)
+	key, err := cli.driver.FileGetConfig(cli.keyConf)
 	if err != nil {
 		return errors.Errorf("fail to open key file")
 	}
@@ -228,21 +186,39 @@ func (cli *CephClient) SetTimeout(timeout int) {
 	cli.timeout = timeout
 }
 
+type CephClientDriver string
+
+const (
+	ContainerDriver CephClientDriver = "container"
+	LocalDriver     CephClientDriver = "local"
+)
+
 const DEFAULT_TIMTOUT_SECOND = 15
 
-func NewClient(monHost, key, pool string) (*CephClient, error) {
+func NewDriver(timeout int, driver CephClientDriver, containerCmd string) (ICephCommonDriver, error) {
+	if driver == ContainerDriver {
+		return NewContainerDriver(timeout, containerCmd)
+	}
+	return NewLocalDriver(timeout), nil
+}
+
+func NewClient(monHost, key, pool string, driver CephClientDriver, containerRuntime string) (*CephClient, error) {
 	client := &CephClient{
 		monHost: monHost,
 		key:     key,
 		pool:    pool,
-		timeout: DEFAULT_TIMTOUT_SECOND,
 	}
-	var err error
+	cliDriver, err := NewDriver(DEFAULT_TIMTOUT_SECOND, driver, containerRuntime)
+	if err != nil {
+		return nil, err
+	}
+	client.driver = cliDriver
+
 	if len(client.key) > 0 {
 		keyring := fmt.Sprintf(`[client.admin]
 	key = %s
 `, client.key)
-		client.keyConf, err = writeFile("ceph.*.keyring", keyring)
+		client.keyConf, err = client.driver.FilePutConfig("ceph.*.keyring", keyring)
 		if err != nil {
 			return nil, errors.Wrapf(err, "write keyring")
 		}
@@ -268,7 +244,7 @@ auth_client_required = none
 keyring = %s
 `, conf, client.keyConf)
 	}
-	client.cephConf, err = writeFile("ceph.*.conf", conf)
+	client.cephConf, err = client.driver.FilePutConfig("ceph.*.conf", conf)
 	if err != nil {
 		return nil, errors.Wrapf(err, "write file")
 	}

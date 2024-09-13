@@ -76,6 +76,8 @@ func init() {
 			info.StorageConf.MonHost,
 			info.StorageConf.Key,
 			info.StorageConf.Pool,
+			cephutils.LocalDriver,
+			"",
 		)
 		if err != nil {
 			return errors.Wrap(err, "cephutils.NewClient")

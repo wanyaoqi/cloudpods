@@ -158,6 +158,9 @@ type HostCommonOptions struct {
 	ExecutorConnectTimeoutSeconds int    `help:"executor client connection timeout in seconds, default is 30" default:"30"`
 	ImageDeployDriver             string `help:"Image deploy driver" default:"qemu-kvm" choices:"qemu-kvm|nbd|libguestfs"`
 	DeployConcurrent              int    `help:"qemu-kvm deploy driver concurrent" default:"5"`
+
+	ContainerCephCommon        bool   `help:"Use container ceph common client" default:"false"`
+	CephCommonContainerRuntime string `help:"Container runtime" default:"docker"`
 }
 
 type DBOptions struct {

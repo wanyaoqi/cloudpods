@@ -98,7 +98,11 @@ func (s *SRbdStorage) getCephClient(pool string) (*cephutils.CephClient, error) 
 	if pool == "" {
 		pool = s.Pool
 	}
-	return cephutils.NewClient(s.MonHost, s.Key, pool)
+	driver := cephutils.LocalDriver
+	if options.HostOptions.ContainerCephCommon {
+		driver = cephutils.ContainerDriver
+	}
+	return cephutils.NewClient(s.MonHost, s.Key, pool, driver, options.HostOptions.CephCommonContainerRuntime)
 }
 
 func (s *SRbdStorage) getClient() (*cephutils.CephClient, error) {
