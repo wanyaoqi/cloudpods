@@ -100,7 +100,7 @@ func (manager *SEncryptedResourceManager) ValidateCreateData(
 	return input, nil
 }
 
-func (res *SEncryptedResource) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, data jsonutils.JSONObject, nameHint string) error {
+func (res *SEncryptedResource) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, data jsonutils.JSONObject, nameHint string, isPublic bool) error {
 	if len(res.EncryptKeyId) == 0 && jsonutils.QueryBoolean(data, "encrypt_key_new", false) && !jsonutils.QueryBoolean(data, "dry_run", false) {
 		// create new encrypt key
 		session := auth.GetAdminSession(ctx, consts.GetRegion())
@@ -108,7 +108,7 @@ func (res *SEncryptedResource) CustomizeCreate(ctx context.Context, userCred mcc
 		keyName := "key-" + nameHint + "-" + timeutils.ShortDate(now)
 		algName, _ := data.GetString("encrypt_key_alg")
 		userId, _ := data.GetString("encrypt_key_user_id")
-		secret, err := identity_modules.Credentials.CreateEncryptKey(session, userId, keyName, algName)
+		secret, err := identity_modules.Credentials.CreateEncryptKey(session, userId, keyName, algName, isPublic)
 		if err != nil {
 			return errors.Wrap(err, "Credentials.CreateEncryptKey")
 		}

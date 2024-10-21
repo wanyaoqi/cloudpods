@@ -24,13 +24,15 @@ type CredentialDetails struct {
 	User     string `json:"user"`
 	Domain   string `json:"domain"`
 	DomainId string `json:"domain_id"`
+	IsPublic bool   `json:"is_public"`
 }
 
 type CredentialUpdateInput struct {
 	apis.StandaloneResourceBaseUpdateInput
 
 	// enabled
-	Enabled *bool `json:"enabled"`
+	Enabled  *bool `json:"enabled"`
+	IsPublic bool  `json:"is_public"`
 }
 
 type CredentialCreateInput struct {
@@ -43,6 +45,8 @@ type CredentialCreateInput struct {
 	UserId string `json:"user_id"`
 
 	Blob string `json:"blob"`
+
+	IsPublic bool `json:"is_public"`
 
 	// Ignore
 	EncryptedBlob string `json:"encrypted_blob"`

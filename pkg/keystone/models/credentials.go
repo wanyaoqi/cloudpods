@@ -80,7 +80,8 @@ type SCredential struct {
 
 	EncryptedBlob string `nullable:"false" create:"required"`
 
-	Enabled tristate.TriState `default:"true" list:"user" update:"user" create:"optional"`
+	Enabled  tristate.TriState `default:"true" list:"user" update:"user" create:"optional"`
+	IsPublic bool              `default:"false" nullable:"false" list:"user" update:"user" create:"optional"`
 }
 
 func (manager *SCredentialManager) InitializeData() error {
@@ -238,7 +239,8 @@ func (manager *SCredentialManager) FilterByOwner(q *sqlchemy.SQuery, owner mccli
 	if owner != nil {
 		if scope == rbacutils.ScopeUser {
 			if len(owner.GetUserId()) > 0 {
-				q = q.Equals("user_id", owner.GetUserId())
+				cond := sqlchemy.OR(sqlchemy.IsTrue(q.Field("is_public")), sqlchemy.Equals(q.Field("user_id"), owner.GetUserId()))
+				q = q.Filter(cond)
 			}
 		}
 	}
@@ -292,10 +294,15 @@ func (manager *SCredentialManager) ListItemFilter(
 	if err != nil {
 		return nil, errors.Wrap(err, "SStandaloneResourceBaseManager.ListItemFilter")
 	}
-	q, err = manager.SUserResourceBaseManager.ListItemFilter(ctx, q, userCred, query.UserFilterListInput)
-	if err != nil {
-		return nil, errors.Wrap(err, "SUserResourceBaseManager.ListItemFilter")
+
+	if query.UserId != "" {
+		userObj, err := manager.SUserResourceBaseManager.FetchUser(query.UserId, query.UserDomainId, userCred)
+		if err != nil {
+			return nil, errors.Wrap(err, "manager.SUserResourceBaseManager.FetchUser")
+		}
+		q = q.Filter(sqlchemy.OR(sqlchemy.IsTrue(q.Field("is_public")), sqlchemy.Equals(q.Field("user_id"), userObj.GetId())))
 	}
+
 	q, err = manager.SProjectResourceBaseManager.ListItemFilter(ctx, q, userCred, query.ProjectFilterListInput)
 	if err != nil {
 		return nil, errors.Wrap(err, "SProjectResourceBaseManager.ListItemFilter")

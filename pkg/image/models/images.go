@@ -416,7 +416,8 @@ func (self *SImage) CustomizeCreate(ctx context.Context, userCred mcclient.Token
 	}
 	self.Status = api.IMAGE_STATUS_QUEUED
 	self.Owner = self.ProjectId
-	err = self.SEncryptedResource.CustomizeCreate(ctx, userCred, ownerId, data, "image-"+pinyinutils.Text2Pinyin(self.Name))
+	isPublic := options.Options.DefaultEncryptKeyPublic
+	err = self.SEncryptedResource.CustomizeCreate(ctx, userCred, ownerId, data, "image-"+pinyinutils.Text2Pinyin(self.Name), isPublic)
 	if err != nil {
 		return errors.Wrap(err, "SEncryptedResource.CustomizeCreate")
 	}

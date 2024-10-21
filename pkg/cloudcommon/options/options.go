@@ -137,6 +137,8 @@ type CommonOptions struct {
 
 	SessionEndpointType string `help:"Client session end point type"`
 
+	DefaultEncryptKeyPublic bool `help:"Create encrypt key default public" default:"true"`
+
 	BaseOptions
 }
 

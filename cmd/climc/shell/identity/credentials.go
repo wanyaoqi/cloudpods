@@ -336,11 +336,12 @@ func init() {
 	})
 
 	type CredentialUpdateOptions struct {
-		ID      string `help:"ID of credentail"`
-		Enable  bool   `help:"Enable credential"`
-		Disable bool   `help:"Disable credential"`
-		Name    string `help:"new name of credential"`
-		Desc    string `help:"new description of credential"`
+		ID       string `help:"ID of credentail"`
+		Enable   bool   `help:"Enable credential"`
+		Disable  bool   `help:"Disable credential"`
+		Name     string `help:"new name of credential"`
+		Desc     string `help:"new description of credential"`
+		IsPublic string `help:"credential is public" choices:"True|False"`
 	}
 	R(&CredentialUpdateOptions{}, "credential-update", "Enable/disable credential", func(s *mcclient.ClientSession, args *CredentialUpdateOptions) error {
 		params := jsonutils.NewDict()
@@ -354,6 +355,11 @@ func init() {
 		}
 		if args.Desc != "" {
 			params.Add(jsonutils.NewString(args.Desc), "description")
+		}
+		if args.IsPublic == "True" {
+			params.Add(jsonutils.JSONTrue, "is_public")
+		} else if args.IsPublic == "False" {
+			params.Add(jsonutils.JSONFalse, "is_public")
 		}
 		result, err := modules.Credentials.Update(s, args.ID, params)
 		if err != nil {

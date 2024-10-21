@@ -421,7 +421,8 @@ func (self *SDisk) CustomizeCreate(ctx context.Context, userCred mcclient.TokenC
 		return errors.Wrap(err, "Unmarshal json")
 	}
 	self.fetchDiskInfo(input.DiskConfig)
-	err := self.SEncryptedResource.CustomizeCreate(ctx, userCred, ownerId, data, "disk-"+pinyinutils.Text2Pinyin(self.Name))
+	isPublic := options.Options.DefaultEncryptKeyPublic
+	err := self.SEncryptedResource.CustomizeCreate(ctx, userCred, ownerId, data, "disk-"+pinyinutils.Text2Pinyin(self.Name), isPublic)
 	if err != nil {
 		return errors.Wrap(err, "SEncryptedResource.CustomizeCreate")
 	}

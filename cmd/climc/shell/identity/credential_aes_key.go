@@ -44,7 +44,7 @@ func init() {
 				return err
 			}
 		}
-		secret, err := modules.Credentials.CreateEncryptKey(s, uid, args.NAME, args.ALG)
+		secret, err := modules.Credentials.CreateEncryptKey(s, uid, args.NAME, args.ALG, false)
 		if err != nil {
 			return err
 		}

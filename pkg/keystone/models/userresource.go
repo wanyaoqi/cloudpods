@@ -29,6 +29,36 @@ import (
 
 type SUserResourceBaseManager struct{}
 
+func (manager *SUserResourceBaseManager) FetchUser(userId, userDomainId string, userCred mcclient.TokenCredential) (db.IModel, error) {
+	var ownerId mcclient.IIdentityProvider
+	if len(userDomainId) > 0 {
+		domain, err := DomainManager.FetchDomainByIdOrName(userDomainId)
+		if err != nil {
+			if errors.Cause(err) == sql.ErrNoRows {
+				return nil, httperrors.NewResourceNotFoundError2(DomainManager.Keyword(), userDomainId)
+			} else {
+				return nil, errors.Wrap(err, "DomainManager.FetchDomainByIdOrName")
+			}
+		}
+		ownerId = &db.SOwnerId{
+			Domain:   domain.Name,
+			DomainId: domain.Id,
+		}
+
+	} else {
+		ownerId = userCred
+	}
+	userObj, err := UserManager.FetchByIdOrName(ownerId, userId)
+	if err != nil {
+		if errors.Cause(err) == sql.ErrNoRows {
+			return nil, httperrors.NewResourceNotFoundError2(UserManager.Keyword(), userId)
+		} else {
+			return nil, errors.Wrap(err, "UserManager.FetchByIdOrName")
+		}
+	}
+	return userObj, nil
+}
+
 func (manager *SUserResourceBaseManager) ListItemFilter(
 	ctx context.Context,
 	q *sqlchemy.SQuery,
@@ -36,31 +66,9 @@ func (manager *SUserResourceBaseManager) ListItemFilter(
 	query api.UserFilterListInput,
 ) (*sqlchemy.SQuery, error) {
 	if len(query.UserId) > 0 {
-		var ownerId mcclient.IIdentityProvider
-		if len(query.UserDomainId) > 0 {
-			domain, err := DomainManager.FetchDomainByIdOrName(query.UserDomainId)
-			if err != nil {
-				if errors.Cause(err) == sql.ErrNoRows {
-					return nil, httperrors.NewResourceNotFoundError2(DomainManager.Keyword(), query.UserDomainId)
-				} else {
-					return nil, errors.Wrap(err, "DomainManager.FetchDomainByIdOrName")
-				}
-			}
-			ownerId = &db.SOwnerId{
-				Domain:   domain.Name,
-				DomainId: domain.Id,
-			}
-
-		} else {
-			ownerId = userCred
-		}
-		userObj, err := UserManager.FetchByIdOrName(ownerId, query.UserId)
+		userObj, err := manager.FetchUser(query.UserId, query.UserDomainId, userCred)
 		if err != nil {
-			if errors.Cause(err) == sql.ErrNoRows {
-				return nil, httperrors.NewResourceNotFoundError2(UserManager.Keyword(), query.UserId)
-			} else {
-				return nil, errors.Wrap(err, "UserManager.FetchByIdOrName")
-			}
+			return nil, err
 		}
 		q = q.Equals("user_id", userObj.GetId())
 	}

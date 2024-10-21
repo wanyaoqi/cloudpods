@@ -1069,7 +1069,8 @@ func (guest *SGuest) CustomizeCreate(ctx context.Context, userCred mcclient.Toke
 		}
 	}
 	guest.HostId = ""
-	err := guest.SEncryptedResource.CustomizeCreate(ctx, userCred, ownerId, data, "server-"+pinyinutils.Text2Pinyin(guest.Name))
+	isPublic := options.Options.DefaultEncryptKeyPublic
+	err := guest.SEncryptedResource.CustomizeCreate(ctx, userCred, ownerId, data, "server-"+pinyinutils.Text2Pinyin(guest.Name), isPublic)
 	if err != nil {
 		return errors.Wrap(err, "EncryptResourceBase.CustomizeCreate")
 	}

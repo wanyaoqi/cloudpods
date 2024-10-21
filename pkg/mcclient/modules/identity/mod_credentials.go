@@ -516,7 +516,7 @@ func (manager *SCredentialManager) DoCreateEncryptKey(s *mcclient.ClientSession,
 	name, _ := params.GetString("name")
 	alg, _ := params.GetString("alg")
 	uid, _ := params.GetString("uid")
-	key, err := manager.CreateEncryptKey(s, uid, name, alg)
+	key, err := manager.CreateEncryptKey(s, uid, name, alg, false)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +525,7 @@ func (manager *SCredentialManager) DoCreateEncryptKey(s *mcclient.ClientSession,
 	return result, nil
 }
 
-func (manager *SCredentialManager) CreateEncryptKey(s *mcclient.ClientSession, uid string, name string, algName string) (SEncryptKeySecret, error) {
+func (manager *SCredentialManager) CreateEncryptKey(s *mcclient.ClientSession, uid string, name string, algName string, isPublic bool) (SEncryptKeySecret, error) {
 	aesKey := SEncryptKeySecret{}
 	alg := seclib2.Alg(seclib2.TSymEncAlg(algName))
 	rawKey := alg.GenerateKey()
@@ -540,6 +540,9 @@ func (manager *SCredentialManager) CreateEncryptKey(s *mcclient.ClientSession, u
 	params.Add(jsonutils.NewString(api.DEFAULT_PROJECT), "project_id")
 	params.Add(jsonutils.NewString(blobJson.String()), "blob")
 	params.Add(jsonutils.NewString(name), "generate_name")
+	if isPublic {
+		params.Add(jsonutils.JSONTrue, "is_public")
+	}
 	result, err := manager.Create(s, params)
 	if err != nil {
 		return aesKey, errors.Wrap(err, "Create")
