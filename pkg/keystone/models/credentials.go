@@ -247,6 +247,13 @@ func (manager *SCredentialManager) FilterByOwner(q *sqlchemy.SQuery, owner mccli
 	return q
 }
 
+func (self *SCredential) IsSharable(reqUsrId mcclient.IIdentityProvider) bool {
+	if self.IsPublic {
+		return true
+	}
+	return false
+}
+
 func (self *SCredential) GetOwnerId() mcclient.IIdentityProvider {
 	owner := db.SOwnerId{UserId: self.UserId}
 	return &owner
