@@ -273,8 +273,8 @@ type NumaNode struct {
 	NumaNodeFreeMemSizeKB int
 }
 
-func (n *NumaNode) nodeEnough(vcpuCount, memSizeKB, cmtBound int, enableNumaAlloc bool) bool {
-	if n.CpuCount*cmtBound-n.VcpuCount < vcpuCount {
+func (n *NumaNode) nodeEnough(vcpuCount, memSizeKB int, cmtBound float32, enableNumaAlloc bool) bool {
+	if int(float32(n.CpuCount)*cmtBound)-n.VcpuCount < vcpuCount {
 		return false
 	}
 	if enableNumaAlloc {
@@ -409,7 +409,7 @@ func (n *NumaNode) AllocCpuset(vcpuCount int) []int {
 	return ret
 }
 
-func NewNumaNode(nodeId int, nodeDistances []int, hugepageSizeKb int, nodeHugepages []hostapi.HostNodeHugepageNr, memSizeKB, memCmtBound int) *NumaNode {
+func NewNumaNode(nodeId int, nodeDistances []int, hugepageSizeKb int, nodeHugepages []hostapi.HostNodeHugepageNr, memSizeKB int, memCmtBound float32) *NumaNode {
 	n := new(NumaNode)
 	n.LogicalProcessors = cpuset.NewCPUSet()
 	n.NodeId = nodeId
@@ -422,7 +422,7 @@ func NewNumaNode(nodeId int, nodeDistances []int, hugepageSizeKb int, nodeHugepa
 			}
 		}
 	} else {
-		n.NumaNodeMemSizeKB = memSizeKB * memCmtBound
+		n.NumaNodeMemSizeKB = int(float32(memSizeKB) * memCmtBound)
 	}
 
 	n.NumaNodeFreeMemSizeKB = n.NumaNodeMemSizeKB
@@ -432,7 +432,7 @@ func NewNumaNode(nodeId int, nodeDistances []int, hugepageSizeKb int, nodeHugepa
 type SHostTopo struct {
 	Nodes       []*NumaNode
 	NumaEnabled bool
-	CPUCmtbound int
+	CPUCmtbound float32
 	HostName    string
 }
 
@@ -540,7 +540,7 @@ func (h *SHostTopo) nodesEnough(nodeCount, vcpuCount int, memSizeKB int) bool {
 			requireCpuCount += 1
 			remPcpuCount -= 1
 		}
-		if (h.Nodes[i].VcpuCount + requireCpuCount) > h.Nodes[i].CpuCount*h.CPUCmtbound {
+		if (h.Nodes[i].VcpuCount + requireCpuCount) > int(float32(h.Nodes[i].CpuCount)*h.CPUCmtbound) {
 			return false
 		}
 
@@ -711,7 +711,7 @@ func (b *HostBuilder) buildHostTopo(
 			}
 		}
 
-		node := NewNumaNode(info.Nodes[i].ID, info.Nodes[i].Distances, hugepageSizeKb, nodeHugepages, nodoMemSizeKB, int(desc.MemCmtbound))
+		node := NewNumaNode(info.Nodes[i].ID, info.Nodes[i].Distances, hugepageSizeKb, nodeHugepages, nodoMemSizeKB, desc.MemCmtbound)
 
 		cpuDies := make([]*CPUDie, 0)
 		for j := 0; j < len(info.Nodes[i].Caches); j++ {
@@ -768,7 +768,7 @@ func (b *HostBuilder) buildHostTopo(
 		node.CpuDies = cpuDies
 		hostTopo.Nodes[i] = node
 	}
-	hostTopo.CPUCmtbound = int(desc.CPUCmtbound)
+	hostTopo.CPUCmtbound = desc.CPUCmtbound
 	hostTopo.NumaEnabled = numaEnabled
 	hostTopo.HostName = desc.Name
 
@@ -1002,7 +1002,7 @@ func (h *HostDesc) GetFreeCpuNuma() scheduler.SortedFreeNumaCpuMam {
 		nodeFree.CpuCount = h.HostTopo.Nodes[i].CpuCount
 		nodeFree.MemSize = h.HostTopo.Nodes[i].NumaNodeFreeMemSizeKB / 1024
 		nodeFree.EnableNumaAllocate = h.HostTopo.NumaEnabled
-		nodeFree.FreeCpuCount = h.HostTopo.Nodes[i].CpuCount*int(h.CPUCmtbound) - h.HostTopo.Nodes[i].VcpuCount
+		nodeFree.FreeCpuCount = int(float32(h.HostTopo.Nodes[i].CpuCount)*h.CPUCmtbound) - h.HostTopo.Nodes[i].VcpuCount
 		for cpuId, pending := range cpuPin {
 			if h.HostTopo.Nodes[i].LogicalProcessors.Contains(cpuId) {
 				nodeFree.FreeCpuCount -= pending
@@ -1505,6 +1505,7 @@ func (b *HostBuilder) fillGuestsResourceInfo(desc *HostDesc, host *computemodels
 		guestsOnHost = append(guestsOnHost, backupGuestsOnHost...)
 	}
 
+	//pendingUsage := desc.GetPendingUsage()
 	desc.Tenants = make(map[string]int64)
 	for _, gst := range guestsOnHost {
 		guest := gst.(computemodels.SGuest)
@@ -1595,7 +1596,7 @@ func (b *HostBuilder) fillGuestsResourceInfo(desc *HostDesc, host *computemodels
 	if host.EnableNumaAllocate && len(guestsCpuNumaPin) > 0 {
 		desc.HostTopo.LoadCpuNumaPin(guestsCpuNumaPin)
 	}
-	//log.Infof("host %s topo %s", jsonutils.Marshal(desc.HostTopo))
+	//log.Infof("host %s topo %s", desc.Name, jsonutils.Marshal(desc.HostTopo))
 
 	desc.GuestCount = guestCount
 	desc.CreatingGuestCount = creatingGuestCount
