@@ -29,7 +29,7 @@ type Options struct {
 	Token      string `help:"authentication information to access given url" required:"true"`
 	Blocksize  int    `help:"block size of content file system(MB)"`
 	MountPoint string `help:"mount path of fuse fs" required:"true"`
-	Debug      bool   `help:"enable debug go fuse"`
+	Debug      bool   `help:"enable debug go fuse" default:"true"`
 	Foreground bool   `help:"run in foreground"`
 
 	// image encrypt info
@@ -49,7 +49,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed parse args %s", err)
 	}
-	log.Errorf("%v", opt)
+	log.Infof("%#v", opt)
 	if opt.Blocksize <= 0 {
 		opt.Blocksize = BLOCK_SIZE
 	}

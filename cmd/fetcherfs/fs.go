@@ -86,7 +86,7 @@ func destoryInitFetcherFs() error {
 	if fetcherFs == nil {
 		return nil
 	}
-	log.Errorf("Remove path %s", fetcherFs.localFile.Name())
+	log.Infof("Remove path %s", fetcherFs.localFile.Name())
 	err := os.Remove(fetcherFs.localFile.Name())
 	if err != nil {
 		return err

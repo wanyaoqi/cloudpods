@@ -16,18 +16,39 @@ package main
 
 import (
 	"os"
+	"strings"
 	"syscall"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"github.com/sevlyar/go-daemon"
+	"yunion.io/x/log/hooks"
+	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/log"
-	"yunion.io/x/log/hooks"
 	"yunion.io/x/pkg/util/signalutils"
 )
 
 func main() {
+	if opt.Debug {
+		logFileHook := hooks.LogFileRotateHook{
+			LogFileHook: hooks.LogFileHook{
+				FileDir:  "/tmp",
+				FileName: "fetcherfs.log",
+			},
+			RotateNum:  10,
+			RotateSize: 100 * 1024 * 1024,
+		}
+		logFileHook.Init()
+		defer logFileHook.DeInit()
+		log.Logger().AddHook(&logFileHook)
+	}
+
+	segs := strings.Split(opt.MountPoint, "/")
+	diskId := segs[len(segs)-1]
+	log.Infof("Disk %s start mount fuse fs", diskId)
+	defer log.Infof("Disk %s fuse mount exited", diskId)
+
 	if !opt.Foreground {
 		cntxt := &daemon.Context{
 			WorkDir: "./",
@@ -36,7 +57,7 @@ func main() {
 
 		d, err := cntxt.Reborn()
 		if err != nil {
-			log.Fatalf("Unable to run: %s", err)
+			log.Fatalf("Disk %s Unable to run: %s", err)
 		}
 		if d != nil {
 			return
@@ -44,25 +65,15 @@ func main() {
 		defer cntxt.Release()
 	}
 
-	if opt.Debug {
-		logFileHook := hooks.LogFileRotateHook{
-			LogFileHook: hooks.LogFileHook{
-				FileDir:  "/tmp",
-				FileName: "fetcherfs.log",
-			},
-			RotateNum:  10,
-			RotateSize: 4096,
-		}
-		logFileHook.Init()
-		defer logFileHook.DeInit()
-		log.Logger().AddHook(&logFileHook)
-	}
-
 	fetcherFs, err := initFetcherFs()
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer destoryInitFetcherFs()
+	defer func() {
+		if err := destoryInitFetcherFs(); err != nil {
+			log.Errorf("Disk %s destoryInitFetcherFs failed %s", err)
+		}
+	}()
 	c, err := fuse.Mount(
 		opt.MountPoint,
 		fuse.FSName("fetcherfs"),
@@ -78,11 +89,15 @@ func main() {
 
 	err = fs.Serve(c, *fetcherFs)
 	if err != nil {
-		log.Errorf("serve failed %s", err)
+		log.Errorf("Disk %s serve failed %s", err)
 	}
 }
 
 func init() {
+	// dump goroutine stack
+	signalutils.RegisterSignal(func() {
+		utils.DumpAllGoroutineStack(log.Logger().Out)
+	}, syscall.SIGUSR1)
 	signalutils.RegisterSignal(func() {
 		destoryInitFetcherFs()
 		os.Exit(1)

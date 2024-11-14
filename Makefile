@@ -109,7 +109,7 @@ rpm/fetcherfs: cmd/fetcherfs
 		--name docker-centos-build-fetcherfs \
 		-v $(CURDIR):/data \
 		registry.cn-beijing.aliyuncs.com/yunionio/centos-build:1.1-4 \
-		/bin/bash -c "VERSION=3.6 /data/build/build.sh fetcherfs /opt/yunion/fetchclient/bin"
+		/bin/bash -c "VERSION=3.8 /data/build/build.sh fetcherfs /opt/yunion/fetchclient/bin"
 
 deb/fetcherfs: rpm/fetcherfs
 	#VERSION=3.6 $(DEB_BUILD_SCRIPT) fetcherfs /opt/yunion/fetchclient/bin
