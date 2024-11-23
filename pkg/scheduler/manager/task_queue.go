@@ -133,6 +133,7 @@ func setSchedPendingUsage(driver computemodels.IGuestDriver, req *api.SchedInfo,
 		return nil
 	}
 	for _, item := range resp.Candidates {
+		// Entrance
 		schedmodels.HostPendingUsageManager.AddPendingUsage(req, item)
 	}
 	return nil

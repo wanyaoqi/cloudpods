@@ -50,8 +50,8 @@ func (m *SHostPendingUsageManager) Keyword() string {
 }
 
 func (m *SHostPendingUsageManager) newSessionUsage(req *api.SchedInfo, hostId string, candidate *schedapi.CandidateResource) *SessionPendingUsage {
-	su := NewSessionUsage(req.SessionId, hostId)
-	su.Usage = NewPendingUsageBySchedInfo(hostId, req, candidate)
+	usage := NewPendingUsageBySchedInfo(hostId, req, candidate)
+	su := NewSessionUsage(req.SessionId, hostId, usage)
 	return su
 }
 
@@ -186,11 +186,11 @@ type SessionPendingUsage struct {
 	cancelCh  chan string
 }
 
-func NewSessionUsage(sid, hostId string) *SessionPendingUsage {
+func NewSessionUsage(sid, hostId string, usage *SPendingUsage) *SessionPendingUsage {
 	su := &SessionPendingUsage{
 		HostId:    hostId,
 		SessionId: sid,
-		Usage:     NewPendingUsageBySchedInfo(hostId, nil, nil),
+		Usage:     usage,
 		count:     0,
 		countLock: new(sync.Mutex),
 		cancelCh:  make(chan string),
@@ -295,6 +295,8 @@ type SPendingUsage struct {
 	CpuPin map[int]int
 	Memory int
 
+	PendingGuestIds map[string]struct{}
+
 	// nodeId: memSizeMB
 	NumaMemPin     map[int]int
 	IsolatedDevice int
@@ -306,9 +308,10 @@ type SPendingUsage struct {
 
 func NewPendingUsageBySchedInfo(hostId string, req *api.SchedInfo, candidate *schedapi.CandidateResource) *SPendingUsage {
 	u := &SPendingUsage{
-		HostId:    hostId,
-		DiskUsage: NewResourcePendingUsage(nil),
-		NetUsage:  NewResourcePendingUsage(nil),
+		HostId:          hostId,
+		DiskUsage:       NewResourcePendingUsage(nil),
+		NetUsage:        NewResourcePendingUsage(nil),
+		PendingGuestIds: make(map[string]struct{}),
 	}
 
 	// group init
@@ -395,6 +398,10 @@ func (self *SPendingUsage) Add(sUsage *SPendingUsage) {
 		}
 	}
 
+	for guestId := range sUsage.PendingGuestIds {
+		self.PendingGuestIds[guestId] = struct{}{}
+	}
+
 	self.Memory = self.Memory + sUsage.Memory
 	for k, v1 := range sUsage.NumaMemPin {
 		if v2, ok := self.NumaMemPin[k]; ok {
@@ -421,6 +428,10 @@ func (self *SPendingUsage) Sub(sUsage *SPendingUsage) {
 		if v2, ok := self.CpuPin[k]; ok {
 			self.CpuPin[k] = quotas.NonNegative(v2 - v1)
 		}
+	}
+
+	for guestId := range sUsage.PendingGuestIds {
+		delete(self.PendingGuestIds, guestId)
 	}
 
 	self.Memory = quotas.NonNegative(self.Memory - sUsage.Memory)
