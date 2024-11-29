@@ -4255,7 +4255,7 @@ func (hh *SHost) ValidateUpdateData(ctx context.Context, userCred mcclient.Token
 			if cnt, err := hh.GetRunningGuestCount(); err != nil {
 				return input, errors.Wrap(err, "GetRunningGuestCount")
 			} else if cnt > 0 {
-				return input, errors.Errorf("Host has running guest, can't enable/disable numa allocate")
+				return input, httperrors.NewBadRequestError("Host has running guest, can't enable/disable numa allocate")
 			}
 		}
 	}

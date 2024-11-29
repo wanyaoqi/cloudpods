@@ -2678,12 +2678,12 @@ func (h *SHostInfo) MemCmtBound() float32 {
 	return h.memCmtBound
 }
 
-func (h *SHostInfo) getProcessesPids(processesPrefix []string) (map[string]string, error) {
+func (h *SHostInfo) getProcessesPids(processesPrefix []string) (map[string][]string, error) {
 	files, err := ioutil.ReadDir("/proc")
 	if err != nil {
 		return nil, err
 	}
-	res := map[string]string{}
+	res := map[string][]string{}
 	re := regexp.MustCompile(`^\d+$`)
 	for _, f := range files {
 		if re.MatchString(f.Name()) {
@@ -2694,7 +2694,12 @@ func (h *SHostInfo) getProcessesPids(processesPrefix []string) (map[string]strin
 			}
 			segs := strings.Split(cmdline, "\x00")
 			if utils.IsInStringArray(segs[0], processesPrefix) {
-				res[segs[0]] = f.Name()
+				if pids, ok := res[segs[0]]; ok {
+					res[segs[0]] = append(pids, f.Name())
+				} else {
+					pids = make([]string, 0)
+					res[segs[0]] = append(pids, f.Name())
+				}
 				log.Infof("getProcessesPids append %s %s", segs[0], f.Name())
 			}
 		}
@@ -2708,21 +2713,24 @@ func (h *SHostInfo) startBindReservedCpus(processesPrefix []string) {
 		if err != nil {
 			log.Errorf("getProcessesPids %s", err)
 		} else {
-			for process, pid := range processPids {
-				cgroupName := path.Join(hostconsts.HOST_RESERVED_CPUSET, strings.ReplaceAll(process, "/", "_"))
-				task := cgrouputils.NewCGroupCPUSetTask(pid, cgroupName, 0, "")
-				if !task.Configure() {
-					log.Errorf("process failed init reserved cpuset %s %s", process, pid)
-					continue
-				}
+			for process, pids := range processPids {
+				for i := range pids {
+					pid := pids[i]
+					cgroupName := path.Join(hostconsts.HOST_RESERVED_CPUSET, strings.ReplaceAll(process, "/", "_"))
+					task := cgrouputils.NewCGroupCPUSetTask(pid, cgroupName, 0, "")
+					if !task.Configure() {
+						log.Errorf("process failed init reserved cpuset %s %s", process, pid)
+						continue
+					}
 
-				if !task.CustomConfig(cgrouputils.CPUSET_CLONE_CHILDREN, "1") {
-					log.Errorf("process failed set host reserved cpuset clone children %s %s", process, pid)
-					continue
-				}
-				if !task.SetTask() {
-					log.Errorf("process %s %s failed set cgroup cpuset", process, pid)
-					continue
+					if !task.CustomConfig(cgrouputils.CPUSET_CLONE_CHILDREN, "1") {
+						log.Errorf("process failed set host reserved cpuset clone children %s %s", process, pid)
+						continue
+					}
+					if !task.SetTask() {
+						log.Errorf("process %s %s failed set cgroup cpuset", process, pid)
+						continue
+					}
 				}
 			}
 		}
