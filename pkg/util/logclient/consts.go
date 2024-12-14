@@ -238,6 +238,11 @@ const (
 	ACT_CONSOLE           = "console"
 	ACT_WEBSSH            = "webssh"
 	ACT_SET_USER_PASSWORD = "set_user_password"
+	ACT_MAKESSHABLE       = "make_sshable"
+	ACT_TRYSSHABLE        = "try_sshable"
+
+	ACT_ISO_ATTACH = "iso_attach"
+	ACT_ISO_DETACH = "iso_detach"
 
 	ACT_PANIC = "panic"
 
@@ -267,6 +272,12 @@ const (
 	ACT_DELETE_SECURITY_GROUP_RULE = "delete_security_group_rule"
 
 	ACT_CLEAN_PROJECT = "clean_project"
+	ACT_JOIN_PROJECT  = "join_project"
+	ACT_LEAVE_PROJECT = "leave_project"
+
+	ACT_SET_SCHED_TAG = "set_sched_tag"
+
+	ACT_RESET_CREDENTIAL = "reset_credential"
 
 	ACT_COLLECT_METRICS = "collect_metrics"
 

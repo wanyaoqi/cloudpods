@@ -109,6 +109,7 @@ func (guest *SGuest) GetDetailsSshable(
 		}
 	}
 
+	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_TRYSSHABLE, ret, userCred, true)
 	return tryData.outputJSON(), nil
 }
 
@@ -498,6 +499,7 @@ func (guest *SGuest) PerformMakeSshable(
 		return output, httperrors.NewGeneralError(err)
 	}
 
+	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_MAKESSHABLE, ret, userCred, true)
 	output = compute_api.GuestMakeSshableOutput{
 		AnsiblePlaybookId: pbModel.Id,
 	}
