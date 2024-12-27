@@ -17,6 +17,8 @@ package compute
 import (
 	"time"
 
+	"yunion.io/x/jsonutils"
+
 	"yunion.io/x/onecloud/pkg/httperrors"
 )
 
@@ -85,8 +87,9 @@ type PodCreateInput struct {
 }
 
 type PodStartResponse struct {
-	CRIId     string `json:"cri_id"`
-	IsRunning bool   `json:"is_running"`
+	CRIId      string               `json:"cri_id"`
+	IsRunning  bool                 `json:"is_running"`
+	CpuNumaPin jsonutils.JSONObject `json:"cpu_numa_pin"`
 }
 
 type PodMetadataPortMapping struct {

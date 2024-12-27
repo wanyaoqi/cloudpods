@@ -2885,6 +2885,9 @@ func (s *SKVMGuestInstance) OnResumeSyncMetadataInfo() {
 	if s.manager.host.IsHugepagesEnabled() {
 		meta.Set("__hugepage", jsonutils.NewString("native"))
 	}
+	if !s.manager.host.IsNumaAllocateEnabled() && options.HostOptions.EnableHostAgentNumaAllocate {
+		meta.Set(api.VM_METADATA_CPU_NUMA_PIN, jsonutils.Marshal(s.Desc.CpuNumaPin))
+	}
 	// not exactly
 	if !options.HostOptions.HostCpuPassthrough || s.GetOsName() == OS_NAME_MACOS {
 		meta.Set("__cpu_mode", jsonutils.NewString(api.CPU_MODE_QEMU))

@@ -292,6 +292,7 @@ func (p *SPodDriver) RequestStartOnHost(ctx context.Context, guest *models.SGues
 	}
 	resp := new(api.PodStartResponse)
 	body.Unmarshal(resp)
+	guest.SetMetadata(ctx, api.VM_METADATA_CPU_NUMA_PIN, resp.CpuNumaPin, userCred)
 	if resp.IsRunning {
 		taskman.LocalTaskRun(task, func() (jsonutils.JSONObject, error) {
 			return body, nil

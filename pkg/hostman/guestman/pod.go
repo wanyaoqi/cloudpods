@@ -895,10 +895,14 @@ func (s *sPodGuestInstance) _startPod(ctx context.Context, userCred mcclient.Tok
 	if err := s.startStat.CreatePodFile(); err != nil {
 		return nil, errors.Wrap(err, "startStat.CreatePodFile")
 	}
-	return &computeapi.PodStartResponse{
+	res := &computeapi.PodStartResponse{
 		CRIId:     criId,
 		IsRunning: false,
-	}, nil
+	}
+	if !s.manager.host.IsNumaAllocateEnabled() && options.HostOptions.EnableHostAgentNumaAllocate {
+		res.CpuNumaPin = jsonutils.Marshal(s.Desc.CpuNumaPin)
+	}
+	return res, nil
 }
 
 func (s *sPodGuestInstance) setPodCgroupResources(criId string, memMB int64, cpuCnt int64) error {

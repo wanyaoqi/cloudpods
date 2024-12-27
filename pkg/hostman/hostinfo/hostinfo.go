@@ -1645,8 +1645,9 @@ func json2HostDetails(res jsonutils.JSONObject) (*api.HostDetails, error) {
 func (h *SHostInfo) updateHostMetadata(hostname string) (*api.HostDetails, error) {
 	onK8s, _ := tokens.IsInsideKubernetesCluster()
 	meta := api.HostRegisterMetadata{
-		OnKubernetes: onK8s,
-		Hostname:     hostname,
+		OnKubernetes:                onK8s,
+		Hostname:                    hostname,
+		EnableHostAgentNumaAllocate: options.HostOptions.EnableHostAgentNumaAllocate,
 	}
 	if len(h.SysError) > 0 {
 		meta.SysError = jsonutils.Marshal(h.SysError).String()

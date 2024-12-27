@@ -350,6 +350,7 @@ type HostRegisterMetadata struct {
 	SysWarn                      string `json:"sys_warn,allowempty"`
 	RootPartitionTotalCapacityMB int64  `json:"root_partition_total_capacity_mb"`
 	RootPartitionUsedCapacityMB  int64  `json:"root_partition_used_capacity_mb"`
+	EnableHostAgentNumaAllocate  bool   `json:"enable_host_agent_numa_allocate"`
 }
 
 type HostAccessAttributes struct {
