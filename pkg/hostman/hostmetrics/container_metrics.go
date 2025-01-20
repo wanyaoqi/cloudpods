@@ -447,7 +447,7 @@ type ContainerMetricMeta struct {
 func (m ContainerMetricMeta) GetTag() map[string]string {
 	ret := map[string]string{
 		"pod_id":         m.PodId,
-		"container_name": m.ContainerName,
+		"container_name": strings.ReplaceAll(m.ContainerName, " ", "+"),
 	}
 	if m.ContainerId != "" {
 		ret["container_id"] = m.ContainerId
@@ -899,6 +899,9 @@ func (d *GuestMetrics) toPodTelegrafData(tagStr string) []string {
 				newTagArr = append(newTagArr, fmt.Sprintf("%s=%s", k, v))
 			}
 			newTagStr = strings.Join([]string{tagStr, strings.Join(newTagArr, ",")}, ",")
+		}
+		if im.GetName() == "pod_nvidia_gpu" {
+			log.Errorf("Append METRICS: %s", fmt.Sprintf("%s,%s %s", im.GetName(), newTagStr, d.mapToStatStr(im.ToMap())))
 		}
 		res = append(res, fmt.Sprintf("%s,%s %s", im.GetName(), newTagStr, d.mapToStatStr(im.ToMap())))
 	}
