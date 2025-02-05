@@ -131,7 +131,7 @@ func newPCIGPURenderBaseDevice(devPath string, index int, devType isolated_devic
 			if err != nil {
 				return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", pciAddr)
 			}
-			dev := isolated_device.NewPCIDevice2(pciOutput[0])
+			dev := isolated_device.NewPCIDevice2(pciOutput[0], true)
 			devAddr := dev.Addr
 			baseDev := NewBaseDevice(dev, devType, devPath)
 			baseDev.SetAddr(fmt.Sprintf("%s-%d", devAddr, index), devAddr)

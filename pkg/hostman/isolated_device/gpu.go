@@ -88,7 +88,7 @@ func getPassthroughGPUs(filteredAddrs []string, enableWhitelist bool, whitelistM
 		if len(line) == 0 {
 			continue
 		}
-		dev := NewPCIDevice2(line)
+		dev := NewPCIDevice2(line, false)
 		if utils.IsInStringArray(dev.Addr, filteredAddrs) {
 			continue
 		}
@@ -135,6 +135,7 @@ func getPassthroughGPUs(filteredAddrs []string, enableWhitelist bool, whitelistM
 			warns = append(warns, errors.Wrapf(err, "force bind vfio-pci driver %s", dev.Addr))
 			continue
 		}
+		dev.fillPCIEInfo(nil)
 		devs = append(devs, dev)
 	}
 
@@ -225,7 +226,7 @@ func NewPCIDevice(addr string, executors ...IExecutor) (*PCIDevice, error) {
 		return nil, errors.Wrapf(err, "run lspci -nnmm -s %s", addr)
 	}
 
-	dev := NewPCIDevice2(strings.Join(ret, ""))
+	dev := NewPCIDevice2(strings.Join(ret, ""), true)
 	if err := dev.checkSameIOMMUGroupDevice(); err != nil {
 		return nil, err
 	}
@@ -235,7 +236,7 @@ func NewPCIDevice(addr string, executors ...IExecutor) (*PCIDevice, error) {
 	return dev, nil
 }
 
-func NewPCIDevice2(line string, executors ...IExecutor) *PCIDevice {
+func NewPCIDevice2(line string, fillPCIEInfo bool, executors ...IExecutor) *PCIDevice {
 	var executor IExecutor
 	if len(executors) == 0 {
 		executor = GetDefaultExecutor()
@@ -244,8 +245,10 @@ func NewPCIDevice2(line string, executors ...IExecutor) *PCIDevice {
 	}
 
 	dev := parseLspci(line)
-	if err := dev.fillPCIEInfo(executor); err != nil {
-		log.Warningf("fillPCIEInfo for line: %q, device: %s, error: %v", line, dev.String(), err)
+	if fillPCIEInfo {
+		if err := dev.fillPCIEInfo(executor); err != nil {
+			log.Warningf("fillPCIEInfo for line: %q, device: %s, error: %v", line, dev.String(), err)
+		}
 	}
 	return dev
 }
@@ -503,6 +506,10 @@ func (d *PCIDevice) fillPCIEInfo(executor IExecutor) error {
 		return errors.Errorf("device address is empty: %s", d.String())
 	}
 
+	if executor == nil {
+		executor = GetDefaultExecutor()
+	}
+
 	cmd := fmt.Sprintf("lspci -vvv -s %s", d.Addr)
 	lines, err := executor.RunCmd(cmd)
 	if err != nil {
@@ -656,7 +663,7 @@ func detectPCIDevByAddrWithoutIOMMUGroup(addr string) (*PCIDevice, error) {
 	if line == "" {
 		return nil, nil
 	}
-	return NewPCIDevice2(line), nil
+	return NewPCIDevice2(line, true), nil
 }
 
 func getDeviceCmd(dev IDevice, index int) string {

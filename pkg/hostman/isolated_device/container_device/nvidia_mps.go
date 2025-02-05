@@ -178,7 +178,7 @@ func getNvidiaMPSGpus() ([]isolated_device.IDevice, error) {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", gpuPciAddr)
 		}
 		for i := 0; i < options.HostOptions.CudaMPSReplicas; i++ {
-			dev := isolated_device.NewPCIDevice2(pciOutput[0])
+			dev := isolated_device.NewPCIDevice2(pciOutput[0], true)
 			gpuDev := &nvidiaMPS{
 				BaseDevice:       NewBaseDevice(dev, isolated_device.ContainerDeviceTypeNvidiaMps, gpuId),
 				MemSizeMB:        memSize / options.HostOptions.CudaMPSReplicas,

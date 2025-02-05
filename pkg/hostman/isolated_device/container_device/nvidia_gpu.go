@@ -130,7 +130,7 @@ func getNvidiaGPUs() ([]isolated_device.IDevice, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", gpuPciAddr)
 		}
-		dev := isolated_device.NewPCIDevice2(pciOutput[0])
+		dev := isolated_device.NewPCIDevice2(pciOutput[0], true)
 		gpuDev := &nvidiaGPU{
 			BaseDevice: NewBaseDevice(dev, isolated_device.ContainerDeviceTypeNvidiaGpu, gpuId),
 			memSize:    memSize,

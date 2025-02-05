@@ -186,7 +186,7 @@ func getAscendNpus() ([]isolated_device.IDevice, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", busID)
 		}
-		dev := isolated_device.NewPCIDevice2(pciOutput[0])
+		dev := isolated_device.NewPCIDevice2(pciOutput[0], true)
 		npuDev := &ascnedNPU{
 			BaseDevice: NewBaseDevice(dev, isolated_device.ContainerDeviceTypeAscendNpu, devPath),
 		}

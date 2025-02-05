@@ -60,7 +60,7 @@ func getPassthroughPCIDevs(devModel IsolatedDeviceModel, filteredCodes []string)
 	devs := []*sGeneralPCIDevice{}
 	errs := make([]error, 0)
 	for _, line := range lines {
-		dev := NewPCIDevice2(line)
+		dev := NewPCIDevice2(line, false)
 		if dev.ModelName == "" {
 			dev.ModelName = devModel.Model
 		}
@@ -71,6 +71,7 @@ func getPassthroughPCIDevs(devModel IsolatedDeviceModel, filteredCodes []string)
 			errs = append(errs, errors.Wrapf(err, "get dev %s iommu group devices by model: %s", dev.Addr, jsonutils.Marshal(devModel)))
 			continue
 		}
+		dev.fillPCIEInfo(nil)
 		devs = append(devs, newGeneralPCIDevice(dev, devModel.DevType))
 	}
 	return devs, errors.NewAggregate(errs)
