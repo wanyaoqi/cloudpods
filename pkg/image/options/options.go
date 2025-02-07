@@ -15,8 +15,17 @@
 package options
 
 import (
+	"context"
+
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
+
+	computeapi "yunion.io/x/onecloud/pkg/apis/compute"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/onecloud/pkg/cloudcommon/pending_delete"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/modules/compute"
 )
 
 type SImageOptions struct {
@@ -82,4 +91,42 @@ func OnOptionsChange(oldO, newO interface{}) bool {
 	}
 
 	return changed
+}
+
+func GetCephStorages() ([]*computeapi.RbdStorageConf, error) {
+	q := struct {
+		Scope       string `json:"scope"`
+		StorageType string `json:"storage_type"`
+	}{
+		"system", computeapi.STORAGE_RBD,
+	}
+
+	res, err := compute.Storages.List(auth.GetAdminSession(context.Background(), Options.Region), jsonutils.Marshal(q))
+	if err != nil {
+		return nil, errors.Wrap(err, "compute.Storages.List")
+	}
+	if res.Total <= 0 {
+		return nil, nil
+	}
+	storages := []computeapi.StorageDetails{}
+	err = jsonutils.Update(&storages, res.Data)
+	if err != nil {
+		return nil, errors.Wrap(err, "json parse storage details")
+	}
+	cephStorages := make([]*computeapi.RbdStorageConf, 0)
+	for i := range storages {
+		if storages[i].StorageType != computeapi.STORAGE_RBD {
+			continue
+		}
+		if jsonutils.QueryBoolean(storages[i].StorageConf, "auto_cache_images", false) {
+			conf := new(computeapi.RbdStorageConf)
+			if err := storages[i].StorageConf.Unmarshal(conf); err != nil {
+				log.Errorf("failed unmarshal storage %s: %s", storages[i].StorageConf, err)
+				continue
+			}
+
+			cephStorages = append(cephStorages, conf)
+		}
+	}
+	return cephStorages, nil
 }

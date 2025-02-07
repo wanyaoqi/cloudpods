@@ -2085,7 +2085,7 @@ func (img *SImage) Pipeline(ctx context.Context, userCred mcclient.TokenCredenti
 		}
 	}
 	{
-		// do conert
+		// do convert
 		converted, err := img.doConvert(ctx, userCred)
 		if err != nil {
 			return errors.Wrap(err, "doConvert")

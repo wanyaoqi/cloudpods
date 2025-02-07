@@ -1741,6 +1741,10 @@ func (manager *SStorageManager) ListItemFilter(
 		q = q.Filter(sqlchemy.In(q.Field("storage_type"), api.STORAGE_LOCAL_TYPES))
 	}
 
+	if len(query.StorageType) > 0 {
+		q = q.Equals("storage_type", query.StorageType)
+	}
+
 	if len(query.SchedtagId) > 0 {
 		schedTag, err := SchedtagManager.FetchByIdOrName(ctx, nil, query.SchedtagId)
 		if err != nil {
