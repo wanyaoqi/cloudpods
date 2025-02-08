@@ -2117,7 +2117,18 @@ func (img *SImage) Pipeline(ctx context.Context, userCred mcclient.TokenCredenti
 		notifyclient.SystemNotifyWithCtx(ctx, notify.NotifyPriorityNormal, notifyclient.IMAGE_ACTIVED, kwargs)
 		notifyclient.NotifyImportantWithCtx(ctx, []string{userCred.GetUserId()}, false, notifyclient.IMAGE_ACTIVED, kwargs)
 	}
+	{
+		// do cache to ceph storages
+
+	}
 	return nil
+}
+
+func (img *SImage) cacheToCephStorages() {
+	cephStorages := options.GetCephStorages()
+	for id, storageConf := range cephStorages.StorageIdConf {
+
+	}
 }
 
 func (img *SImage) getGuestImageCount() (int, error) {

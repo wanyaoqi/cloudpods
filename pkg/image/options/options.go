@@ -26,6 +26,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/pending_delete"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules/compute"
+	"yunion.io/x/onecloud/pkg/util/cephutils"
 )
 
 type SImageOptions struct {
@@ -93,7 +94,7 @@ func OnOptionsChange(oldO, newO interface{}) bool {
 	return changed
 }
 
-func GetCephStorages() ([]*computeapi.RbdStorageConf, error) {
+func GetRegionCephStorages() (map[string]*computeapi.RbdStorageConf, error) {
 	q := struct {
 		Scope       string `json:"scope"`
 		StorageType string `json:"storage_type"`
@@ -113,7 +114,7 @@ func GetCephStorages() ([]*computeapi.RbdStorageConf, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "json parse storage details")
 	}
-	cephStorages := make([]*computeapi.RbdStorageConf, 0)
+	cephStorages := map[string]*computeapi.RbdStorageConf{}
 	for i := range storages {
 		if storages[i].StorageType != computeapi.STORAGE_RBD {
 			continue
@@ -124,9 +125,66 @@ func GetCephStorages() ([]*computeapi.RbdStorageConf, error) {
 				log.Errorf("failed unmarshal storage %s: %s", storages[i].StorageConf, err)
 				continue
 			}
-
-			cephStorages = append(cephStorages, conf)
+			cephStorages[storages[i].Id] = conf
 		}
 	}
 	return cephStorages, nil
+}
+
+type SCephStorageConf struct {
+	StorageIdConf     map[string]*computeapi.RbdStorageConf
+	CephFsidStorageId map[string][]string
+}
+
+var cephStorages *SCephStorageConf
+
+func GetCephStorages() *SCephStorageConf {
+	if cephStorages != nil {
+		return cephStorages
+	}
+	cephStorages = getCephStorages()
+	return cephStorages
+}
+
+func getCephStorages() *SCephStorageConf {
+	storagesConf, err := GetRegionCephStorages()
+	if err != nil {
+		log.Errorf("failed GetCephStorages %s", err)
+		return nil
+	}
+	if len(storagesConf) == 0 {
+		log.Infof("No enable auto_cache_image ceph storage found...")
+		return nil
+	}
+	fsidStorageMap := map[string][]string{}
+	for id := range storagesConf {
+		fsid := getStorageFsid(storagesConf[id])
+		if fsid == "" {
+			continue
+		}
+		storages, ok := fsidStorageMap[fsid]
+		if !ok {
+			storages = make([]string, 0)
+		}
+		fsidStorageMap[fsid] = append(storages, id)
+	}
+	return &SCephStorageConf{
+		StorageIdConf:     storagesConf,
+		CephFsidStorageId: fsidStorageMap,
+	}
+}
+
+func getStorageFsid(conf *computeapi.RbdStorageConf) string {
+	cli, err := cephutils.NewClient(conf.MonHost, conf.Pool, conf.Key, conf.EnableMessengerV2)
+	if err != nil {
+		log.Errorf("failed new client of ceph storage %s:%s", conf.MonHost, conf.Pool)
+		return ""
+	}
+	defer cli.Close()
+	fsid, err := cli.Fsid()
+	if err != nil {
+		log.Errorf("failed get fsid of ceph storage %s:%s", conf.MonHost, conf.Pool)
+		return ""
+	}
+	return fsid
 }

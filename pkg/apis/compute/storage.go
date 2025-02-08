@@ -272,8 +272,8 @@ type RbdStorageConf struct {
 	MonHost           string `json:"mon_host"`
 	Pool              string `json:"pool"`
 	Key               string `json:"key"`
-	EnableMessengerV2 *bool  `json:"enable_messenger_v2"`
-	AutoCacheImages   *bool  `json:"auto_cache_images"`
+	EnableMessengerV2 bool   `json:"enable_messenger_v2"`
+	AutoCacheImages   bool   `json:"auto_cache_images"`
 }
 
 type StorageSetCmtBoundInput struct {

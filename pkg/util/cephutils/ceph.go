@@ -289,6 +289,23 @@ func (cli *CephClient) Child(pool string) *CephClient {
 	return &newCli
 }
 
+type SFsid struct {
+	Fsid string
+}
+
+func (cli *CephClient) Fsid() (string, error) {
+	resp, err := cli.output("ceph", []string{"fsid"}, true)
+	if err != nil {
+		return "", err
+	}
+	fsid := SFsid{}
+	err = resp.Unmarshal(&fsid)
+	if err != nil {
+		return "", err
+	}
+	return fsid.Fsid, nil
+}
+
 type SImage struct {
 	name   string
 	client *CephClient
