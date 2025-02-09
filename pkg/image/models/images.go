@@ -59,10 +59,12 @@ import (
 	identity_modules "yunion.io/x/onecloud/pkg/mcclient/modules/identity"
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/image"
 	"yunion.io/x/onecloud/pkg/mcclient/modules/notify"
+	"yunion.io/x/onecloud/pkg/util/cephutils"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/logclient"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/qemuimg"
+	"yunion.io/x/onecloud/pkg/util/qemutils"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
@@ -2104,6 +2106,10 @@ func (img *SImage) Pipeline(ctx context.Context, userCred mcclient.TokenCredenti
 			updated = true
 		}
 	}
+	{
+		// do cache to ceph storages
+		img.cacheToCephStorages()
+	}
 	if img.Status != api.IMAGE_STATUS_ACTIVE {
 		img.SetStatus(ctx, userCred, api.IMAGE_STATUS_ACTIVE, "image pipeline complete")
 	}
@@ -2117,18 +2123,104 @@ func (img *SImage) Pipeline(ctx context.Context, userCred mcclient.TokenCredenti
 		notifyclient.SystemNotifyWithCtx(ctx, notify.NotifyPriorityNormal, notifyclient.IMAGE_ACTIVED, kwargs)
 		notifyclient.NotifyImportantWithCtx(ctx, []string{userCred.GetUserId()}, false, notifyclient.IMAGE_ACTIVED, kwargs)
 	}
-	{
-		// do cache to ceph storages
-
-	}
 	return nil
 }
 
 func (img *SImage) cacheToCephStorages() {
 	cephStorages := options.GetCephStorages()
-	for id, storageConf := range cephStorages.StorageIdConf {
-
+	if len(cephStorages.StorageIdConf) == 0 {
+		return
 	}
+	for fsid, storageIds := range cephStorages.CephFsidStorageId {
+		storageCachedImages := map[string]*cephutils.SImage{}
+		var cachedRbdimg *cephutils.SImage
+		for i := range storageIds {
+			storageConf := cephStorages.StorageIdConf[storageIds[i]]
+			rbdimg, err := img.getCephImage(storageConf.MonHost, storageConf.Key, storageConf.Pool, storageConf.EnableMessengerV2)
+			if err != nil {
+				log.Errorf("failed get img %s by storage conf %#v", img.Id, storageConf)
+				continue
+			}
+			if rbdimg != nil && cachedRbdimg == nil {
+				cachedRbdimg = rbdimg
+			}
+			storageCachedImages[storageIds[i]] = rbdimg
+		}
+		if len(storageCachedImages) == 0 {
+			// ceph storage unreachable
+			log.Errorf("all of cpeh storage with fsid %s failed get ceph image", fsid)
+			continue
+		}
+		if cachedRbdimg == nil {
+			// do cache img to ceph storage
+			for storageId := range storageCachedImages {
+				storageConf := cephStorages.StorageIdConf[storageId]
+				imgName := "image_cache_" + img.Id
+				localPath := img.GetLocalPath(img.DiskFormat)
+				storageConfString := cephutils.CephConfString(
+					storageConf.MonHost,
+					storageConf.Key,
+					int64(storageConf.RadosMonOpTimeout),
+					int64(storageConf.RadosOsdOpTimeout),
+					int64(storageConf.ClientMountTimeout),
+				)
+				rbdPath := fmt.Sprintf("rbd:%s/%s%s", storageConf.Pool, imgName, storageConfString)
+				log.Infof("convert local image %s to rbd pool %s", img.Id, storageConf.Pool)
+				err := procutils.NewRemoteCommandAsFarAsPossible(qemutils.GetQemuImg(),
+					"convert", "-W", "-m", "16", "-O", "raw", localPath, rbdPath).Run()
+				if err != nil {
+					log.Errorf("convert local image %s to rbd pool %s failed: %s", img.Id, storageConf.Pool, err)
+					continue
+				}
+				log.Infof("Success cached img %s to pool %s", imgName, storageConf.Pool)
+				rbdimg, err := img.getCephImage(storageConf.MonHost, storageConf.Key, storageConf.Pool, storageConf.EnableMessengerV2)
+				if err != nil {
+					log.Errorf("failed get ceph image %s after convert to ceph: %s", imgName, err)
+					continue
+				} else if rbdimg == nil {
+					log.Errorf("failed get ceph image %s after convert to ceph, rbdimage not found", imgName)
+					continue
+				} else {
+					cachedRbdimg = rbdimg
+					delete(storageCachedImages, storageId)
+					break
+				}
+			}
+		}
+		if cachedRbdimg == nil {
+			log.Errorf("failed cache img %s to ceph storages fsid: %s", img.Id, fsid)
+			continue
+		}
+
+		for storageId := range storageCachedImages {
+			if storageCachedImages[storageId] == nil {
+				storageConf := cephStorages.StorageIdConf[storageId]
+				imgName := "image_cache_" + img.Id
+				_, err := cachedRbdimg.Clone(context.Background(), storageConf.Pool, imgName)
+				if err != nil {
+					log.Errorf("failed cache img %s to pool %s", imgName, storageConf.Pool)
+				}
+				log.Infof("Success cached img %s to pool %s", imgName, storageConf.Pool)
+			}
+		}
+	}
+}
+
+func (img *SImage) getCephImage(monHost, key, pool string, enableMessengerV2 bool) (*cephutils.SImage, error) {
+	imgName := "image_cache_" + img.Id
+	cli, err := cephutils.NewClient(monHost, key, pool, enableMessengerV2)
+	if err != nil {
+		return nil, errors.Wrap(err, "cephutils.NewClient")
+	}
+	defer cli.Close()
+	rbdimg, err := cli.GetImage(imgName)
+	if err != nil {
+		if errors.Cause(err) == errors.ErrNotFound {
+			return nil, nil
+		}
+		return nil, errors.Wrapf(err, "GetImage")
+	}
+	return rbdimg, nil
 }
 
 func (img *SImage) getGuestImageCount() (int, error) {

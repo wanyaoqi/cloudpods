@@ -283,6 +283,25 @@ keyring = %s
 	return client, nil
 }
 
+func CephConfString(monHost, key string, radosMonOpTimeout, radosOsdOpTimeout, clientMountTimeout int64) string {
+	conf := []string{}
+	conf = append(conf, "mon_host="+strings.ReplaceAll(monHost, ",", `\;`))
+	if len(key) > 0 {
+		for _, k := range []string{":", "@", "="} {
+			key = strings.ReplaceAll(key, k, fmt.Sprintf(`\%s`, k))
+		}
+		conf = append(conf, "key="+key)
+	}
+	for k, timeout := range map[string]int64{
+		"rados_mon_op_timeout": radosMonOpTimeout,
+		"rados_osd_op_timeout": radosOsdOpTimeout,
+		"client_mount_timeout": clientMountTimeout,
+	} {
+		conf = append(conf, fmt.Sprintf("%s=%d", k, timeout))
+	}
+	return ":" + strings.Join(conf, ":")
+}
+
 func (cli *CephClient) Child(pool string) *CephClient {
 	newCli := *cli
 	newCli.pool = pool
