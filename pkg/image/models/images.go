@@ -2128,7 +2128,7 @@ func (img *SImage) Pipeline(ctx context.Context, userCred mcclient.TokenCredenti
 
 func (img *SImage) cacheToCephStorages() {
 	cephStorages := options.GetCephStorages()
-	if len(cephStorages.StorageIdConf) == 0 {
+	if cephStorages == nil || len(cephStorages.StorageIdConf) == 0 {
 		return
 	}
 	for fsid, storageIds := range cephStorages.CephFsidStorageId {
@@ -2143,6 +2143,9 @@ func (img *SImage) cacheToCephStorages() {
 			}
 			if rbdimg != nil && cachedRbdimg == nil {
 				cachedRbdimg = rbdimg
+			}
+			if rbdimg != nil {
+				log.Infof("image %s has been cached to ceph pool: %s", img.Id, storageConf.Pool)
 			}
 			storageCachedImages[storageIds[i]] = rbdimg
 		}

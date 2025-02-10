@@ -73,6 +73,11 @@ func (r *SRbdImageCache) Load() error {
 }
 
 func (r *SRbdImageCache) Acquire(ctx context.Context, input api.CacheImageInput, callback func(progress, progressMbps float64, totalSizeMb int64)) error {
+	if err := r.Load(); err == nil {
+		r.imageName = r.imageId
+		return nil
+	}
+
 	input.ImageId = r.imageId
 	localImageCache, err := storageManager.LocalStorageImagecacheManager.AcquireImage(ctx, input, func(progress, progressMbps float64, totalSizeMb int64) {
 		if len(input.ServerId) > 0 {

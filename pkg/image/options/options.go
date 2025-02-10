@@ -136,13 +136,17 @@ type SCephStorageConf struct {
 	CephFsidStorageId map[string][]string
 }
 
-var cephStorages *SCephStorageConf
+var (
+	cephStorages          *SCephStorageConf
+	requestedCephStorages bool
+)
 
 func GetCephStorages() *SCephStorageConf {
-	if cephStorages != nil {
+	if requestedCephStorages {
 		return cephStorages
 	}
 	cephStorages = getCephStorages()
+	requestedCephStorages = true
 	return cephStorages
 }
 
