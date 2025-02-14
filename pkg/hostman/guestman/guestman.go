@@ -81,6 +81,7 @@ const (
 	GUEST_BLOCK_STREAM      = compute.VM_BLOCK_STREAM
 	GUEST_BLOCK_STREAM_FAIL = compute.VM_BLOCK_STREAM_FAIL
 	GUEST_SUSPEND           = compute.VM_SUSPEND
+	GUEST_MIGRATING         = compute.VM_MIGRATING
 	GUSET_STOPPED           = "stopped"
 	GUEST_NOT_FOUND         = "notfound"
 )

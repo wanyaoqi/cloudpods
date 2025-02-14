@@ -3586,11 +3586,15 @@ func (s *SKVMGuestInstance) HandleGuestStatus(ctx context.Context, status string
 	} else if status == GUEST_RUNNING {
 		var runCb = func() {
 			body := jsonutils.NewDict()
-			blockJobsCount := s.BlockJobsCount()
-			if blockJobsCount > 0 {
-				status = GUEST_BLOCK_STREAM
+			if s.MigrateTask != nil {
+				status = GUEST_MIGRATING
+			} else {
+				blockJobsCount := s.BlockJobsCount()
+				if blockJobsCount > 0 {
+					status = GUEST_BLOCK_STREAM
+				}
+				body.Set("block_jobs_count", jsonutils.NewInt(int64(blockJobsCount)))
 			}
-			body.Set("block_jobs_count", jsonutils.NewInt(int64(blockJobsCount)))
 			body.Set("status", jsonutils.NewString(status))
 			hostutils.TaskComplete(ctx, body)
 		}
