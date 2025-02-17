@@ -1003,6 +1003,14 @@ func (manager *STaskManager) QueryTasksOfObject(obj db.IStandaloneModel, since t
 	return sqlchemy.Union(subq1, subq2).Query().Desc("created_at")
 }
 
+func (manager STaskManager) QueryTasksOfObjectByTaskNames(obj db.IStandaloneModel, since time.Time, isOpen *bool, taskNames []string) *sqlchemy.SQuery {
+	q := manager.QueryTasksOfObject(obj, since, isOpen)
+	if len(taskNames) > 0 {
+		q = q.In("task_name", taskNames)
+	}
+	return q
+}
+
 func (manager *STaskManager) IsInTask(obj db.IStandaloneModel) bool {
 	tasks, err := manager.FetchIncompleteTasksOfObject(obj)
 	if err == nil && len(tasks) == 0 {

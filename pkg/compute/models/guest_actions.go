@@ -3385,8 +3385,25 @@ func (self *SGuest) PerformSyncstatus(ctx context.Context, userCred mcclient.Tok
 	if count > 0 {
 		return nil, httperrors.NewBadRequestError("Guest has %d task active, can't sync status", count)
 	}
+	if self.isMigrating() {
+		migrateTasks := []string{"GuestLiveMigrateTask", "GuestMigrateTask"}
+		count, err := taskman.TaskManager.QueryTasksOfObjectByTaskNames(self, time.Now().Add(-24*time.Hour), &openTask, migrateTasks).CountWithError()
+		if err != nil {
+			return nil, err
+		}
+		if count > 0 {
+			return nil, httperrors.NewBadRequestError("Guest status migrating and has active migrate task, can't sync status")
+		}
+	}
 
 	return nil, self.StartSyncstatus(ctx, userCred, "")
+}
+
+func (self *SGuest) isMigrating() bool {
+	if self.Status == api.VM_MIGRATING || self.Status == api.VM_LIVE_MIGRATING {
+		return true
+	}
+	return false
 }
 
 func (self *SGuest) isNotRunningStatus(status string) bool {
