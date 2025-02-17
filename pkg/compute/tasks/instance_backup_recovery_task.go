@@ -88,14 +88,43 @@ func (self *InstanceBackupRecoveryTask) OnInit(ctx context.Context, obj db.IStan
 		}
 	}
 
+	if self.Params.Contains("networks") {
+		networks := []*compute.NetworkConfig{}
+		err := self.Params.Unmarshal(&networks, "networks")
+		if err != nil {
+			self.taskFailed(ctx, ib, jsonutils.NewString(err.Error()))
+			return
+		}
+		sourceInput.Networks = networks
+	}
+
 	params := sourceInput.JSON(sourceInput)
-	guestObj, err := db.DoCreate(models.GuestManager, ctx, self.UserCred, nil, params, ownerId)
+	guestObj, err := func() (db.IModel, error) {
+		lockman.LockClass(ctx, models.GuestManager, self.UserCred.GetProjectId())
+		defer lockman.ReleaseClass(ctx, models.GuestManager, self.UserCred.GetProjectId())
+
+		// check if keep origin guest id
+		if originId, _ := self.Params.GetString("server_id"); len(originId) > 0 {
+			_, err := models.GuestManager.FetchById(originId)
+			if err != sql.ErrNoRows {
+				return nil, errors.Errorf("instance backup recovery failed keep origin id %s: %s", originId, err)
+			}
+
+			params.Set("id", jsonutils.NewString(originId))
+		}
+
+		guestObj, err := db.DoCreate(models.GuestManager, ctx, self.UserCred, nil, params, ownerId)
+		if err != nil {
+			return nil, err
+		}
+		return guestObj, nil
+	}()
 	if err != nil {
 		self.taskFailed(ctx, ib, jsonutils.NewString(err.Error()))
 		return
 	}
-	guest := guestObj.(*models.SGuest)
 
+	guest := guestObj.(*models.SGuest)
 	func() {
 		lockman.LockObject(ctx, guest)
 		defer lockman.ReleaseObject(ctx, guest)

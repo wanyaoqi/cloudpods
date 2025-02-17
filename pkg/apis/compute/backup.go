@@ -173,6 +173,7 @@ type InstanceBackupPackMetadata struct {
 	InstanceType   string
 	SizeMb         int
 	DiskMetadatas  []DiskBackupPackMetadata
+	OriginGuestId  string
 
 	// 加密密钥ID
 	EncryptKeyId string
@@ -218,4 +219,6 @@ type ServerCreateInstanceBackupInput struct {
 	GenerateName string `json:"generate_name"`
 	// 备份存储ID
 	BackupStorageId string `json:"backup_storage_id"`
+	// Save guest ip mac address
+	SaveGuestIpMacAddr *bool `json:"save_ip_mac_addr"`
 }

@@ -268,7 +268,7 @@ func (self *SInstanceBackup) StartCreateInstanceBackupTask(ctx context.Context, 
 	return nil
 }
 
-func (manager *SInstanceBackupManager) fillInstanceBackup(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, instanceBackup *SInstanceBackup) {
+func (manager *SInstanceBackupManager) fillInstanceBackup(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, instanceBackup *SInstanceBackup, saveGuestIpMacAddr bool) {
 	instanceBackup.SetModelManager(manager, instanceBackup)
 	instanceBackup.ProjectId = guest.ProjectId
 	instanceBackup.DomainId = guest.DomainId
@@ -285,10 +285,12 @@ func (manager *SInstanceBackupManager) fillInstanceBackup(ctx context.Context, u
 	createInput := guest.ToCreateInput(ctx, userCred)
 	createInput.ProjectId = guest.ProjectId
 	createInput.ProjectDomainId = guest.DomainId
-	for i := 0; i < len(createInput.Networks); i++ {
-		createInput.Networks[i].Mac = ""
-		createInput.Networks[i].Address = ""
-		createInput.Networks[i].Address6 = ""
+	if !saveGuestIpMacAddr {
+		for i := 0; i < len(createInput.Networks); i++ {
+			createInput.Networks[i].Mac = ""
+			createInput.Networks[i].Address = ""
+			createInput.Networks[i].Address6 = ""
+		}
 	}
 	instanceBackup.ServerConfig = jsonutils.Marshal(createInput)
 	if len(guest.KeypairId) > 0 {
@@ -334,12 +336,12 @@ func (manager *SInstanceBackupManager) fillInstanceBackup(ctx context.Context, u
 	instanceBackup.InstanceType = guest.InstanceType
 }
 
-func (manager *SInstanceBackupManager) CreateInstanceBackup(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, name, backupStorageId string) (*SInstanceBackup, error) {
+func (manager *SInstanceBackupManager) CreateInstanceBackup(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, name, backupStorageId string, saveGuestIpMacAddr bool) (*SInstanceBackup, error) {
 	instanceBackup := &SInstanceBackup{}
 	instanceBackup.SetModelManager(manager, instanceBackup)
 	instanceBackup.Name = name
 	instanceBackup.BackupStorageId = backupStorageId
-	manager.fillInstanceBackup(ctx, userCred, guest, instanceBackup)
+	manager.fillInstanceBackup(ctx, userCred, guest, instanceBackup, saveGuestIpMacAddr)
 	// compute size of instanceBackup
 	//instanceBackup.SizeMb = guest.getDiskSize()
 	err := manager.TableSpec().Insert(ctx, instanceBackup)
@@ -492,15 +494,22 @@ func (self *SInstanceBackup) GetBackups() ([]SDiskBackup, error) {
 }
 
 func (self *SInstanceBackup) PerformRecovery(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input api.InstanceBackupRecoveryInput) (jsonutils.JSONObject, error) {
-	return nil, self.StartRecoveryTask(ctx, userCred, "", input.Name)
+	return nil, self.StartRecoveryTask(ctx, userCred, "", input)
 }
 
-func (self *SInstanceBackup) StartRecoveryTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string, serverName string) error {
+func (self *SInstanceBackup) StartRecoveryTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string, input api.InstanceBackupRecoveryInput) error {
 	self.SetStatus(ctx, userCred, api.INSTANCE_BACKUP_STATUS_RECOVERY, "")
 	params := jsonutils.NewDict()
-	if serverName != "" {
-		params.Set("server_name", jsonutils.NewString(serverName))
+	if input.Name != "" {
+		params.Set("server_name", jsonutils.NewString(input.Name))
 	}
+	if input.KeepOriginGuestId != nil && *input.KeepOriginGuestId && self.GuestId != "" {
+		params.Set("server_id", jsonutils.NewString(self.GuestId))
+	}
+	if len(input.Networks) > 0 {
+		params.Set("networks", jsonutils.Marshal(input.Networks))
+	}
+
 	task, err := taskman.TaskManager.NewTask(ctx, "InstanceBackupRecoveryTask", self, userCred, params, parentTaskId, "", nil)
 	if err != nil {
 		return err
@@ -572,6 +581,7 @@ func (self *SInstanceBackup) PackMetadata(ctx context.Context, userCred mcclient
 		OsType:         self.OsType,
 		InstanceType:   self.InstanceType,
 		SizeMb:         self.SizeMb,
+		OriginGuestId:  self.GuestId,
 
 		EncryptKeyId: self.EncryptKeyId,
 		Metadata:     allMetadata,
@@ -656,6 +666,7 @@ func (ib *SInstanceBackup) FillFromPackMetadata(ctx context.Context, userCred mc
 		ib.OsType = metadata.OsType
 		ib.InstanceType = metadata.InstanceType
 		ib.SizeMb = metadata.SizeMb
+		ib.GuestId = metadata.OriginGuestId
 
 		ib.EncryptKeyId = metadata.EncryptKeyId
 		return nil

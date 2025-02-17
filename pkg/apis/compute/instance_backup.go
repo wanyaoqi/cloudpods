@@ -100,6 +100,12 @@ type SSimpleBackup struct {
 type InstanceBackupRecoveryInput struct {
 	// description: name of guest
 	Name string
+
+	// keep origin guest id
+	KeepOriginGuestId *bool
+
+	// dest guest network configs
+	Networks []*NetworkConfig `json:"networks"`
 }
 
 type InstanceBackupPackInput struct {

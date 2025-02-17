@@ -5428,7 +5428,11 @@ func (self *SGuest) PerformInstanceBackup(
 	if bs.Status != api.BACKUPSTORAGE_STATUS_ONLINE {
 		return nil, httperrors.NewForbiddenError("can't backup guest to backup storage with status %s", bs.Status)
 	}
-	instanceBackup, err := InstanceBackupManager.CreateInstanceBackup(ctx, userCred, self, name, backupStorageId)
+	saveGuestIpMacAddr := false
+	if input.SaveGuestIpMacAddr != nil && *input.SaveGuestIpMacAddr {
+		saveGuestIpMacAddr = true
+	}
+	instanceBackup, err := InstanceBackupManager.CreateInstanceBackup(ctx, userCred, self, name, backupStorageId, saveGuestIpMacAddr)
 	if err != nil {
 		return nil, httperrors.NewInternalServerError("create instance backup failed: %s", err)
 	}

@@ -752,9 +752,10 @@ func init() {
 		return nil
 	})
 	type ServerCreateBackup struct {
-		ID              string `help:"ID or name of VM" json:"-"`
-		BACKUP          string `help:"Instance backup name" json:"name"`
-		BACKUPSTORAGEID string `help:"backup storage id" json:"backup_storage_id"`
+		ID                 string `help:"ID or name of VM" json:"-"`
+		BACKUP             string `help:"Instance backup name" json:"name"`
+		BACKUPSTORAGEID    string `help:"backup storage id" json:"backup_storage_id"`
+		SaveGuestIpMacAddr *bool  `helP:"save guest ip mac addr to server config"`
 	}
 	R(&ServerCreateBackup{}, "server-create-instance-backup", "create instance backup", func(s *mcclient.ClientSession, opts *ServerCreateBackup) error {
 		params := jsonutils.Marshal(opts)
