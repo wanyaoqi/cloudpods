@@ -347,6 +347,7 @@ type DiskMigrateInput struct {
 
 type DiskSnapshotpolicyInput struct {
 	SnapshotpolicyId string `json:"snapshotpolicy_id"`
+	IsBackupPolicy   bool   `json:"is_backup_policy"`
 }
 
 type DiskRebuildInput struct {

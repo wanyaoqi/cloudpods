@@ -61,8 +61,8 @@ type SSnapshotPolicyDisk struct {
 	SnapshotpolicyId  string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 	SDiskResourceBase `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 
-	// [snapshot, backup] default is snapshot
-	PolicyBinder string `width:"32" charset:"ascii" nullable:"true" list:"user" json:"policy_binder"`
+	// default is snapshot policy
+	IsBackupPolicy bool `default:"false" list:"user" json:"is_backup_policy"`
 }
 
 func (self *SSnapshotPolicyDisk) GetDisk() (*SDisk, error) {

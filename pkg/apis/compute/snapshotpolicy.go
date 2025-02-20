@@ -129,6 +129,8 @@ func (self *SSnapshotPolicyUpdateInput) Validate() error {
 
 type SnapshotPolicyDisksInput struct {
 	Disks []string `json:"disk"`
+
+	IsBackupPolicy bool `json:"is_backup_policy"`
 }
 
 type RepeatWeekdays []int

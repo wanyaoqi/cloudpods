@@ -3578,7 +3578,7 @@ func (self *SManagedVirtualizationRegionDriver) RequestSnapshotPolicyBindDisks(c
 			if err != nil {
 				return nil, errors.Wrapf(err, "ApplyDisks %s", externalIds)
 			}
-			return nil, sp.BindDisks(ctx, disks)
+			return nil, sp.BindDisks(ctx, disks, false)
 		}
 		return nil, nil
 	})
@@ -3606,7 +3606,7 @@ func (self *SManagedVirtualizationRegionDriver) RequestSnapshotPolicyUnbindDisks
 			if err != nil {
 				return nil, errors.Wrapf(err, "CancelDisks %s", externalIds)
 			}
-			return nil, sp.UnbindDisks(diskIds)
+			return nil, sp.UnbindDisks(diskIds, false)
 		}
 		return nil, nil
 	})

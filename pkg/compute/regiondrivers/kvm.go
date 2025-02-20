@@ -1618,14 +1618,16 @@ func (self *SKVMRegionDriver) RequestSnapshotPolicyBindDisks(ctx context.Context
 		for _, disk := range disks {
 			ids = append(ids, disk.Id)
 		}
-		return nil, sp.BindDisks(ctx, disks)
+		isBackupPolicy := jsonutils.QueryBoolean(task.GetParams(), "is_backup_policy", false)
+		return nil, sp.BindDisks(ctx, disks, isBackupPolicy)
 	})
 	return nil
 }
 
 func (self *SKVMRegionDriver) RequestSnapshotPolicyUnbindDisks(ctx context.Context, userCred mcclient.TokenCredential, sp *models.SSnapshotPolicy, diskIds []string, task taskman.ITask) error {
 	taskman.LocalTaskRun(task, func() (jsonutils.JSONObject, error) {
-		return nil, sp.UnbindDisks(diskIds)
+		isBackupPolicy := jsonutils.QueryBoolean(task.GetParams(), "is_backup_policy", false)
+		return nil, sp.UnbindDisks(diskIds, isBackupPolicy)
 	})
 	return nil
 }

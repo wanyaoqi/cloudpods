@@ -3205,7 +3205,7 @@ func (disk *SDisk) PerformBindSnapshotpolicy(
 			return nil, httperrors.NewConflictError("The snapshot policy %s and the disk are in different region", sp.Name)
 		}
 	}
-	return nil, sp.StartBindDisksTask(ctx, userCred, []string{disk.Id})
+	return nil, sp.StartBindDisksTask(ctx, userCred, []string{disk.Id}, input.IsBackupPolicy)
 }
 
 func (disk *SDisk) PerformUnbindSnapshotpolicy(
@@ -3219,7 +3219,7 @@ func (disk *SDisk) PerformUnbindSnapshotpolicy(
 		return nil, err
 	}
 	sp := spObj.(*SSnapshotPolicy)
-	return nil, sp.StartUnbindDisksTask(ctx, userCred, []string{disk.Id})
+	return nil, sp.StartUnbindDisksTask(ctx, userCred, []string{disk.Id}, input.IsBackupPolicy)
 }
 
 func (manager *SDiskManager) ListItemExportKeys(ctx context.Context,

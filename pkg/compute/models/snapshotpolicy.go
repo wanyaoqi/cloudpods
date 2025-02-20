@@ -401,9 +401,9 @@ func (sp *SSnapshotPolicy) RealDelete(ctx context.Context, userCred mcclient.Tok
 	return db.DeleteModel(ctx, userCred, sp)
 }
 
-func (sp *SSnapshotPolicy) StartBindDisksTask(ctx context.Context, userCred mcclient.TokenCredential, diskIds []string) error {
+func (sp *SSnapshotPolicy) StartBindDisksTask(ctx context.Context, userCred mcclient.TokenCredential, diskIds []string, isBackupPolicy bool) error {
 	sp.SetStatus(ctx, userCred, api.SNAPSHOT_POLICY_APPLY, jsonutils.Marshal(diskIds).String())
-	params := jsonutils.Marshal(map[string]interface{}{"disk_ids": diskIds}).(*jsonutils.JSONDict)
+	params := jsonutils.Marshal(map[string]interface{}{"disk_ids": diskIds, "is_backup_policy": false}).(*jsonutils.JSONDict)
 	task, err := taskman.TaskManager.NewTask(ctx, "SnapshotpolicyBindDisksTask", sp, userCred, params, "", "", nil)
 	if err != nil {
 		return errors.Wrapf(err, "NewTask")
@@ -447,12 +447,12 @@ func (sp *SSnapshotPolicy) PerformBindDisks(
 			diskIds = append(diskIds, disk.Id)
 		}
 	}
-	return nil, sp.StartBindDisksTask(ctx, userCred, diskIds)
+	return nil, sp.StartBindDisksTask(ctx, userCred, diskIds, input.IsBackupPolicy)
 }
 
-func (sp *SSnapshotPolicy) StartUnbindDisksTask(ctx context.Context, userCred mcclient.TokenCredential, diskIds []string) error {
+func (sp *SSnapshotPolicy) StartUnbindDisksTask(ctx context.Context, userCred mcclient.TokenCredential, diskIds []string, isBackupPolicy bool) error {
 	sp.SetStatus(ctx, userCred, api.SNAPSHOT_POLICY_CANCEL, jsonutils.Marshal(diskIds).String())
-	params := jsonutils.Marshal(map[string]interface{}{"disk_ids": diskIds}).(*jsonutils.JSONDict)
+	params := jsonutils.Marshal(map[string]interface{}{"disk_ids": diskIds, "is_backup_policy": isBackupPolicy}).(*jsonutils.JSONDict)
 	task, err := taskman.TaskManager.NewTask(ctx, "SnapshotpolicyUnbindDisksTask", sp, userCred, params, "", "", nil)
 	if err != nil {
 		return errors.Wrapf(err, "NewTask")
@@ -480,7 +480,7 @@ func (sp *SSnapshotPolicy) PerformUnbindDisks(
 			diskIds = append(diskIds, disk.Id)
 		}
 	}
-	return nil, sp.StartUnbindDisksTask(ctx, userCred, diskIds)
+	return nil, sp.StartUnbindDisksTask(ctx, userCred, diskIds, input.IsBackupPolicy)
 }
 
 func (self *SSnapshotPolicy) PerformSyncstatus(
@@ -684,12 +684,13 @@ func (self *SSnapshotPolicy) GetDisks() ([]SDisk, error) {
 	return ret, nil
 }
 
-func (sp *SSnapshotPolicy) BindDisks(ctx context.Context, disks []SDisk) error {
+func (sp *SSnapshotPolicy) BindDisks(ctx context.Context, disks []SDisk, isBackupPolicy bool) error {
 	for i := range disks {
 		spd := &SSnapshotPolicyDisk{}
 		spd.SetModelManager(SnapshotPolicyDiskManager, spd)
 		spd.DiskId = disks[i].Id
 		spd.SnapshotpolicyId = sp.Id
+		spd.IsBackupPolicy = isBackupPolicy
 		err := SnapshotPolicyDiskManager.TableSpec().Insert(ctx, spd)
 		if err != nil {
 			return err
@@ -698,7 +699,7 @@ func (sp *SSnapshotPolicy) BindDisks(ctx context.Context, disks []SDisk) error {
 	return nil
 }
 
-func (sp *SSnapshotPolicy) UnbindDisks(diskIds []string) error {
+func (sp *SSnapshotPolicy) UnbindDisks(diskIds []string, isBackupPolicy bool) error {
 	vars := []interface{}{sp.Id}
 	placeholders := make([]string, len(diskIds))
 	for i := range placeholders {
@@ -707,8 +708,8 @@ func (sp *SSnapshotPolicy) UnbindDisks(diskIds []string) error {
 	}
 	_, err := sqlchemy.GetDB().Exec(
 		fmt.Sprintf(
-			"delete from %s where snapshotpolicy_id = ? and disk_id in (%s)",
-			SnapshotPolicyDiskManager.TableSpec().Name(), strings.Join(placeholders, ","),
+			"delete from %s where snapshotpolicy_id = ? and is_backup_policy = %t and disk_id in (%s)",
+			SnapshotPolicyDiskManager.TableSpec().Name(), isBackupPolicy, strings.Join(placeholders, ","),
 		), vars...,
 	)
 	return err
@@ -735,7 +736,7 @@ func (sp *SSnapshotPolicy) SyncDisks(ctx context.Context, userCred mcclient.Toke
 			diskIds = append(diskIds, disk.Id)
 		}
 		if len(diskIds) > 0 {
-			err = sp.UnbindDisks(diskIds)
+			err = sp.UnbindDisks(diskIds, false)
 			if err != nil {
 				return errors.Wrapf(err, "UnbindDisks")
 			}
@@ -757,7 +758,7 @@ func (sp *SSnapshotPolicy) SyncDisks(ctx context.Context, userCred mcclient.Toke
 		if err != nil {
 			return errors.Wrapf(err, "db.FetchModelObjects")
 		}
-		err = sp.BindDisks(ctx, needApply)
+		err = sp.BindDisks(ctx, needApply, false)
 		if err != nil {
 			return errors.Wrapf(err, "BindDisks")
 		}

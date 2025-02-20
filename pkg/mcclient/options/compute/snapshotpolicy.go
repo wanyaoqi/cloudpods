@@ -46,7 +46,8 @@ func (opts *SnapshotPolicyCreateOptions) Params() (jsonutils.JSONObject, error) 
 
 type SnapshotPolicyDisksOptions struct {
 	options.BaseIdOptions
-	Disks []string `help:"ids of disk"`
+	Disks          []string `help:"ids of disk"`
+	IsBackupPolicy bool     `help:"bind/unbind disk as backup policy"`
 }
 
 func (opts *SnapshotPolicyDisksOptions) Params() (jsonutils.JSONObject, error) {
