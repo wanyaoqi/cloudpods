@@ -67,6 +67,8 @@ type SDiskBackup struct {
 	// 操作系统类型
 	OsType     string `width:"32" charset:"ascii" nullable:"true" list:"user" create:"optional"`
 	DiskConfig *SBackupDiskConfig
+
+	ExpiredAt time.Time `nullable:"true" list:"user" create:"optional"`
 }
 
 var DiskBackupManager *SDiskBackupManager

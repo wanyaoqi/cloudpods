@@ -17,6 +17,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"yunion.io/x/cloudmux/pkg/cloudprovider"
 	"yunion.io/x/jsonutils"
@@ -92,6 +93,8 @@ type SInstanceSnapshot struct {
 	MemoryFilePath string `width:"512" charset:"utf8" nullable:"true" get:"user" list:"user"`
 	// 内存文件校验和
 	MemoryFileChecksum string `width:"32" charset:"ascii" nullable:"true" get:"user" list:"user"`
+
+	ExpiredAt time.Time `nullable:"true" list:"user" create:"optional"`
 }
 
 type SInstanceSnapshotManager struct {

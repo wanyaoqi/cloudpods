@@ -18,9 +18,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"yunion.io/x/cloudmux/pkg/cloudprovider"
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/compare"
 	"yunion.io/x/pkg/utils"
@@ -764,4 +766,104 @@ func (sp *SSnapshotPolicy) SyncDisks(ctx context.Context, userCred mcclient.Toke
 		}
 	}
 	return nil
+}
+
+func (manager *SSnapshotPolicyManager) policyTimePointsQuery() *sqlchemy.SSubQuery {
+	tz, _ := time.LoadLocation(options.Options.TimeZone)
+	t := time.Now().In(tz)
+	week := t.Weekday()
+	if week == 0 { // sunday is zero
+		week += 7
+	}
+	timePoint := t.Hour()
+
+	policy := SnapshotPolicyManager.Query().Equals("cloudregion_id", api.DEFAULT_REGION_ID)
+	policy = policy.Filter(sqlchemy.Contains(policy.Field("repeat_weekdays"), fmt.Sprintf("%d", week)))
+	sq := policy.Filter(
+		sqlchemy.OR(
+			sqlchemy.Contains(policy.Field("time_points"), fmt.Sprintf(",%d,", timePoint)),
+			sqlchemy.Startswith(policy.Field("time_points"), fmt.Sprintf("[%d,", timePoint)),
+			sqlchemy.Endswith(policy.Field("time_points"), fmt.Sprintf(",%d]", timePoint)),
+			sqlchemy.Equals(policy.Field("time_points"), fmt.Sprintf("[%d]", timePoint)),
+		),
+	).SubQuery()
+	return sq
+}
+
+func (manager *SSnapshotPolicyManager) GetNeedAutoBackupDisks() ([]SSnapshotPolicyDisk, error) {
+	return manager.getNeedAutoSnapshotDisks(true)
+}
+
+func (manager *SSnapshotPolicyManager) GetNeedAutoSnapshotDisks() ([]SSnapshotPolicyDisk, error) {
+	return manager.getNeedAutoSnapshotDisks(false)
+}
+
+func (manager *SSnapshotPolicyManager) getNeedAutoSnapshotDisks(isBackupPolicy bool) ([]SSnapshotPolicyDisk, error) {
+	sq := manager.policyTimePointsQuery()
+	disks := DiskManager.Query().SubQuery()
+	q := SnapshotPolicyDiskManager.Query()
+	if isBackupPolicy {
+		q = q.IsTrue("is_backup_policy")
+	} else {
+		q = q.IsFalse("is_backup_policy")
+	}
+	q = q.Join(sq, sqlchemy.Equals(q.Field("snapshotpolicy_id"), sq.Field("id")))
+	q = q.Join(disks, sqlchemy.Equals(q.Field("disk_id"), disks.Field("id")))
+	ret := []SSnapshotPolicyDisk{}
+	err := db.FetchModelObjects(SnapshotPolicyDiskManager, q, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (manager *SSnapshotPolicyManager) GetNeedAutoBackupGuests() ([]SSnapshotPolicyGuest, error) {
+	return manager.getNeedAutoSnapshotGuests(true)
+}
+
+func (manager *SSnapshotPolicyManager) GetNeedAutoSnapshotGuests() ([]SSnapshotPolicyGuest, error) {
+	return manager.getNeedAutoSnapshotGuests(false)
+}
+
+func (manager *SSnapshotPolicyManager) getNeedAutoSnapshotGuests(isBackupPolicy bool) ([]SSnapshotPolicyGuest, error) {
+	sq := manager.policyTimePointsQuery()
+	guests := GuestManager.Query().SubQuery()
+	q := SnapshotPolicyGuestManager.Query()
+	if isBackupPolicy {
+		q = q.IsTrue("is_backup_policy")
+	} else {
+		q = q.IsFalse("is_backup_policy")
+	}
+	q = q.Join(sq, sqlchemy.Equals(q.Field("snapshotpolicy_id"), sq.Field("id")))
+	q = q.Join(guests, sqlchemy.Equals(q.Field("guest_id"), guests.Field("id")))
+	ret := []SSnapshotPolicyGuest{}
+	err := db.FetchModelObjects(SnapshotPolicyGuestManager, q, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (manager *SSnapshotPolicyManager) SnapshotPolicyExecutor() {
+	snapshotGuests, err := manager.GetNeedAutoSnapshotGuests()
+	if err != nil {
+		log.Errorf("get auto snapshot guests failed: %s", err)
+		return
+	}
+	backupGuests, err := manager.GetNeedAutoBackupGuests()
+	if err != nil {
+		log.Errorf("get auto backup guests failed: %s", err)
+		return
+	}
+	snapshotDisks, err := manager.GetNeedAutoSnapshotDisks()
+	if err != nil {
+		log.Errorf("get auto snapshot disks failed: %s", err)
+		return
+	}
+	backupDisks, err := manager.GetNeedAutoBackupDisks()
+	if err != nil {
+		log.Errorf("get auto backup disks failed: %s", err)
+		return
+	}
+
 }

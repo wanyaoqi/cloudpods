@@ -75,6 +75,8 @@ type SInstanceBackup struct {
 	InstanceType string `width:"64" charset:"utf8" nullable:"true" list:"user" create:"optional"`
 	// 主机备份容量和
 	SizeMb int `nullable:"false" list:"user"`
+
+	ExpiredAt time.Time `nullable:"true" list:"user" create:"optional"`
 }
 
 // +onecloud:swagger-gen-model-singular=instancebackup

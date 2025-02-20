@@ -2811,37 +2811,6 @@ func (manager *SDiskManager) CleanPendingDeleteDisks(ctx context.Context, userCr
 	}
 }
 
-func (manager *SDiskManager) GetNeedAutoSnapshotDisks() ([]SSnapshotPolicyDisk, error) {
-	tz, _ := time.LoadLocation(options.Options.TimeZone)
-	t := time.Now().In(tz)
-	week := t.Weekday()
-	if week == 0 { // sunday is zero
-		week += 7
-	}
-	timePoint := t.Hour()
-
-	policy := SnapshotPolicyManager.Query().Equals("cloudregion_id", api.DEFAULT_REGION_ID)
-	policy = policy.Filter(sqlchemy.Contains(policy.Field("repeat_weekdays"), fmt.Sprintf("%d", week)))
-	sq := policy.Filter(
-		sqlchemy.OR(
-			sqlchemy.Contains(policy.Field("time_points"), fmt.Sprintf(",%d,", timePoint)),
-			sqlchemy.Startswith(policy.Field("time_points"), fmt.Sprintf("[%d,", timePoint)),
-			sqlchemy.Endswith(policy.Field("time_points"), fmt.Sprintf(",%d]", timePoint)),
-			sqlchemy.Equals(policy.Field("time_points"), fmt.Sprintf("[%d]", timePoint)),
-		),
-	).SubQuery()
-	disks := DiskManager.Query().SubQuery()
-	q := SnapshotPolicyDiskManager.Query()
-	q = q.Join(sq, sqlchemy.Equals(q.Field("snapshotpolicy_id"), sq.Field("id")))
-	q = q.Join(disks, sqlchemy.Equals(q.Field("disk_id"), disks.Field("id")))
-	ret := []SSnapshotPolicyDisk{}
-	err := db.FetchModelObjects(SnapshotPolicyDiskManager, q, &ret)
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
-
 func (disk *SDisk) validateDiskAutoCreateSnapshot() error {
 	guests := disk.GetGuests()
 	if len(guests) == 0 {
@@ -2863,7 +2832,7 @@ func (disk *SDisk) validateDiskAutoCreateSnapshot() error {
 }
 
 func (manager *SDiskManager) AutoDiskSnapshot(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
-	disks, err := manager.GetNeedAutoSnapshotDisks()
+	disks, err := SnapshotPolicyManager.GetNeedAutoSnapshotDisks()
 	if err != nil {
 		log.Errorf("Get auto snapshot disks id failed: %s", err)
 		return
