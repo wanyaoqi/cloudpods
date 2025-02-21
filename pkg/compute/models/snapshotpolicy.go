@@ -844,26 +844,87 @@ func (manager *SSnapshotPolicyManager) getNeedAutoSnapshotGuests(isBackupPolicy 
 	return ret, nil
 }
 
+type SGuestPolicies struct {
+	SnapshotPolicyDisks  []SSnapshotPolicyDisk
+	SnapshotPolicyGuests []SSnapshotPolicyGuest
+}
+
 func (manager *SSnapshotPolicyManager) SnapshotPolicyExecutor() {
+	guestPolicies := map[string]*SGuestPolicies{}
 	snapshotGuests, err := manager.GetNeedAutoSnapshotGuests()
 	if err != nil {
 		log.Errorf("get auto snapshot guests failed: %s", err)
 		return
 	}
+	for i := 0; i < len(snapshotGuests); i++ {
+		guestId := snapshotGuests[i].GuestId
+		if gps, ok := guestPolicies[guestId]; ok {
+			gps.SnapshotPolicyGuests = append(gps.SnapshotPolicyGuests, snapshotGuests[i])
+		} else {
+			guestPolicies[guestId] = &SGuestPolicies{
+				SnapshotPolicyGuests: []SSnapshotPolicyGuest{snapshotGuests[i]},
+			}
+		}
+	}
+
 	backupGuests, err := manager.GetNeedAutoBackupGuests()
 	if err != nil {
 		log.Errorf("get auto backup guests failed: %s", err)
 		return
 	}
+	for i := 0; i < len(backupGuests); i++ {
+		guestId := backupGuests[i].GuestId
+		if gps, ok := guestPolicies[guestId]; ok {
+			gps.SnapshotPolicyGuests = append(gps.SnapshotPolicyGuests, backupGuests[i])
+		} else {
+			guestPolicies[guestId] = &SGuestPolicies{
+				SnapshotPolicyGuests: []SSnapshotPolicyGuest{backupGuests[i]},
+			}
+		}
+	}
+
 	snapshotDisks, err := manager.GetNeedAutoSnapshotDisks()
 	if err != nil {
 		log.Errorf("get auto snapshot disks failed: %s", err)
 		return
 	}
+	for i := 0; i < len(snapshotDisks); i++ {
+		disk, err := snapshotDisks[i].GetDisk()
+		if err != nil {
+			log.Errorf("snapshotDisks get disk error: %v", err)
+			continue
+		}
+		if guest := disk.GetGuest(); guest != nil {
+			if gps, ok := guestPolicies[guest.Id]; ok {
+				gps.SnapshotPolicyDisks = append(gps.SnapshotPolicyDisks, snapshotDisks[i])
+			} else {
+				guestPolicies[guest.Id] = &SGuestPolicies{
+					SnapshotPolicyDisks: []SSnapshotPolicyDisk{snapshotDisks[i]},
+				}
+			}
+		}
+	}
+
 	backupDisks, err := manager.GetNeedAutoBackupDisks()
 	if err != nil {
 		log.Errorf("get auto backup disks failed: %s", err)
 		return
+	}
+	for i := 0; i < len(backupDisks); i++ {
+		disk, err := backupDisks[i].GetDisk()
+		if err != nil {
+			log.Errorf("backupDisks get disk error: %v", err)
+			continue
+		}
+		if guest := disk.GetGuest(); guest != nil {
+			if gps, ok := guestPolicies[guest.Id]; ok {
+				gps.SnapshotPolicyDisks = append(gps.SnapshotPolicyDisks, backupDisks[i])
+			} else {
+				guestPolicies[guest.Id] = &SGuestPolicies{
+					SnapshotPolicyDisks: []SSnapshotPolicyDisk{backupDisks[i]},
+				}
+			}
+		}
 	}
 
 }
