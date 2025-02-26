@@ -130,7 +130,17 @@ func (self *SSnapshotPolicyUpdateInput) Validate() error {
 type SnapshotPolicyDisksInput struct {
 	Disks []string `json:"disk"`
 
-	IsBackupPolicy bool `json:"is_backup_policy"`
+	IsBackupPolicy  bool                  `json:"is_backup_policy"`
+	BackupStorageId string                `json:"backup_storage_id"`
+	BackupAsTar     *DiskBackupAsTarInput `json:"backup_as_tar"`
+}
+
+type SnapshotPolicyGuestsInput struct {
+	Guests []string `json:"guests"`
+
+	IsBackupPolicy     bool   `json:"is_backup_policy"`
+	BackupStorageId    string `json:"backup_storage_id"`
+	SaveGuestIpMacAddr bool   `json:"save_guest_ip_mac_addr"`
 }
 
 type RepeatWeekdays []int

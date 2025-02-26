@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"yunion.io/x/cloudmux/pkg/cloudprovider"
@@ -400,12 +401,21 @@ func (sp *SSnapshotPolicy) RealDelete(ctx context.Context, userCred mcclient.Tok
 	if err != nil {
 		return errors.Wrapf(err, "delete snapshot policy disks for policy %s", sp.Name)
 	}
+	err = SnapshotPolicyGuestManager.RemoveBySnapshotpolicy(sp.Id)
+	if err != nil {
+		return errors.Wrapf(err, "delete snapshot policy guests for policy %s", sp.Name)
+	}
 	return db.DeleteModel(ctx, userCred, sp)
 }
 
-func (sp *SSnapshotPolicy) StartBindDisksTask(ctx context.Context, userCred mcclient.TokenCredential, diskIds []string, isBackupPolicy bool) error {
+func (sp *SSnapshotPolicy) StartBindDisksTask(ctx context.Context, userCred mcclient.TokenCredential, diskIds []string, isBackupPolicy bool, backupAsTar *api.DiskBackupAsTarInput) error {
 	sp.SetStatus(ctx, userCred, api.SNAPSHOT_POLICY_APPLY, jsonutils.Marshal(diskIds).String())
-	params := jsonutils.Marshal(map[string]interface{}{"disk_ids": diskIds, "is_backup_policy": false}).(*jsonutils.JSONDict)
+	params := jsonutils.NewDict()
+	params.Set("disk_ids", jsonutils.Marshal(diskIds))
+	params.Set("is_backup_policy", jsonutils.NewBool(isBackupPolicy))
+	if backupAsTar != nil {
+		params.Set("backup_as_tar", jsonutils.Marshal(backupAsTar))
+	}
 	task, err := taskman.TaskManager.NewTask(ctx, "SnapshotpolicyBindDisksTask", sp, userCred, params, "", "", nil)
 	if err != nil {
 		return errors.Wrapf(err, "NewTask")
@@ -419,6 +429,23 @@ func (sp *SSnapshotPolicy) PerformBindDisks(
 	query jsonutils.JSONObject,
 	input *api.SnapshotPolicyDisksInput,
 ) (jsonutils.JSONObject, error) {
+	if input.BackupAsTar != nil {
+		if input.BackupAsTar.ContainerId == "" {
+			return nil, httperrors.NewMissingParameterError("container_id")
+		}
+		ctr, err := GetContainerManager().FetchByIdOrName(ctx, userCred, input.BackupAsTar.ContainerId)
+		if err != nil {
+			return nil, httperrors.NewNotFoundError("fetch container by %s", input.BackupAsTar.ContainerId)
+		}
+		input.BackupAsTar.ContainerId = ctr.GetId()
+		if err := DiskBackupManager.validateBackupAsTarFiles(input.BackupAsTar.IncludeFiles); err != nil {
+			return nil, httperrors.NewInputParameterError("validate include_files: %s", err)
+		}
+		if err := DiskBackupManager.validateBackupAsTarFiles(input.BackupAsTar.ExcludeFiles); err != nil {
+			return nil, httperrors.NewInputParameterError("validate exclude_files: %s", err)
+		}
+	}
+
 	if len(input.Disks) == 0 {
 		return nil, httperrors.NewMissingParameterError("disks")
 	}
@@ -449,7 +476,7 @@ func (sp *SSnapshotPolicy) PerformBindDisks(
 			diskIds = append(diskIds, disk.Id)
 		}
 	}
-	return nil, sp.StartBindDisksTask(ctx, userCred, diskIds, input.IsBackupPolicy)
+	return nil, sp.StartBindDisksTask(ctx, userCred, diskIds, input.IsBackupPolicy, input.BackupAsTar)
 }
 
 func (sp *SSnapshotPolicy) StartUnbindDisksTask(ctx context.Context, userCred mcclient.TokenCredential, diskIds []string, isBackupPolicy bool) error {
@@ -483,6 +510,61 @@ func (sp *SSnapshotPolicy) PerformUnbindDisks(
 		}
 	}
 	return nil, sp.StartUnbindDisksTask(ctx, userCred, diskIds, input.IsBackupPolicy)
+}
+
+func (sp *SSnapshotPolicy) PerformBindGuests(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	input *api.SnapshotPolicyGuestsInput,
+) (jsonutils.JSONObject, error) {
+	if len(input.Guests) == 0 {
+		return nil, httperrors.NewMissingParameterError("guests")
+	}
+	guestIds := []string{}
+	for i := range input.Guests {
+		guestObj, err := validators.ValidateModel(ctx, userCred, GuestManager, &input.Guests[i])
+		if err != nil {
+			return nil, err
+		}
+		guest := guestObj.(*SGuest)
+		if !utils.IsInStringArray(guest.Id, guestIds) {
+			guestIds = append(guestIds, guest.Id)
+		}
+	}
+	input.Guests = guestIds
+	region, err := sp.GetRegion()
+	if err != nil {
+		return nil, httperrors.NewInternalServerError("failed get region %s", err)
+	}
+	return nil, region.GetDriver().RequestSnapshotPolicyBindGuests(ctx, userCred, sp, input)
+}
+
+func (sp *SSnapshotPolicy) PerformUnbindGuests(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	input *api.SnapshotPolicyGuestsInput,
+) (jsonutils.JSONObject, error) {
+	if len(input.Guests) == 0 {
+		return nil, httperrors.NewMissingParameterError("guests")
+	}
+	guestIds := []string{}
+	for i := range input.Guests {
+		guestObj, err := validators.ValidateModel(ctx, userCred, GuestManager, &input.Guests[i])
+		if err != nil {
+			return nil, err
+		}
+		guest := guestObj.(*SGuest)
+		if utils.IsInStringArray(guest.Id, guestIds) {
+			guestIds = append(guestIds, guest.Id)
+		}
+	}
+	region, err := sp.GetRegion()
+	if err != nil {
+		return nil, httperrors.NewInternalServerError("failed get region %s", err)
+	}
+	return nil, region.GetDriver().RequestSnapshotPolicyUnbindGuests(ctx, userCred, sp, input.IsBackupPolicy, guestIds)
 }
 
 func (self *SSnapshotPolicy) PerformSyncstatus(
@@ -650,8 +732,22 @@ func (self *SSnapshotPolicy) GetProvider(ctx context.Context) (cloudprovider.ICl
 	return manager.GetProvider(ctx)
 }
 
-func (self *SSnapshotPolicy) GetUnbindDisks(diskIds []string) ([]SDisk, error) {
-	sq := SnapshotPolicyDiskManager.Query("disk_id").Equals("snapshotpolicy_id", self.Id).SubQuery()
+func (self *SSnapshotPolicy) GetUnbindGuests(guestIds []string, isBackupPolicy bool) ([]SGuest, error) {
+	sq := SnapshotPolicyGuestManager.Query("guest_id").
+		Equals("snapshotpolicy_id", self.Id).Equals("is_backup_policy", isBackupPolicy).SubQuery()
+	q := GuestManager.Query().In("id", guestIds)
+	q = q.Filter(sqlchemy.NotIn(q.Field("id"), sq))
+	ret := []SGuest{}
+	err := db.FetchModelObjects(GuestManager, q, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (self *SSnapshotPolicy) GetUnbindDisks(diskIds []string, isBackupPolicy bool) ([]SDisk, error) {
+	sq := SnapshotPolicyDiskManager.Query("disk_id").
+		Equals("snapshotpolicy_id", self.Id).Equals("is_backup_policy", isBackupPolicy).SubQuery()
 	q := DiskManager.Query().In("id", diskIds)
 	q = q.Filter(sqlchemy.NotIn(q.Field("id"), sq))
 	ret := []SDisk{}
@@ -686,13 +782,46 @@ func (self *SSnapshotPolicy) GetDisks() ([]SDisk, error) {
 	return ret, nil
 }
 
-func (sp *SSnapshotPolicy) BindDisks(ctx context.Context, disks []SDisk, isBackupPolicy bool) error {
+func (sp *SSnapshotPolicy) BindGuests(ctx context.Context, guests []SGuest, isBackupPolicy, saveGuestIpMacAddr bool) error {
+	for i := range guests {
+		spg := &SSnapshotPolicyGuest{}
+		spg.SetModelManager(SnapshotPolicyGuestManager, spg)
+		spg.GuestId = guests[i].Id
+		spg.SnapshotpolicyId = sp.Id
+		spg.IsBackupPolicy = isBackupPolicy
+		spg.SaveGuestIpMacAddr = saveGuestIpMacAddr
+		err := SnapshotPolicyGuestManager.TableSpec().Insert(ctx, spg)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sp *SSnapshotPolicy) UnbindGuests(guestIds []string, isBackupPolicy bool) error {
+	vars := []interface{}{sp.Id}
+	placeholders := make([]string, len(guestIds))
+	for i := range placeholders {
+		placeholders[i] = "?"
+		vars = append(vars, guestIds[i])
+	}
+	_, err := sqlchemy.GetDB().Exec(
+		fmt.Sprintf(
+			"delete from %s where snapshotpolicy_id = ? and is_backup_policy = %t and guest_id in (%s)",
+			SnapshotPolicyGuestManager.TableSpec().Name(), isBackupPolicy, strings.Join(placeholders, ","),
+		), vars...,
+	)
+	return err
+}
+
+func (sp *SSnapshotPolicy) BindDisks(ctx context.Context, disks []SDisk, isBackupPolicy bool, backupAsTar jsonutils.JSONObject) error {
 	for i := range disks {
 		spd := &SSnapshotPolicyDisk{}
 		spd.SetModelManager(SnapshotPolicyDiskManager, spd)
 		spd.DiskId = disks[i].Id
 		spd.SnapshotpolicyId = sp.Id
 		spd.IsBackupPolicy = isBackupPolicy
+		spd.BackupAsTar = backupAsTar
 		err := SnapshotPolicyDiskManager.TableSpec().Insert(ctx, spd)
 		if err != nil {
 			return err
@@ -760,7 +889,7 @@ func (sp *SSnapshotPolicy) SyncDisks(ctx context.Context, userCred mcclient.Toke
 		if err != nil {
 			return errors.Wrapf(err, "db.FetchModelObjects")
 		}
-		err = sp.BindDisks(ctx, needApply, false)
+		err = sp.BindDisks(ctx, needApply, false, nil)
 		if err != nil {
 			return errors.Wrapf(err, "BindDisks")
 		}
@@ -849,7 +978,30 @@ type SGuestPolicies struct {
 	SnapshotPolicyGuests []SSnapshotPolicyGuest
 }
 
-func (manager *SSnapshotPolicyManager) SnapshotPolicyExecutor() {
+func (p *SGuestPolicies) Length() int {
+	return len(p.SnapshotPolicyGuests) + len(p.SnapshotPolicyDisks)
+}
+
+var snapshotPolicyTasksRunning int32 = 0
+
+func SnapshotPolicyTasksIsRunning() bool {
+	return atomic.LoadInt32(&snapshotPolicyTasksRunning) == 1
+}
+
+func SetSnapshotPolicyTasksRunning() {
+	atomic.CompareAndSwapInt32(&snapshotPolicyTasksRunning, 0, 1)
+}
+
+func SetSnapshotPolicyTasksComplete() {
+	atomic.CompareAndSwapInt32(&snapshotPolicyTasksRunning, 1, 0)
+}
+
+func (manager *SSnapshotPolicyManager) SnapshotPolicyExecutor(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	if SnapshotPolicyTasksIsRunning() {
+		log.Warningf("Last time snapshot policy tasks still running")
+		return
+	}
+
 	guestPolicies := map[string]*SGuestPolicies{}
 	snapshotGuests, err := manager.GetNeedAutoSnapshotGuests()
 	if err != nil {
@@ -926,5 +1078,65 @@ func (manager *SSnapshotPolicyManager) SnapshotPolicyExecutor() {
 			}
 		}
 	}
+	for gid, gps := range guestPolicies {
+		guest := GuestManager.FetchGuestById(gid)
+		err = manager.OrderCreateDisksSnapshotsBySnapshotPolicy(ctx, userCred, guest, gps)
+		if err != nil {
+			log.Errorf("failed start OrderCreateDisksSnapshotsBySnapshotPolicy")
+		}
+	}
+}
 
+func (manager *SSnapshotPolicyManager) OrderCreateDisksSnapshotsBySnapshotPolicy(
+	ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, guestPolicies *SGuestPolicies,
+) error {
+	params := jsonutils.NewDict()
+	params.Set("guest_policies", jsonutils.Marshal(guestPolicies))
+
+	task, err := taskman.TaskManager.NewTask(ctx, "GuestDisksSnapshotPolicyExecuteTask", guest, userCred, params, "", "", nil)
+	if err != nil {
+		return errors.Wrapf(err, "NewTask")
+	}
+	return task.ScheduleRun(nil)
+}
+
+var snapshotPolicyCleanupTaskRunning int32 = 0
+
+func SnapshotPolicyCleanupTaskIsRunning() bool {
+	return atomic.LoadInt32(&snapshotPolicyCleanupTaskRunning) == 1
+}
+
+func SetSnapshotPolicyCleanupTasksRunning() {
+	atomic.CompareAndSwapInt32(&snapshotPolicyCleanupTaskRunning, 0, 1)
+}
+
+func SetSnapshotPolicyCleanupTasksComplete() {
+	atomic.CompareAndSwapInt32(&snapshotPolicyCleanupTaskRunning, 1, 0)
+}
+
+func (manager *SSnapshotPolicyManager) SnapshotPolicyCleanup(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	if SnapshotPolicyCleanupTaskIsRunning() {
+		log.Errorf("Previous CleanupSnapshots tasks still running !!!")
+		return
+	}
+
+	region := CloudregionManager.FetchDefaultRegion()
+	if err := manager.StartSnapshotPolicyCleanupTask(ctx, userCred, region, time.Now()); err != nil {
+		log.Errorf("Start snaphsot cleanup task failed %s", err)
+		return
+	}
+}
+
+func (manager *SSnapshotPolicyManager) StartSnapshotPolicyCleanupTask(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	region *SCloudregion, now time.Time,
+) error {
+	params := jsonutils.NewDict()
+	params.Set("tick", jsonutils.NewTimeString(now))
+	task, err := taskman.TaskManager.NewTask(ctx, "SnapshotPolicyCleanupTask", region, userCred, params, "", "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }

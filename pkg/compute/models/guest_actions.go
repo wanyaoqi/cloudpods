@@ -3292,7 +3292,10 @@ func (self *SGuest) DoPendingDelete(ctx context.Context, userCred mcclient.Token
 	if eip != nil {
 		eip.DoPendingDelete(ctx, userCred)
 	}
-
+	err := SnapshotPolicyGuestManager.RemoveByGuest(self.Id)
+	if err != nil {
+		log.Errorf("DoPendingDelete failed remove snapshot policy: %s", err)
+	}
 	disks, _ := self.GetDisks()
 	for i := range disks {
 		if !disks[i].IsDetachable() {
@@ -5374,7 +5377,7 @@ func (self *SGuest) PerformInstanceSnapshot(
 			return nil, httperrors.NewUnsupportOperationError("Can't save memory state when guest status is %q", self.Status)
 		}
 	}
-	instanceSnapshot, err := InstanceSnapshotManager.CreateInstanceSnapshot(ctx, userCred, self, input.Name, false, input.WithMemory)
+	instanceSnapshot, err := InstanceSnapshotManager.CreateInstanceSnapshot(ctx, userCred, self, input.Name, false, input.WithMemory, nil)
 	if err != nil {
 		quotas.CancelPendingUsage(
 			ctx, userCred, pendingUsage, pendingUsage, false)
@@ -5384,7 +5387,7 @@ func (self *SGuest) PerformInstanceSnapshot(
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to inherit from guest %s to instance snapshot %s", self.GetId(), instanceSnapshot.GetId())
 	}
-	err = self.InstaceCreateSnapshot(ctx, userCred, instanceSnapshot, pendingUsage)
+	err = self.InstaceCreateSnapshot(ctx, userCred, instanceSnapshot, pendingUsage, "")
 	if err != nil {
 		quotas.CancelPendingUsage(
 			ctx, userCred, pendingUsage, pendingUsage, false)
@@ -5432,7 +5435,7 @@ func (self *SGuest) PerformInstanceBackup(
 	if input.SaveGuestIpMacAddr != nil && *input.SaveGuestIpMacAddr {
 		saveGuestIpMacAddr = true
 	}
-	instanceBackup, err := InstanceBackupManager.CreateInstanceBackup(ctx, userCred, self, name, backupStorageId, saveGuestIpMacAddr)
+	instanceBackup, err := InstanceBackupManager.CreateInstanceBackup(ctx, userCred, self, name, backupStorageId, saveGuestIpMacAddr, nil)
 	if err != nil {
 		return nil, httperrors.NewInternalServerError("create instance backup failed: %s", err)
 	}
@@ -5440,7 +5443,7 @@ func (self *SGuest) PerformInstanceBackup(
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to inherit from guest %s to instance backup %s", self.GetId(), instanceBackup.GetId())
 	}
-	err = self.InstanceCreateBackup(ctx, userCred, instanceBackup)
+	err = self.InstanceCreateBackup(ctx, userCred, instanceBackup, "")
 	if err != nil {
 		return nil, httperrors.NewInternalServerError("start create backup task failed: %s", err)
 	}
@@ -5452,14 +5455,15 @@ func (self *SGuest) InstaceCreateSnapshot(
 	userCred mcclient.TokenCredential,
 	instanceSnapshot *SInstanceSnapshot,
 	pendingUsage *SRegionQuota,
+	parentTaskId string,
 ) error {
 	self.SetStatus(ctx, userCred, api.VM_START_INSTANCE_SNAPSHOT, "instance snapshot")
-	return instanceSnapshot.StartCreateInstanceSnapshotTask(ctx, userCred, pendingUsage, "")
+	return instanceSnapshot.StartCreateInstanceSnapshotTask(ctx, userCred, pendingUsage, parentTaskId)
 }
 
-func (self *SGuest) InstanceCreateBackup(ctx context.Context, userCred mcclient.TokenCredential, instanceBackup *SInstanceBackup) error {
+func (self *SGuest) InstanceCreateBackup(ctx context.Context, userCred mcclient.TokenCredential, instanceBackup *SInstanceBackup, parentTaskId string) error {
 	self.SetStatus(ctx, userCred, api.VM_START_INSTANCE_BACKUP, "instance backup")
-	return instanceBackup.StartCreateInstanceBackupTask(ctx, userCred, "")
+	return instanceBackup.StartCreateInstanceBackupTask(ctx, userCred, parentTaskId)
 }
 
 func (self *SGuest) PerformInstanceSnapshotReset(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input api.ServerResetInput) (jsonutils.JSONObject, error) {
@@ -5596,7 +5600,7 @@ func (self *SGuest) PerformSnapshotAndClone(
 	}
 	instanceSnapshot, err := InstanceSnapshotManager.CreateInstanceSnapshot(
 		ctx, userCred, self, instanceSnapshotName,
-		input.AutoDeleteInstanceSnapshot != nil && *input.AutoDeleteInstanceSnapshot, false)
+		input.AutoDeleteInstanceSnapshot != nil && *input.AutoDeleteInstanceSnapshot, false, nil)
 	if err != nil {
 		quotas.CancelPendingUsage(ctx, userCred, &pendingUsage, &pendingUsage, false)
 		quotas.CancelPendingUsage(ctx, userCred, &pendingRegionUsage, &pendingRegionUsage, false)
@@ -5691,6 +5695,50 @@ func (guest *SGuest) StartDeleteGuestSnapshots(ctx context.Context, userCred mcc
 	}
 	task.ScheduleRun(nil)
 	return nil
+}
+
+func (guest *SGuest) PerformBindSnapshotPolicy(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	input *api.GuestBindSnapshotPolicyInput,
+) (jsonutils.JSONObject, error) {
+	spObj, err := validators.ValidateModel(ctx, userCred, SnapshotPolicyManager, &input.SnapshotPolicyId)
+	if err != nil {
+		return nil, err
+	}
+	sp := spObj.(*SSnapshotPolicy)
+	if sp.ManagerId != "" {
+		return nil, httperrors.NewBadRequestError("guest cannot bind managed snapshot policy")
+	}
+	region, err := sp.GetRegion()
+	if err != nil {
+		return nil, httperrors.NewInternalServerError("failed get region %s", err)
+	}
+	bindInput := &api.SnapshotPolicyGuestsInput{
+		Guests:             []string{guest.Id},
+		IsBackupPolicy:     input.IsBackupPolicy,
+		SaveGuestIpMacAddr: input.SaveGuestIpMacAddr,
+	}
+	return nil, region.GetDriver().RequestSnapshotPolicyBindGuests(ctx, userCred, sp, bindInput)
+}
+
+func (guest *SGuest) PerformUnbindSnapshotPolicy(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	input *api.GuestBindSnapshotPolicyInput,
+) (jsonutils.JSONObject, error) {
+	spObj, err := validators.ValidateModel(ctx, userCred, SnapshotPolicyManager, &input.SnapshotPolicyId)
+	if err != nil {
+		return nil, err
+	}
+	sp := spObj.(*SSnapshotPolicy)
+	region, err := sp.GetRegion()
+	if err != nil {
+		return nil, httperrors.NewInternalServerError("failed get region %s", err)
+	}
+	return nil, region.GetDriver().RequestSnapshotPolicyUnbindGuests(ctx, userCred, sp, input.IsBackupPolicy, []string{guest.Id})
 }
 
 // 重置网卡限速

@@ -1229,6 +1229,12 @@ type ServerNicTrafficLimit struct {
 	TxTrafficLimit *int64 `json:"tx_traffic_limit"`
 }
 
+type GuestBindSnapshotPolicyInput struct {
+	IsBackupPolicy     bool   `json:"is_backup_policy"`
+	SaveGuestIpMacAddr bool   `json:"save_guest_ip_mac_addr"`
+	SnapshotPolicyId   string `json:"snapshot_policy_id"`
+}
+
 type GuestAddSubIpsInfo struct {
 	Count  int      `json:"count"`
 	SubIps []string `json:"sub_ips"`

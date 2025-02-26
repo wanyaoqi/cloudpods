@@ -338,7 +338,7 @@ func (manager *SInstanceBackupManager) fillInstanceBackup(ctx context.Context, u
 	instanceBackup.InstanceType = guest.InstanceType
 }
 
-func (manager *SInstanceBackupManager) CreateInstanceBackup(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, name, backupStorageId string, saveGuestIpMacAddr bool) (*SInstanceBackup, error) {
+func (manager *SInstanceBackupManager) CreateInstanceBackup(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, name, backupStorageId string, saveGuestIpMacAddr bool, expireAt *time.Time) (*SInstanceBackup, error) {
 	instanceBackup := &SInstanceBackup{}
 	instanceBackup.SetModelManager(manager, instanceBackup)
 	instanceBackup.Name = name
@@ -346,6 +346,9 @@ func (manager *SInstanceBackupManager) CreateInstanceBackup(ctx context.Context,
 	manager.fillInstanceBackup(ctx, userCred, guest, instanceBackup, saveGuestIpMacAddr)
 	// compute size of instanceBackup
 	//instanceBackup.SizeMb = guest.getDiskSize()
+	if expireAt != nil {
+		instanceBackup.ExpiredAt = *expireAt
+	}
 	err := manager.TableSpec().Insert(ctx, instanceBackup)
 	if err != nil {
 		return nil, err

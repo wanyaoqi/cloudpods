@@ -124,6 +124,13 @@ const (
 	ACT_DISK_CLEAN_UP_SNAPSHOTS_FAIL = "disk_clean_up_snapshots_fail"
 	ACT_DISK_AUTO_SNAPSHOT           = "disk_auto_snapshot"
 	ACT_DISK_AUTO_SNAPSHOT_FAIL      = "disk_auto_snapshot_fail"
+	ACT_DISK_AUTO_BACKUP             = "disk_auto_backup"
+	ACT_DISK_AUTO_BACKUP_FAIL        = "disk_auto_backup_fail"
+
+	ACR_INSTANCE_AUTO_SNAPSHOT      = "instance_auto_snapshot"
+	ACR_INSTANCE_AUTO_SNAPSHOT_FAIL = "instance_auto_snapshot_fail"
+	ACR_INSTANCE_AUTO_BACKUP        = "instance_auto_backup"
+	ACR_INSTANCE_AUTO_BACKUP_FAIL   = "instance_auto_backup_fail"
 
 	ACT_DISK_AUTO_SYNC_SNAPSHOT      = "disk_auto_sync_snapshot"
 	ACT_DISK_AUTO_SYNC_SNAPSHOT_FAIL = "disk_auto_sync_snapshot_fail"

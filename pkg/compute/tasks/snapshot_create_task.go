@@ -81,38 +81,124 @@ type GuestDisksSnapshotPolicyExecuteTask struct {
 }
 
 func (self *GuestDisksSnapshotPolicyExecuteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	self.OnDiskSnapshot(ctx, obj, data)
+	models.SetSnapshotPolicyTasksRunning()
+	self.StartExecutePolicy(ctx, obj, data)
 }
 
-func (self *GuestDisksSnapshotPolicyExecuteTask) OnDiskSnapshot(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	snapshotPolicyDisks := make([]models.SSnapshotPolicyDisk, 0)
-	self.Params.Unmarshal(&snapshotPolicyDisks, "snapshot_policy_disks")
-	if len(snapshotPolicyDisks) == 0 {
+func (self *GuestDisksSnapshotPolicyExecuteTask) StartExecutePolicy(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	guestPolicies := models.SGuestPolicies{}
+	self.Params.Unmarshal(&guestPolicies, "guest_policies")
+	if guestPolicies.Length() == 0 {
+		models.SetSnapshotPolicyTasksComplete()
 		self.SetStageComplete(ctx, nil)
 		return
 	}
-	snapshotPolicyDisk := snapshotPolicyDisks[0]
-	self.Params.Set("snapshot_policy_disks", jsonutils.Marshal(snapshotPolicyDisks[1:]))
-	self.SetStage("OnDiskSnapshot", nil)
+	if len(guestPolicies.SnapshotPolicyGuests) > 0 {
+		snapshotPolicyGuest := guestPolicies.SnapshotPolicyGuests[0]
+		guestPolicies.SnapshotPolicyGuests = guestPolicies.SnapshotPolicyGuests[1:]
+		self.Params.Set("snapshot_policy_disks", jsonutils.Marshal(guestPolicies))
+		self.SetStage("StartExecutePolicy", nil)
+		if snapshotPolicyGuest.IsBackupPolicy {
+			self.DoGuestBackupPolicy(ctx, &snapshotPolicyGuest)
+		} else {
+			self.DoGuestSnapshotPolicy(ctx, &snapshotPolicyGuest)
+		}
+	} else {
+		snapshotPolicyDisk := guestPolicies.SnapshotPolicyDisks[0]
+		guestPolicies.SnapshotPolicyDisks = guestPolicies.SnapshotPolicyDisks[1:]
+		self.Params.Set("snapshot_policy_disks", jsonutils.Marshal(guestPolicies))
+		self.SetStage("StartExecutePolicy", nil)
+		if snapshotPolicyDisk.IsBackupPolicy {
+			self.DoDiskBackupPolicy(ctx, &snapshotPolicyDisk)
+		} else {
+			self.DoDiskSnapshotPolicy(ctx, &snapshotPolicyDisk)
+		}
+	}
+}
 
+func (self *GuestDisksSnapshotPolicyExecuteTask) StartExecutePolicyFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	log.Errorf("Guest create snapshot failed %s: %s", obj.GetId(), data)
+	self.StartExecutePolicy(ctx, obj, data)
+}
+
+func (self *GuestDisksSnapshotPolicyExecuteTask) DoDiskSnapshotPolicy(ctx context.Context, snapshotPolicyDisk *models.SSnapshotPolicyDisk) {
 	disk, err := snapshotPolicyDisk.GetDisk()
 	if err != nil {
 		log.Errorf("disk snapshot policy %s failed get disk %s", snapshotPolicyDisk.SnapshotpolicyId, err)
-		self.OnDiskSnapshot(ctx, obj, data)
+		self.StartExecutePolicy(ctx, nil, nil)
 		return
 	}
-	err = models.DiskManager.DoAutoSnapshot(ctx, self.UserCred, &snapshotPolicyDisk, disk, self.GetTaskId())
+	err = models.DiskManager.DoAutoSnapshot(ctx, self.UserCred, snapshotPolicyDisk, disk, self.GetTaskId())
 	if err != nil {
-		log.Errorf("disk.CreateSnapshotAuto failed %s %s", disk.Id, err)
+		log.Errorf("DoAutoSnapshoto failed %s %s", disk.Id, err)
 		db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, err.Error(), self.UserCred)
 		notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, errors.Wrapf(err, "Disk auto create snapshot").Error())
-
-		self.OnDiskSnapshot(ctx, obj, data)
+		self.StartExecutePolicy(ctx, nil, nil)
 		return
 	}
 }
 
-func (self *GuestDisksSnapshotPolicyExecuteTask) OnDiskSnapshotFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	log.Errorf("Guest create snapshot failed %s: %s", obj.GetId(), data)
-	self.OnDiskSnapshot(ctx, obj, data)
+func (self *GuestDisksSnapshotPolicyExecuteTask) DoGuestSnapshotPolicy(ctx context.Context, snapshotPolicyGuest *models.SSnapshotPolicyGuest) {
+	guest, err := snapshotPolicyGuest.GetGuest()
+	if err != nil {
+		log.Errorf("guest snapshot policy %s failed get guest %s", snapshotPolicyGuest.SnapshotpolicyId, err)
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
+	policy, err := snapshotPolicyGuest.GetSnapshotPolicy()
+	if err != nil {
+		log.Errorf("guest snapshot policy %s failed get policy %s", snapshotPolicyGuest.SnapshotpolicyId, err)
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
+
+	err = models.GuestManager.DoAutoSnapshot(ctx, self.UserCred, policy, guest, self.GetTaskId())
+	if err != nil {
+		log.Errorf("DoAutoSnapshoto failed %s %s", guest.Id, err)
+		db.OpsLog.LogEvent(guest, db.ACR_INSTANCE_AUTO_SNAPSHOT_FAIL, err.Error(), self.UserCred)
+		notifyclient.NotifySystemErrorWithCtx(ctx, guest.Id, guest.Name, db.ACR_INSTANCE_AUTO_SNAPSHOT_FAIL, errors.Wrapf(err, "guest auto create snapshot").Error())
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
+}
+
+func (self *GuestDisksSnapshotPolicyExecuteTask) DoDiskBackupPolicy(ctx context.Context, snapshotPolicyDisk *models.SSnapshotPolicyDisk) {
+	disk, err := snapshotPolicyDisk.GetDisk()
+	if err != nil {
+		log.Errorf("disk snapshot policy %s failed get disk %s", snapshotPolicyDisk.SnapshotpolicyId, err)
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
+	err = models.DiskManager.DoAutoBackup(ctx, self.UserCred, snapshotPolicyDisk, disk, self.GetTaskId())
+	if err != nil {
+		log.Errorf("DoAutoBackup failed %s %s", disk.Id, err)
+		db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_BACKUP_FAIL, err.Error(), self.UserCred)
+		notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_BACKUP_FAIL, errors.Wrapf(err, "Disk auto create backup").Error())
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
+}
+
+func (self *GuestDisksSnapshotPolicyExecuteTask) DoGuestBackupPolicy(ctx context.Context, snapshotPolicyGuest *models.SSnapshotPolicyGuest) {
+	guest, err := snapshotPolicyGuest.GetGuest()
+	if err != nil {
+		log.Errorf("guest snapshot policy %s failed get guest %s", snapshotPolicyGuest.SnapshotpolicyId, err)
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
+	policy, err := snapshotPolicyGuest.GetSnapshotPolicy()
+	if err != nil {
+		log.Errorf("guest snapshot policy %s failed get policy %s", snapshotPolicyGuest.SnapshotpolicyId, err)
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
+
+	err = models.GuestManager.DoAutoBackup(ctx, self.UserCred, policy, snapshotPolicyGuest, guest, self.GetTaskId())
+	if err != nil {
+		log.Errorf("DoAutoSnapshoto failed %s %s", guest.Id, err)
+		db.OpsLog.LogEvent(guest, db.ACR_INSTANCE_AUTO_BACKUP_FAIL, err.Error(), self.UserCred)
+		notifyclient.NotifySystemErrorWithCtx(ctx, guest.Id, guest.Name, db.ACR_INSTANCE_AUTO_BACKUP_FAIL, errors.Wrapf(err, "guest auto create backup").Error())
+		self.StartExecutePolicy(ctx, nil, nil)
+		return
+	}
 }

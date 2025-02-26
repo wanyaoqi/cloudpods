@@ -1608,9 +1608,23 @@ func (self *SKVMRegionDriver) RequestDeleteSnapshotPolicy(ctx context.Context, u
 	return task.ScheduleRun(nil)
 }
 
+func (self *SKVMRegionDriver) RequestSnapshotPolicyBindGuests(ctx context.Context, userCred mcclient.TokenCredential, sp *models.SSnapshotPolicy, input *api.SnapshotPolicyGuestsInput) error {
+	guests, err := sp.GetUnbindGuests(input.Guests, input.IsBackupPolicy)
+	if err != nil {
+		return errors.Wrap(err, "GetUnbindGuests")
+	}
+	return sp.BindGuests(ctx, guests, input.IsBackupPolicy, input.SaveGuestIpMacAddr)
+}
+
+func (self *SKVMRegionDriver) RequestSnapshotPolicyUnbindGuests(ctx context.Context, userCred mcclient.TokenCredential, sp *models.SSnapshotPolicy, isBackupPolicy bool, guestIds []string) error {
+	return sp.UnbindGuests(guestIds, isBackupPolicy)
+}
+
 func (self *SKVMRegionDriver) RequestSnapshotPolicyBindDisks(ctx context.Context, userCred mcclient.TokenCredential, sp *models.SSnapshotPolicy, diskIds []string, task taskman.ITask) error {
 	taskman.LocalTaskRun(task, func() (jsonutils.JSONObject, error) {
-		disks, err := sp.GetUnbindDisks(diskIds)
+		isBackupPolicy := jsonutils.QueryBoolean(task.GetParams(), "is_backup_policy", false)
+		backupAsTarInput, _ := task.GetParams().Get("backup_as_tar")
+		disks, err := sp.GetUnbindDisks(diskIds, isBackupPolicy)
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetUnbindDisks")
 		}
@@ -1618,8 +1632,8 @@ func (self *SKVMRegionDriver) RequestSnapshotPolicyBindDisks(ctx context.Context
 		for _, disk := range disks {
 			ids = append(ids, disk.Id)
 		}
-		isBackupPolicy := jsonutils.QueryBoolean(task.GetParams(), "is_backup_policy", false)
-		return nil, sp.BindDisks(ctx, disks, isBackupPolicy)
+
+		return nil, sp.BindDisks(ctx, disks, isBackupPolicy, backupAsTarInput)
 	})
 	return nil
 }

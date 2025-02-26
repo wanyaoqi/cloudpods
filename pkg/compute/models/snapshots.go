@@ -18,7 +18,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"yunion.io/x/cloudmux/pkg/cloudprovider"
@@ -1167,53 +1166,6 @@ func (self *SSnapshot) getCloudProviderInfo() SCloudProviderInfo {
 func (manager *SSnapshotManager) GetResourceCount() ([]db.SScopeResourceCount, error) {
 	virts := manager.Query().IsFalse("fake_deleted")
 	return db.CalculateResourceCount(virts, "tenant_id")
-}
-
-var SnapshotCleanupTaskRunning int32 = 0
-
-func SnapshotCleanupTaskIsRunning() bool {
-	return atomic.LoadInt32(&SnapshotCleanupTaskRunning) == 1
-}
-
-func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
-	if SnapshotCleanupTaskIsRunning() {
-		log.Errorf("Previous CleanupSnapshots tasks still running !!!")
-		return
-	}
-	var now = time.Now()
-	var snapshot = new(SSnapshot)
-	err := manager.Query().
-		Equals("fake_deleted", false).
-		Equals("created_by", api.SNAPSHOT_AUTO).
-		LE("expired_at", now).First(snapshot)
-	if err != nil && err != sql.ErrNoRows {
-		log.Errorf("Cleanup snapshots job fetch snapshot failed %s", err)
-		return
-	} else if err == sql.ErrNoRows {
-		log.Infof("No snapshot need to clean ......")
-		return
-	}
-
-	snapshot.SetModelManager(manager, snapshot)
-	region, _ := snapshot.GetRegion()
-	if err = manager.StartSnapshotCleanupTask(ctx, userCred, region, now); err != nil {
-		log.Errorf("Start snaphsot cleanup task failed %s", err)
-		return
-	}
-}
-
-func (manager *SSnapshotManager) StartSnapshotCleanupTask(
-	ctx context.Context, userCred mcclient.TokenCredential,
-	region *SCloudregion, now time.Time,
-) error {
-	params := jsonutils.NewDict()
-	params.Set("tick", jsonutils.NewTimeString(now))
-	task, err := taskman.TaskManager.NewTask(ctx, "SnapshotCleanupTask", region, userCred, params, "", "", nil)
-	if err != nil {
-		return err
-	}
-	task.ScheduleRun(nil)
-	return nil
 }
 
 func (self *SSnapshot) GetQuotaKeys() quotas.IQuotaKeys {

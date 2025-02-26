@@ -87,6 +87,8 @@ type ISnapshotDriver interface {
 	RequestCreateSnapshotPolicy(ctx context.Context, userCred mcclient.TokenCredential, region *SCloudregion, sp *SSnapshotPolicy, task taskman.ITask) error
 	RequestSnapshotPolicyBindDisks(ctx context.Context, userCred mcclient.TokenCredential, sp *SSnapshotPolicy, diskIds []string, task taskman.ITask) error
 	RequestSnapshotPolicyUnbindDisks(ctx context.Context, userCred mcclient.TokenCredential, sp *SSnapshotPolicy, diskIds []string, task taskman.ITask) error
+	RequestSnapshotPolicyBindGuests(ctx context.Context, userCred mcclient.TokenCredential, sp *SSnapshotPolicy, input *api.SnapshotPolicyGuestsInput) error
+	RequestSnapshotPolicyUnbindGuests(ctx context.Context, userCred mcclient.TokenCredential, sp *SSnapshotPolicy, isBackupPolicy bool, guestIds []string) error
 	RequestDeleteSnapshotPolicy(ctx context.Context, userCred mcclient.TokenCredential, region *SCloudregion, sp *SSnapshotPolicy, task taskman.ITask) error
 
 	// Region Driver Snapshot Apis

@@ -353,7 +353,8 @@ func (db *SDiskBackup) PostCreate(ctx context.Context, userCred mcclient.TokenCr
 	if err != nil {
 		log.Errorf("unable to inherit from disk %s to backup %s: %s", disk.GetId(), db.GetId(), err.Error())
 	}
-	db.StartBackupCreateTask(ctx, userCred, nil, "")
+	parentTaskId, _ := data.GetString("parent_task_id")
+	db.StartBackupCreateTask(ctx, userCred, nil, parentTaskId)
 }
 
 func (db *SDiskBackup) StartBackupCreateTask(ctx context.Context, userCred mcclient.TokenCredential, params *jsonutils.JSONDict, parentTaskId string) error {

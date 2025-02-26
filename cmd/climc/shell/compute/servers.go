@@ -129,6 +129,8 @@ func init() {
 	cmd.BatchPerform("stop-rescue", &options.ServerStartOptions{})
 	cmd.BatchPerform("sync-os-info", &options.ServerIdsOptions{})
 	cmd.BatchPerform("set-root-disk-matcher", &options.ServerSetRootDiskMatcher{})
+	cmd.Perform("bind-snapshot-policy", &options.ServerBindSnapshotPolicyOptions{})
+	cmd.Perform("unbind-snapshot-policy", &options.ServerUnbindSnapshotPolicyOptions{})
 
 	cmd.Get("vnc", new(options.ServerVncOptions))
 	cmd.Get("desc", new(options.ServerIdOptions))

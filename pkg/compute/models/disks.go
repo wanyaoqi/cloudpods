@@ -2831,60 +2831,6 @@ func (disk *SDisk) validateDiskAutoCreateSnapshot() error {
 	return nil
 }
 
-func (manager *SDiskManager) AutoDiskSnapshot(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
-	disks, err := SnapshotPolicyManager.GetNeedAutoSnapshotDisks()
-	if err != nil {
-		log.Errorf("Get auto snapshot disks id failed: %s", err)
-		return
-	}
-	log.Infof("auto snapshot %d disks", len(disks))
-
-	guestDps := map[string][]SSnapshotPolicyDisk{}
-	for i := 0; i < len(disks); i++ {
-		disk, err := disks[i].GetDisk()
-		if err != nil {
-			log.Errorf("get disk error: %v", err)
-			continue
-		}
-		if guest := disk.GetGuest(); guest != nil {
-			if dps, ok := guestDps[guest.Id]; ok {
-				guestDps[guest.Id] = append(dps, disks[i])
-			} else {
-				guestDps[guest.Id] = []SSnapshotPolicyDisk{disks[i]}
-			}
-			continue
-		}
-
-		err = manager.DoAutoSnapshot(ctx, userCred, &disks[i], disk, "")
-		if err != nil {
-			log.Errorf("auto snapshot %s error: %v", disk.Name, err)
-			db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, err.Error(), userCred)
-			notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, errors.Wrapf(err, "Disk auto create snapshot").Error())
-		}
-	}
-
-	for gid, diskSnapshotPolicies := range guestDps {
-		guest := GuestManager.FetchGuestById(gid)
-		err = manager.OrderCreateDisksSnapshotsBySnapshotPolicy(ctx, userCred, guest, diskSnapshotPolicies)
-		if err != nil {
-			log.Errorf("failed start OrderCreateDisksSnapshotsBySnapshotPolicy")
-		}
-	}
-}
-
-func (manager *SDiskManager) OrderCreateDisksSnapshotsBySnapshotPolicy(
-	ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, snapshotPolicyDisks []SSnapshotPolicyDisk,
-) error {
-	params := jsonutils.NewDict()
-	params.Set("snapshot_policy_disks", jsonutils.Marshal(snapshotPolicyDisks))
-
-	task, err := taskman.TaskManager.NewTask(ctx, "GuestDisksSnapshotPolicyExecuteTask", guest, userCred, params, "", "", nil)
-	if err != nil {
-		return errors.Wrapf(err, "NewTask")
-	}
-	return task.ScheduleRun(nil)
-}
-
 func (manager *SDiskManager) DoAutoSnapshot(
 	ctx context.Context, userCred mcclient.TokenCredential,
 	diskSnapshotPolicy *SSnapshotPolicyDisk, disk *SDisk, parentTaskId string,
@@ -2980,6 +2926,83 @@ func (self *SDisk) DeleteSnapshots(ctx context.Context, userCred mcclient.TokenC
 		task.ScheduleRun(nil)
 	}
 	return nil
+}
+
+func (disk *SDisk) validateDiskAutoCreateBackup(backupStorageId string) error {
+	if disk.Status != api.DISK_READY {
+		return httperrors.NewInvalidStatusError("disk %s status is not %s", disk.Name, api.DISK_READY)
+	}
+	guests := disk.GetGuests()
+	if len(guests) == 0 {
+		return fmt.Errorf("Disks %s not attach guest, can't create snapshot", disk.GetName())
+	}
+	storage, err := disk.GetStorage()
+	if err != nil {
+		return errors.Wrapf(err, "GetStorage")
+	}
+	backupStorage := StorageManager.FetchStorageById(backupStorageId)
+	if backupStorage == nil {
+		return fmt.Errorf("failed get backup storage %s", backupStorageId)
+	}
+	if len(guests) == 1 && utils.IsInStringArray(storage.StorageType, api.FIEL_STORAGE) {
+		if !utils.IsInStringArray(guests[0].Status, []string{api.VM_RUNNING, api.VM_READY}) {
+			return fmt.Errorf("Guest(%s) in status(%s) cannot do disk backup", guests[0].Id, guests[0].Status)
+		}
+	}
+	if storageFree := storage.GetFreeCapacity(); storageFree < int64(disk.DiskSize) {
+		return fmt.Errorf("Storage(%s) space not enough", storage.GetName())
+	}
+	if storageFree := backupStorage.GetFreeCapacity(); storageFree < int64(disk.DiskSize) {
+		return fmt.Errorf("Storage(%s) space not enough", backupStorage.GetName())
+	}
+	return nil
+}
+
+// do create disk backup to backupstorage
+func (manager *SDiskManager) DoAutoBackup(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	diskSnapshotPolicy *SSnapshotPolicyDisk, disk *SDisk, parentTaskId string,
+) error {
+	policy, err := diskSnapshotPolicy.GetSnapshotPolicy()
+	if err != nil {
+		return errors.Wrapf(err, "GetSnapshotPolicy")
+	}
+	err = disk.validateDiskAutoCreateBackup(diskSnapshotPolicy.BackupStorageId)
+	if err != nil {
+		return err
+	}
+	diskBackup, err := disk.CreateBackupAuto(ctx, userCred, diskSnapshotPolicy, policy, parentTaskId)
+	if err != nil {
+		return err
+	}
+	db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_BACKUP, diskBackup.Name, userCred)
+	policy.ExecuteNotify(ctx, userCred, disk.GetName())
+	return nil
+}
+
+func (self *SDisk) CreateBackupAuto(
+	ctx context.Context, userCred mcclient.TokenCredential, diskSnapshotPolicy *SSnapshotPolicyDisk, policy *SSnapshotPolicy, parentTaskId string,
+) (*SDiskBackup, error) {
+	diskBackupCreateInput := api.DiskBackupCreateInput{
+		DiskId:          self.Id,
+		BackupStorageId: diskSnapshotPolicy.BackupStorageId,
+		ParentTaskId:    parentTaskId,
+	}
+	if diskSnapshotPolicy.BackupAsTar != nil {
+		diskBackupCreateInput.BackupAsTar = new(api.DiskBackupAsTarInput)
+		diskSnapshotPolicy.BackupAsTar.Unmarshal(diskBackupCreateInput.BackupAsTar)
+	}
+	diskBackupCreateInput.Name = fmt.Sprintf("%s-auto-backup-%d", self.Name, time.Now().Unix())
+	if policy.RetentionDays > 0 {
+		expireAt := time.Now().AddDate(0, 0, policy.RetentionDays)
+		diskBackupCreateInput.ExpiredAt = &expireAt
+	}
+	obj, err := db.DoCreate(DiskBackupManager, ctx, userCred, nil, jsonutils.Marshal(diskBackupCreateInput), self.GetOwnerId())
+	if err != nil {
+		return nil, err
+	}
+
+	return obj.(*SDiskBackup), nil
 }
 
 func (self *SDisk) SaveRenewInfo(
@@ -3153,6 +3176,23 @@ func (disk *SDisk) PerformBindSnapshotpolicy(
 	query jsonutils.JSONObject,
 	input *api.DiskSnapshotpolicyInput,
 ) (jsonutils.JSONObject, error) {
+	if input.BackupAsTar != nil {
+		if input.BackupAsTar.ContainerId == "" {
+			return nil, httperrors.NewMissingParameterError("container_id")
+		}
+		ctr, err := GetContainerManager().FetchByIdOrName(ctx, userCred, input.BackupAsTar.ContainerId)
+		if err != nil {
+			return nil, httperrors.NewNotFoundError("fetch container by %s", input.BackupAsTar.ContainerId)
+		}
+		input.BackupAsTar.ContainerId = ctr.GetId()
+		if err := DiskBackupManager.validateBackupAsTarFiles(input.BackupAsTar.IncludeFiles); err != nil {
+			return nil, httperrors.NewInputParameterError("validate include_files: %s", err)
+		}
+		if err := DiskBackupManager.validateBackupAsTarFiles(input.BackupAsTar.ExcludeFiles); err != nil {
+			return nil, httperrors.NewInputParameterError("validate exclude_files: %s", err)
+		}
+	}
+
 	spObj, err := validators.ValidateModel(ctx, userCred, SnapshotPolicyManager, &input.SnapshotpolicyId)
 	if err != nil {
 		return nil, err
@@ -3174,7 +3214,7 @@ func (disk *SDisk) PerformBindSnapshotpolicy(
 			return nil, httperrors.NewConflictError("The snapshot policy %s and the disk are in different region", sp.Name)
 		}
 	}
-	return nil, sp.StartBindDisksTask(ctx, userCred, []string{disk.Id}, input.IsBackupPolicy)
+	return nil, sp.StartBindDisksTask(ctx, userCred, []string{disk.Id}, input.IsBackupPolicy, input.BackupAsTar)
 }
 
 func (disk *SDisk) PerformUnbindSnapshotpolicy(

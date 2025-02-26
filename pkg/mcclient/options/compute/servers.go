@@ -1532,6 +1532,29 @@ func (o *ServerUpdateSubIpsOptions) Params() (jsonutils.JSONObject, error) {
 	return jsonutils.Marshal(o), nil
 }
 
+type ServerBindSnapshotPolicyOptions struct {
+	ServerIdOptions
+
+	SnapshotPolicyId   string `help:"bind snapshot policy id"`
+	IsBackupPolicy     bool   `help:"bind as backup policy, default is snapshot"`
+	SaveGuestIpMacAddr bool   `help:"save guest ip mac addr on create backup"`
+}
+
+func (o *ServerBindSnapshotPolicyOptions) Params() (jsonutils.JSONObject, error) {
+	return jsonutils.Marshal(o), nil
+}
+
+type ServerUnbindSnapshotPolicyOptions struct {
+	ServerIdOptions
+
+	SnapshotPolicyId string `help:"unbind snapshot policy id"`
+	IsBackupPolicy   bool   `help:"unbind backup policy, default is snapshot"`
+}
+
+func (o *ServerUnbindSnapshotPolicyOptions) Params() (jsonutils.JSONObject, error) {
+	return jsonutils.Marshal(o), nil
+}
+
 type ServerSetOSInfoOptions struct {
 	ServerIdsOptions
 

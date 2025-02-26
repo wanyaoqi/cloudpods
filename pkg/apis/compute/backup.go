@@ -15,6 +15,7 @@
 package compute
 
 import (
+	"time"
 	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/onecloud/pkg/apis"
@@ -141,7 +142,11 @@ type DiskBackupCreateInput struct {
 	// swagger: ignore
 	CloudregionId string `json:"cloudregion_id"`
 	// swagger:ignore
-	ManagerId   string                `json:"manager_id"`
+	ManagerId string `json:"manager_id"`
+	// swagger:ignore
+	ParentTaskId string `json:"parent_task_id"`
+	// swagger:ignore
+	ExpiredAt   *time.Time            `json:"expired_at"`
 	BackupAsTar *DiskBackupAsTarInput `json:"backup_as_tar"`
 }
 

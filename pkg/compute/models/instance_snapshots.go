@@ -418,7 +418,10 @@ func (manager *SInstanceSnapshotManager) fillInstanceSnapshot(ctx context.Contex
 	instanceSnapshot.ServerMetadata = serverMetadata
 }
 
-func (manager *SInstanceSnapshotManager) CreateInstanceSnapshot(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, name string, autoDelete bool, withMemory bool) (*SInstanceSnapshot, error) {
+func (manager *SInstanceSnapshotManager) CreateInstanceSnapshot(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	guest *SGuest, name string, autoDelete bool, withMemory bool, expireAt *time.Time,
+) (*SInstanceSnapshot, error) {
 	instanceSnapshot := &SInstanceSnapshot{}
 	instanceSnapshot.SetModelManager(manager, instanceSnapshot)
 	instanceSnapshot.Name = name
@@ -426,6 +429,9 @@ func (manager *SInstanceSnapshotManager) CreateInstanceSnapshot(ctx context.Cont
 	if autoDelete {
 		// hide auto-delete instance snapshots
 		instanceSnapshot.IsSystem = true
+	}
+	if expireAt != nil {
+		instanceSnapshot.ExpiredAt = *expireAt
 	}
 	manager.fillInstanceSnapshot(ctx, userCred, guest, instanceSnapshot)
 	// compute size of instanceSnapshot

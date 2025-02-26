@@ -16,6 +16,7 @@ package models
 
 import (
 	"fmt"
+	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
@@ -62,7 +63,9 @@ type SSnapshotPolicyDisk struct {
 	SDiskResourceBase `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 
 	// default is snapshot policy
-	IsBackupPolicy bool `default:"false" list:"user" json:"is_backup_policy"`
+	IsBackupPolicy  bool                 `default:"false" list:"user" json:"is_backup_policy"`
+	BackupStorageId string               `width:"36" charset:"ascii" nullable:"true" create:"required" list:"user" index:"true"`
+	BackupAsTar     jsonutils.JSONObject `nullable:"true" get:"user" update:"user" list:"user" create:"optional"`
 }
 
 func (self *SSnapshotPolicyDisk) GetDisk() (*SDisk, error) {

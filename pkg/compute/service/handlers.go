@@ -106,6 +106,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.BillingResourceCheckManager,
 
 		models.SnapshotPolicyDiskManager,
+		models.SnapshotPolicyGuestManager,
 		models.LoadbalancerSecurityGroupManager,
 	} {
 		db.RegisterModelManager(manager)

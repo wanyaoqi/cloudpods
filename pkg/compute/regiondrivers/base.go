@@ -514,6 +514,14 @@ func (self *SBaseRegionDriver) RequestSnapshotPolicyUnbindDisks(ctx context.Cont
 	return errors.Wrapf(cloudprovider.ErrNotImplemented, "RequestSnapshotPolicyUnbindDisks")
 }
 
+func (self *SBaseRegionDriver) RequestSnapshotPolicyBindGuests(ctx context.Context, userCred mcclient.TokenCredential, sp *models.SSnapshotPolicy, input *api.SnapshotPolicyGuestsInput) error {
+	return errors.Wrapf(cloudprovider.ErrNotImplemented, "RequestSnapshotPolicyBindGuests")
+}
+
+func (self *SBaseRegionDriver) RequestSnapshotPolicyUnbindGuests(ctx context.Context, userCred mcclient.TokenCredential, sp *models.SSnapshotPolicy, isBackupPolicy bool, guestIds []string) error {
+	return errors.Wrapf(cloudprovider.ErrNotImplemented, "RequestSnapshotPolicUnbindGuests")
+}
+
 func (self *SBaseRegionDriver) RequestRemoteUpdateNetwork(ctx context.Context, userCred mcclient.TokenCredential, network *models.SNetwork, replaceTags bool, task taskman.ITask) error {
 	return errors.Wrapf(cloudprovider.ErrNotImplemented, "RequestRemoteUpdateNetwork")
 }
