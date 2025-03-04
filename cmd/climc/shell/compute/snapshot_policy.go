@@ -15,7 +15,11 @@
 package compute
 
 import (
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/util/printutils"
+
 	"yunion.io/x/onecloud/cmd/climc/shell"
+	"yunion.io/x/onecloud/pkg/mcclient"
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/compute"
 	"yunion.io/x/onecloud/pkg/mcclient/options"
 	"yunion.io/x/onecloud/pkg/mcclient/options/compute"
@@ -29,4 +33,74 @@ func init() {
 	cmd.Perform("bind-disks", &compute.SnapshotPolicyDisksOptions{})
 	cmd.Perform("unbind-disks", &compute.SnapshotPolicyDisksOptions{})
 	cmd.Perform("syncstatus", &options.BaseIdOptions{})
+
+	type DiskSnapshotPolicyListOptions struct {
+		options.BaseListOptions
+		SnapshotPolicy string `help:"ID or Name of SnapshotPolicy"`
+		Disk           string `help:"ID or name of disk"`
+		IsBackupPolicy *bool
+	}
+	R(&DiskSnapshotPolicyListOptions{}, "disk-snapshot-policy-list", "List disk snapshot policy pairs", func(s *mcclient.ClientSession, args *DiskSnapshotPolicyListOptions) error {
+		var params *jsonutils.JSONDict
+		{
+			var err error
+			params, err = args.BaseListOptions.Params()
+			if err != nil {
+				return err
+
+			}
+		}
+		if args.IsBackupPolicy != nil {
+			params.Add(jsonutils.NewBool(*args.IsBackupPolicy), "is_backup_policy")
+		}
+		var result *printutils.ListResult
+		var err error
+		if len(args.Disk) > 0 {
+			result, err = modules.DiskSnapshotPolicies.ListDescendent(s, args.Disk, params)
+		} else if len(args.SnapshotPolicy) > 0 {
+			result, err = modules.DiskSnapshotPolicies.ListDescendent2(s, args.SnapshotPolicy, params)
+		} else {
+			result, err = modules.DiskSnapshotPolicies.List(s, params)
+		}
+		if err != nil {
+			return err
+		}
+		printList(result, modules.DiskSnapshotPolicies.GetColumns(s))
+		return nil
+	})
+
+	type ServerSnapshotPolicyListOptions struct {
+		options.BaseListOptions
+		SnapshotPolicy string `help:"ID or Name of SnapshotPolicy"`
+		Guest          string `help:"ID or name of disk"`
+		IsBackupPolicy *bool
+	}
+	R(&ServerSnapshotPolicyListOptions{}, "server-snapshot-policy-list", "List guest snapshot policy pairs", func(s *mcclient.ClientSession, args *ServerSnapshotPolicyListOptions) error {
+		var params *jsonutils.JSONDict
+		{
+			var err error
+			params, err = args.BaseListOptions.Params()
+			if err != nil {
+				return err
+
+			}
+		}
+		if args.IsBackupPolicy != nil {
+			params.Add(jsonutils.NewBool(*args.IsBackupPolicy), "is_backup_policy")
+		}
+		var result *printutils.ListResult
+		var err error
+		if len(args.Guest) > 0 {
+			result, err = modules.GuestSnapshotPolicies.ListDescendent(s, args.Guest, params)
+		} else if len(args.SnapshotPolicy) > 0 {
+			result, err = modules.GuestSnapshotPolicies.ListDescendent2(s, args.SnapshotPolicy, params)
+		} else {
+			result, err = modules.GuestSnapshotPolicies.List(s, params)
+		}
+		if err != nil {
+			return err
+		}
+		printList(result, modules.GuestSnapshotPolicies.GetColumns(s))
+		return nil
+	})
 }

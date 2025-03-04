@@ -143,6 +143,19 @@ type SnapshotPolicyGuestsInput struct {
 	SaveGuestIpMacAddr bool   `json:"save_guest_ip_mac_addr"`
 }
 
+type DiskSnapshotPolicyListInput struct {
+	apis.VirtualJointResourceBaseListInput
+	DiskFilterListInput
+
+	IsBackupPolicy *bool `json:"is_backup_policy"`
+}
+
+type GuestSnapshotPolicyListInput struct {
+	GuestJointsListInput
+
+	IsBackupPolicy *bool `json:"is_backup_policy"`
+}
+
 type RepeatWeekdays []int
 
 func (days RepeatWeekdays) String() string {

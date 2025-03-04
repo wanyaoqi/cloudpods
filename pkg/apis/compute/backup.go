@@ -226,5 +226,5 @@ type ServerCreateInstanceBackupInput struct {
 	// 备份存储ID
 	BackupStorageId string `json:"backup_storage_id"`
 	// Save guest ip mac address
-	SaveGuestIpMacAddr *bool `json:"save_ip_mac_addr"`
+	SaveGuestIpMacAddr *bool `json:"save_guest_ip_mac_addr"`
 }

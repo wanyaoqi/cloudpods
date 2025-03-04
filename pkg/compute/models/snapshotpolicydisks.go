@@ -15,13 +15,16 @@
 package models
 
 import (
+	"context"
 	"fmt"
 	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 type SSnapshotPolicyDiskManager struct {
@@ -64,7 +67,7 @@ type SSnapshotPolicyDisk struct {
 
 	// default is snapshot policy
 	IsBackupPolicy  bool                 `default:"false" list:"user" json:"is_backup_policy"`
-	BackupStorageId string               `width:"36" charset:"ascii" nullable:"true" create:"required" list:"user" index:"true"`
+	BackupStorageId string               `width:"36" charset:"ascii" nullable:"true" create:"optional" list:"user" index:"true"`
 	BackupAsTar     jsonutils.JSONObject `nullable:"true" get:"user" update:"user" list:"user" create:"optional"`
 }
 
@@ -102,4 +105,22 @@ func (man *SSnapshotPolicyDiskManager) RemoveBySnapshotpolicy(id string) error {
 		), id,
 	)
 	return err
+}
+
+func (manager *SSnapshotPolicyDiskManager) ListItemFilter(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query compute.DiskSnapshotPolicyListInput,
+) (*sqlchemy.SQuery, error) {
+	var err error
+	q, err = manager.SDiskResourceBaseManager.ListItemFilter(ctx, q, userCred, query.DiskFilterListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SDiskResourceBaseManager.ListItemFilter")
+	}
+
+	if query.IsBackupPolicy != nil {
+		q = q.Equals("is_backup_policy", *query.IsBackupPolicy)
+	}
+	return q, nil
 }

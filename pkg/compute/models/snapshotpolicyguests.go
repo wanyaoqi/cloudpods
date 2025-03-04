@@ -18,14 +18,15 @@ import (
 	"context"
 	"fmt"
 	"time"
-	api "yunion.io/x/onecloud/pkg/apis/compute"
-	"yunion.io/x/onecloud/pkg/httperrors"
-	"yunion.io/x/onecloud/pkg/mcclient"
+
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	api "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 type SSnapshotPolicyGuestManager struct {
@@ -50,7 +51,7 @@ func init() {
 				"snapshot_policy_guests_tbl",
 				"snapshot_policy_guest",
 				"snapshot_policy_guests",
-				NetworkManager,
+				SnapshotPolicyManager,
 			),
 		}
 		SnapshotPolicyGuestManager.SetVirtualObject(SnapshotPolicyGuestManager)
@@ -64,7 +65,7 @@ type SSnapshotPolicyGuest struct {
 
 	// default is snapshot policy
 	IsBackupPolicy     bool   `default:"false" list:"user" json:"is_backup_policy"`
-	BackupStorageId    string `width:"36" charset:"ascii" nullable:"true" create:"required" list:"user" index:"true"`
+	BackupStorageId    string `width:"36" charset:"ascii" nullable:"true" create:"optional" list:"user" index:"true"`
 	SaveGuestIpMacAddr bool   `default:"false" list:"user" json:"save_guest_ip_mac_addr"`
 }
 
@@ -102,6 +103,24 @@ func (man *SSnapshotPolicyGuestManager) RemoveBySnapshotpolicy(id string) error 
 		), id,
 	)
 	return err
+}
+
+func (manager *SSnapshotPolicyGuestManager) ListItemFilter(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query api.GuestSnapshotPolicyListInput,
+) (*sqlchemy.SQuery, error) {
+	var err error
+	q, err = manager.SGuestJointsManager.ListItemFilter(ctx, q, userCred, query.GuestJointsListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SGuestJointsManager.ListItemFilter")
+	}
+
+	if query.IsBackupPolicy != nil {
+		q = q.Equals("is_backup_policy", *query.IsBackupPolicy)
+	}
+	return q, nil
 }
 
 func (guest *SGuest) validateDiskAutoCreateSnapshot() error {

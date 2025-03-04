@@ -105,8 +105,6 @@ func InitHandlers(app *appsrv.Application) {
 		models.WafRuleStatementManager,
 		models.BillingResourceCheckManager,
 
-		models.SnapshotPolicyDiskManager,
-		models.SnapshotPolicyGuestManager,
 		models.LoadbalancerSecurityGroupManager,
 	} {
 		db.RegisterModelManager(manager)
@@ -285,6 +283,8 @@ func InitHandlers(app *appsrv.Application) {
 		models.ElasticcachesecgroupManager,
 		models.InterVpcNetworkVpcManager,
 		models.InstanceBackupJointManager,
+		models.SnapshotPolicyGuestManager,
+		models.SnapshotPolicyDiskManager,
 	} {
 		db.RegisterModelManager(manager)
 		handler := db.NewJointModelHandler(manager)
