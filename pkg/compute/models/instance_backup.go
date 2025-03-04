@@ -287,11 +287,22 @@ func (manager *SInstanceBackupManager) fillInstanceBackup(ctx context.Context, u
 	createInput := guest.ToCreateInput(ctx, userCred)
 	createInput.ProjectId = guest.ProjectId
 	createInput.ProjectDomainId = guest.DomainId
-	if !saveGuestIpMacAddr {
-		for i := 0; i < len(createInput.Networks); i++ {
+
+	gns, _ := guest.GetNetworks("")
+	for i := 0; i < len(createInput.Networks); i++ {
+		if !saveGuestIpMacAddr {
 			createInput.Networks[i].Mac = ""
 			createInput.Networks[i].Address = ""
 			createInput.Networks[i].Address6 = ""
+		} else {
+			for j := range gns {
+				if gns[j].Index == createInput.Networks[i].Index {
+					createInput.Networks[i].Mac = gns[j].MacAddr
+					createInput.Networks[i].Address = gns[j].IpAddr
+					createInput.Networks[i].Address6 = gns[j].Ip6Addr
+					break
+				}
+			}
 		}
 	}
 	instanceBackup.ServerConfig = jsonutils.Marshal(createInput)

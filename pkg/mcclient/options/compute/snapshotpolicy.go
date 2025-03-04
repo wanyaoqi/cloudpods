@@ -46,10 +46,23 @@ func (opts *SnapshotPolicyCreateOptions) Params() (jsonutils.JSONObject, error) 
 
 type SnapshotPolicyDisksOptions struct {
 	options.BaseIdOptions
-	Disks          []string `help:"ids of disk"`
-	IsBackupPolicy bool     `help:"bind/unbind disk as backup policy"`
+	Disks           []string `help:"ids of disk"`
+	IsBackupPolicy  bool     `help:"bind/unbind disk as backup policy"`
+	BackupStorageId string   `help:"backup storage id"`
 }
 
 func (opts *SnapshotPolicyDisksOptions) Params() (jsonutils.JSONObject, error) {
-	return jsonutils.Marshal(map[string]interface{}{"disks": opts.Disks}), nil
+	return jsonutils.Marshal(opts), nil
+}
+
+type SnapshotPolicyGuestsOptions struct {
+	options.BaseIdOptions
+	Guests          []string `help:"ids of guest"`
+	IsBackupPolicy  bool     `help:"bind/unbind guest backup policy"`
+	BackupStorageId string   `help:"backup storage id"`
+	SaveIpMacAddr   *bool    `help:"guest backup save_guest_ip_mac_addr"`
+}
+
+func (opts *SnapshotPolicyGuestsOptions) Params() (jsonutils.JSONObject, error) {
+	return jsonutils.Marshal(opts), nil
 }

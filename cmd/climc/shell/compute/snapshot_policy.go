@@ -32,6 +32,8 @@ func init() {
 	cmd.Create(&compute.SnapshotPolicyCreateOptions{})
 	cmd.Perform("bind-disks", &compute.SnapshotPolicyDisksOptions{})
 	cmd.Perform("unbind-disks", &compute.SnapshotPolicyDisksOptions{})
+	cmd.Perform("bind-guests", &compute.SnapshotPolicyDisksOptions{})
+	cmd.Perform("unbind-guests", &compute.SnapshotPolicyDisksOptions{})
 	cmd.Perform("syncstatus", &options.BaseIdOptions{})
 
 	type DiskSnapshotPolicyListOptions struct {
