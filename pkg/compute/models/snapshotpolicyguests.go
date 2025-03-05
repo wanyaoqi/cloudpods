@@ -123,6 +123,20 @@ func (manager *SSnapshotPolicyGuestManager) ListItemFilter(
 	return q, nil
 }
 
+func (manager *SSnapshotPolicyGuestManager) OrderByExtraFields(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query api.GuestSnapshotPolicyListInput,
+) (*sqlchemy.SQuery, error) {
+	var err error
+	q, err = manager.SGuestJointsManager.OrderByExtraFields(ctx, q, userCred, query.GuestJointsListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SGuestJointsManager.OrderByExtraFields")
+	}
+	return q, nil
+}
+
 func (guest *SGuest) validateDiskAutoCreateSnapshot() error {
 	if !utils.IsInStringArray(guest.Status, []string{api.VM_RUNNING, api.VM_READY}) {
 		return fmt.Errorf("Guest(%s) in status(%s) cannot do snapshot", guest.Id, guest.Status)

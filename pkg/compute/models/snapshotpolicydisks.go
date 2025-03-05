@@ -124,3 +124,17 @@ func (manager *SSnapshotPolicyDiskManager) ListItemFilter(
 	}
 	return q, nil
 }
+
+func (manager *SSnapshotPolicyDiskManager) OrderByExtraFields(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query compute.DiskSnapshotPolicyListInput,
+) (*sqlchemy.SQuery, error) {
+	var err error
+	q, err = manager.SDiskResourceBaseManager.OrderByExtraFields(ctx, q, userCred, query.DiskFilterListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SDiskResourceBaseManager.OrderByExtraFields")
+	}
+	return q, nil
+}
