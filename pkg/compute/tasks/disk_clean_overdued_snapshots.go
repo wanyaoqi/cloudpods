@@ -17,12 +17,12 @@ package tasks
 import (
 	"context"
 	"database/sql"
-	api "yunion.io/x/cloudmux/pkg/apis/compute"
-	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/utils"
 
+	api "yunion.io/x/cloudmux/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
@@ -37,9 +37,18 @@ type SnapshotPolicyCleanupTask struct {
 	taskman.STask
 }
 
+func (task *SnapshotPolicyCleanupTask) SetStageComplete(ctx context.Context, data *jsonutils.JSONDict) {
+	models.SetSnapshotPolicyCleanupTasksComplete()
+	task.STask.SetStageComplete(ctx, data)
+}
+
+func (task *SnapshotPolicyCleanupTask) SetStageFailed(ctx context.Context, reason jsonutils.JSONObject) {
+	models.SetSnapshotPolicyCleanupTasksComplete()
+	task.STask.SetStageFailed(ctx, reason)
+}
+
 func (self *SnapshotPolicyCleanupTask) taskCompleted(ctx context.Context, data jsonutils.JSONObject) {
 	log.Infof("SnapshotPolicyCleanupTask completed %s", data)
-	models.SetSnapshotPolicyCleanupTasksComplete()
 	self.SetStageComplete(ctx, nil)
 }
 
@@ -74,6 +83,7 @@ func (self *SnapshotPolicyCleanupTask) StartCleanSnapshots(ctx context.Context, 
 	for i := range snapshots {
 		snapshotIds[i] = snapshots[i].Id
 	}
+	log.Errorf("StartCleanSnapshots %d", len(snapshotIds))
 	self.SetStage("OnDeleteSnapshot", nil)
 	self.StartSnapshotsDelete(ctx, snapshotIds)
 }
@@ -167,6 +177,7 @@ func (self *SnapshotPolicyCleanupTask) StartCleanInstanceSnapshots(ctx context.C
 	for i := range ips {
 		ipsIds[i] = ips[i].Id
 	}
+	log.Errorf("StartCleanInstanceSnapshots %d", len(ips))
 	self.SetStage("OnDeleteInstanceSnapshot", nil)
 	self.StartInstanceSnapshotsDelete(ctx, ipsIds)
 }
@@ -244,6 +255,7 @@ func (self *SnapshotPolicyCleanupTask) StartCleanDiskBackups(ctx context.Context
 	for i := range diskBackups {
 		backupIds[i] = diskBackups[i].Id
 	}
+	log.Errorf("StartCleanDiskBackups %d", len(backupIds))
 	self.SetStage("OnDeleteDiskBackup", nil)
 	self.StartDiskBackupDelete(ctx, backupIds)
 }
@@ -316,6 +328,7 @@ func (self *SnapshotPolicyCleanupTask) StartCleanInstanceBackups(ctx context.Con
 	for i := range instanceBackups {
 		ipsIds[i] = instanceBackups[i].Id
 	}
+	log.Errorf("StartCleanInstanceBackups %d", len(ipsIds))
 	self.SetStage("OnDeleteInstanceBackup", nil)
 	self.StartInstanceBackupDelete(ctx, ipsIds)
 }

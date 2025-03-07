@@ -194,7 +194,7 @@ func StartServiceWithJobsAndApp(jobs func(cron *cronman.SCronJobManager), appCll
 		cron.AddJobEveryFewHour("AutoPurgeSplitable", 4, 30, 0, db.AutoPurgeSplitable, false)
 
 		cron.AddJobEveryFewHour("AutoDiskSnapshot", 1, 5, 0, models.SnapshotPolicyManager.SnapshotPolicyExecutor, false)
-		cron.AddJobEveryFewHour("SnapshotsCleanup", 1, 35, 0, models.SnapshotPolicyManager.SnapshotPolicyCleanup, false)
+		cron.AddJobEveryFewHour("SnapshotsCleanup", 1, 35, 0, models.SnapshotPolicyManager.SnapshotPolicyCleanup, true)
 
 		cron.AddJobEveryFewHour("AutoCleanImageCache", 1, 5, 0, models.CachedimageManager.AutoCleanImageCaches, false)
 
