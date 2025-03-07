@@ -56,10 +56,12 @@ func (self *SnapshotPolicyCleanupTask) StartCleanSnapshots(ctx context.Context, 
 		return
 	}
 	var snapshots = make([]models.SSnapshot, 0)
-	err = models.SnapshotManager.Query().
+	q := models.SnapshotManager.Query().
 		Equals("fake_deleted", false).
 		Equals("created_by", compute.SNAPSHOT_AUTO).
-		LE("expired_at", now).All(&snapshots)
+		LE("expired_at", now)
+	log.Errorf("StartCleanSnapshots %s", q.DebugString())
+	err = q.All(&snapshots)
 	if err == sql.ErrNoRows {
 		self.StartCleanInstanceSnapshots(ctx, obj, data)
 		return
@@ -72,16 +74,15 @@ func (self *SnapshotPolicyCleanupTask) StartCleanSnapshots(ctx context.Context, 
 	for i := range snapshots {
 		snapshotIds[i] = snapshots[i].Id
 	}
+	self.SetStage("OnDeleteSnapshot", nil)
 	self.StartSnapshotsDelete(ctx, snapshotIds)
 }
 
 func (self *SnapshotPolicyCleanupTask) StartSnapshotsDelete(ctx context.Context, snapshotIds []string) {
 	snapshotId := snapshotIds[0]
 	snapshotIds = snapshotIds[1:]
-	if len(snapshotIds) > 0 {
-		self.Params.Set("snapshots", jsonutils.Marshal(snapshotIds))
-	}
-	self.SetStage("OnDeleteSnapshot", nil)
+	data := jsonutils.Marshal(map[string]interface{}{"snapshots": snapshotIds})
+	self.SaveParams(data.(*jsonutils.JSONDict))
 
 	iSnapshot, err := models.SnapshotManager.FetchById(snapshotId)
 	if err != nil {
@@ -166,16 +167,15 @@ func (self *SnapshotPolicyCleanupTask) StartCleanInstanceSnapshots(ctx context.C
 	for i := range ips {
 		ipsIds[i] = ips[i].Id
 	}
+	self.SetStage("OnDeleteInstanceSnapshot", nil)
 	self.StartInstanceSnapshotsDelete(ctx, ipsIds)
 }
 
 func (self *SnapshotPolicyCleanupTask) StartInstanceSnapshotsDelete(ctx context.Context, instanceSnapshotIds []string) {
 	instanceSnapshotId := instanceSnapshotIds[0]
 	instanceSnapshotIds = instanceSnapshotIds[1:]
-	if len(instanceSnapshotIds) > 0 {
-		self.Params.Set("instance_snapshots", jsonutils.Marshal(instanceSnapshotIds))
-	}
-	self.SetStage("OnDeleteInstanceSnapshot", nil)
+	self.Params.Set("instance_snapshots", jsonutils.Marshal(instanceSnapshotIds))
+	self.SaveParams(nil)
 
 	iSnapshot, err := models.InstanceSnapshotManager.FetchById(instanceSnapshotId)
 	if err != nil {
@@ -244,16 +244,15 @@ func (self *SnapshotPolicyCleanupTask) StartCleanDiskBackups(ctx context.Context
 	for i := range diskBackups {
 		backupIds[i] = diskBackups[i].Id
 	}
+	self.SetStage("OnDeleteDiskBackup", nil)
 	self.StartDiskBackupDelete(ctx, backupIds)
 }
 
 func (self *SnapshotPolicyCleanupTask) StartDiskBackupDelete(ctx context.Context, backupIds []string) {
 	diskBackupId := backupIds[0]
 	backupIds = backupIds[1:]
-	if len(backupIds) > 0 {
-		self.Params.Set("disk_backups", jsonutils.Marshal(backupIds))
-	}
-	self.SetStage("OnDeleteDiskBackup", nil)
+	self.Params.Set("disk_backups", jsonutils.Marshal(backupIds))
+	self.SaveParams(nil)
 
 	iBackup, err := models.DiskBackupManager.FetchById(diskBackupId)
 	if err != nil {
@@ -317,16 +316,16 @@ func (self *SnapshotPolicyCleanupTask) StartCleanInstanceBackups(ctx context.Con
 	for i := range instanceBackups {
 		ipsIds[i] = instanceBackups[i].Id
 	}
+	self.SetStage("OnDeleteInstanceBackup", nil)
 	self.StartInstanceBackupDelete(ctx, ipsIds)
 }
 
 func (self *SnapshotPolicyCleanupTask) StartInstanceBackupDelete(ctx context.Context, backupIds []string) {
 	instanceBackupId := backupIds[0]
 	backupIds = backupIds[1:]
-	if len(backupIds) > 0 {
-		self.Params.Set("instance_backups", jsonutils.Marshal(backupIds))
-	}
-	self.SetStage("OnDeleteInstanceBackup", nil)
+	self.Params.Set("instance_backups", jsonutils.Marshal(backupIds))
+	self.SaveParams(nil)
+
 	iBackup, err := models.InstanceBackupManager.FetchById(instanceBackupId)
 	if err != nil {
 		log.Errorf("failed get instance backup %s: %s", instanceBackupId, err)

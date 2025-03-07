@@ -505,7 +505,7 @@ func (sp *SSnapshotPolicy) PerformUnbindDisks(
 			return nil, err
 		}
 		disk := diskObj.(*SDisk)
-		if utils.IsInStringArray(disk.Id, diskIds) {
+		if !utils.IsInStringArray(disk.Id, diskIds) {
 			diskIds = append(diskIds, disk.Id)
 		}
 	}
@@ -556,7 +556,7 @@ func (sp *SSnapshotPolicy) PerformUnbindGuests(
 			return nil, err
 		}
 		guest := guestObj.(*SGuest)
-		if utils.IsInStringArray(guest.Id, guestIds) {
+		if !utils.IsInStringArray(guest.Id, guestIds) {
 			guestIds = append(guestIds, guest.Id)
 		}
 	}
@@ -800,6 +800,12 @@ func (sp *SSnapshotPolicy) BindGuests(ctx context.Context, guests []SGuest, isBa
 
 func (sp *SSnapshotPolicy) UnbindGuests(guestIds []string, isBackupPolicy bool) error {
 	vars := []interface{}{sp.Id}
+	if isBackupPolicy {
+		vars = append(vars, 1)
+	} else {
+		vars = append(vars, 0)
+	}
+
 	placeholders := make([]string, len(guestIds))
 	for i := range placeholders {
 		placeholders[i] = "?"
@@ -807,8 +813,8 @@ func (sp *SSnapshotPolicy) UnbindGuests(guestIds []string, isBackupPolicy bool) 
 	}
 	_, err := sqlchemy.GetDB().Exec(
 		fmt.Sprintf(
-			"delete from %s where snapshotpolicy_id = ? and is_backup_policy = %t and guest_id in (%s)",
-			SnapshotPolicyGuestManager.TableSpec().Name(), isBackupPolicy, strings.Join(placeholders, ","),
+			"delete from %s where snapshotpolicy_id = ? and is_backup_policy = ? and guest_id in (%s)",
+			SnapshotPolicyGuestManager.TableSpec().Name(), strings.Join(placeholders, ","),
 		), vars...,
 	)
 	return err
@@ -831,18 +837,24 @@ func (sp *SSnapshotPolicy) BindDisks(ctx context.Context, disks []SDisk, isBacku
 }
 
 func (sp *SSnapshotPolicy) UnbindDisks(diskIds []string, isBackupPolicy bool) error {
+	SnapshotPolicyManager.Query()
 	vars := []interface{}{sp.Id}
+	if isBackupPolicy {
+		vars = append(vars, 1)
+	} else {
+		vars = append(vars, 0)
+	}
+
 	placeholders := make([]string, len(diskIds))
 	for i := range placeholders {
 		placeholders[i] = "?"
 		vars = append(vars, diskIds[i])
 	}
-	_, err := sqlchemy.GetDB().Exec(
-		fmt.Sprintf(
-			"delete from %s where snapshotpolicy_id = ? and is_backup_policy = %t and disk_id in (%s)",
-			SnapshotPolicyDiskManager.TableSpec().Name(), isBackupPolicy, strings.Join(placeholders, ","),
-		), vars...,
-	)
+
+	sql := fmt.Sprintf(
+		"delete from %s where snapshotpolicy_id = ? and is_backup_policy = ? and disk_id in (%s)",
+		SnapshotPolicyDiskManager.TableSpec().Name(), strings.Join(placeholders, ","))
+	_, err := sqlchemy.GetDB().Exec(sql, vars...)
 	return err
 }
 
