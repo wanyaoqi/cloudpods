@@ -62,7 +62,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/compute"
 	identity_modules "yunion.io/x/onecloud/pkg/mcclient/modules/identity"
-	"yunion.io/x/onecloud/pkg/util/cgrouputils"
+	"yunion.io/x/onecloud/pkg/util/cgrouputils/cgroup1"
 	"yunion.io/x/onecloud/pkg/util/cgrouputils/cpuset"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/fuseutils"
@@ -1670,7 +1670,7 @@ func (s *SKVMGuestInstance) clearCgroup(pid int) {
 	log.Infof("cgroup destroy %d %s", pid, cgrupName)
 	if pid > 0 && !options.HostOptions.DisableSetCgroup {
 		s.CleanupCpuset()
-		cgrouputils.CgroupDestroy(strconv.Itoa(pid), cgrupName)
+		cgroup1.CgroupDestroy(strconv.Itoa(pid), cgrupName)
 	}
 }
 
@@ -2031,7 +2031,7 @@ func (s *SKVMGuestInstance) ExitCleanup(clear bool) {
 }
 
 func (s *SKVMGuestInstance) CleanupCpuset() {
-	cgPath := path.Join(cgrouputils.RootTaskPath("cpuset"), s.GetCgroupName())
+	cgPath := path.Join(cgroup1.RootTaskPath("cpuset"), s.GetCgroupName())
 	cgName := s.GetCgroupName()
 	cgFiles, err := ioutil.ReadDir(cgPath)
 	if err != nil {
@@ -2042,13 +2042,13 @@ func (s *SKVMGuestInstance) CleanupCpuset() {
 			continue
 		}
 		subCgName := path.Join(cgName, fi.Name())
-		task := cgrouputils.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), subCgName, 0, "")
+		task := cgroup1.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), subCgName, 0, "")
 		if !task.RemoveTask() {
 			log.Warningf("remove cpuset cgroup error: %s, pid: %d", s.Id, s.GetPid())
 		}
 	}
 
-	task := cgrouputils.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), s.GetCgroupName(), 0, "")
+	task := cgroup1.NewCGroupCPUSetTask(strconv.Itoa(s.GetPid()), s.GetCgroupName(), 0, "")
 	if !task.RemoveTask() {
 		log.Warningf("remove cpuset cgroup error: %s, pid: %d", s.Id, s.GetPid())
 	}
@@ -2661,7 +2661,7 @@ func (s *SKVMGuestInstance) setCgroupIo() {
 		params["blkio.throttle.read_iops_device"] = options.HostOptions.DefaultReadIopsPerCpu
 		params["blkio.throttle.write_bps_device"] = options.HostOptions.DefaultWriteBpsPerCpu
 		params["blkio.throttle.write_iops_device"] = options.HostOptions.DefaultWriteIopsPerCpu
-		cgrouputils.CgroupIoHardlimitSet(
+		cgroup1.CgroupIoHardlimitSet(
 			strconv.Itoa(s.cgroupPid), s.GetCgroupName(), int(s.Desc.Cpu), params, devId,
 		)
 	}
@@ -2673,7 +2673,7 @@ func (s *SKVMGuestInstance) setCgroupCpu() {
 		cpuWeight = 1024
 	)
 
-	cgrouputils.CgroupSet(strconv.Itoa(s.cgroupPid), s.GetCgroupName(), int(cpu)*cpuWeight)
+	cgroup1.CgroupSet(strconv.Itoa(s.cgroupPid), s.GetCgroupName(), int(cpu)*cpuWeight)
 }
 
 func (s *SKVMGuestInstance) setCgroupCPUSet() error {
@@ -2704,7 +2704,7 @@ func (s *SKVMGuestInstance) setCgroupCPUSet() error {
 
 	guestPid := strconv.Itoa(s.GetPid())
 	// guest root cpuset group
-	task := cgrouputils.NewCGroupCPUSetTask(guestPid, cgName, 0, cpusetStr)
+	task := cgroup1.NewCGroupCPUSetTask(guestPid, cgName, 0, cpusetStr)
 	if !task.SetTask() {
 		return errors.Errorf("Cgroup cpuset task failed")
 	}
@@ -2727,7 +2727,7 @@ func (s *SKVMGuestInstance) setCgroupCPUSet() error {
 				}
 				pcpu := s.Desc.CpuNumaPin[i].VcpuPin[j].Pcpu
 				vcpuCgname := path.Join(cgName, vcpuThreadId)
-				taskVcpu := cgrouputils.NewCGroupSubCPUSetTask(guestPid, vcpuCgname, 0, strconv.Itoa(pcpu), []string{vcpuThreadId})
+				taskVcpu := cgroup1.NewCGroupSubCPUSetTask(guestPid, vcpuCgname, 0, strconv.Itoa(pcpu), []string{vcpuThreadId})
 				if !taskVcpu.SetTask() {
 					return errors.Errorf("Vcpu set cgroup cpuset task failed")
 				}
@@ -2746,7 +2746,7 @@ func (s *SKVMGuestInstance) setCgroupCPUSet() error {
 			}
 			pcpu := s.Desc.VcpuPin[i].Pcpus
 			vcpuCgname := path.Join(cgName, vcpuThreadId)
-			taskVcpu := cgrouputils.NewCGroupSubCPUSetTask(guestPid, vcpuCgname, 0, pcpu, []string{vcpuThreadId})
+			taskVcpu := cgroup1.NewCGroupSubCPUSetTask(guestPid, vcpuCgname, 0, pcpu, []string{vcpuThreadId})
 			if !taskVcpu.SetTask() {
 				return errors.Errorf("Vcpu set cgroup cpuset task failed")
 			}
@@ -3549,7 +3549,7 @@ func (s *SKVMGuestInstance) CPUSet(ctx context.Context, input []int) (*api.Serve
 		cpusetStr = strings.Join(cpus, ",")
 	}
 
-	task := cgrouputils.NewCGroupCPUSetTask(
+	task := cgroup1.NewCGroupCPUSetTask(
 		strconv.Itoa(s.GetPid()), s.GetCgroupName(), 0, cpusetStr,
 	)
 	if !task.SetTask() {
@@ -3602,7 +3602,7 @@ func (s *SKVMGuestInstance) CPUSetRemove(ctx context.Context) error {
 	if !s.IsRunning() {
 		return nil
 	}
-	task := cgrouputils.NewCGroupCPUSetTask(
+	task := cgroup1.NewCGroupCPUSetTask(
 		strconv.Itoa(s.GetPid()), s.GetCgroupName(), 0, "",
 	)
 	if !task.RemoveTask() {

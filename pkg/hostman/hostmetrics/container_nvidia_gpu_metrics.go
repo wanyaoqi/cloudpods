@@ -27,7 +27,7 @@ import (
 
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/hostman/guestman"
-	"yunion.io/x/onecloud/pkg/util/cgrouputils"
+	"yunion.io/x/onecloud/pkg/util/cgrouputils/cgroup1"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 )
 
@@ -147,7 +147,7 @@ func parseNvidiaGpuProcessMetrics(gpuMetricsStr string) []NvidiaGpuProcessMetric
 func (s *SGuestMonitorCollector) collectGpuPodsProcesses() map[string]map[string]struct{} {
 	podProcIds := map[string]map[string]struct{}{}
 	guestmanager := guestman.GetGuestManager()
-	cgroupRoot := path.Join(cgrouputils.RootTaskPath("cpuset"), "cloudpods")
+	cgroupRoot := path.Join(cgroup1.RootTaskPath("cpuset"), "cloudpods")
 	guestmanager.Servers.Range(func(k, v interface{}) bool {
 		pod, ok := v.(guestman.PodInstance)
 		if !ok {

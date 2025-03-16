@@ -66,7 +66,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/compute"
-	"yunion.io/x/onecloud/pkg/util/cgrouputils"
+	"yunion.io/x/onecloud/pkg/util/cgrouputils/cgroup1"
 	"yunion.io/x/onecloud/pkg/util/cgrouputils/cpuset"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/k8s/tokens"
@@ -501,7 +501,7 @@ func (h *SHostInfo) prepareEnv() error {
 		log.Warningf("modprobe vhost_net error: %s", output)
 	}
 	if !options.HostOptions.DisableSetCgroup {
-		if !cgrouputils.Init(h.IoScheduler) {
+		if !cgroup1.Init(h.IoScheduler) {
 			return fmt.Errorf("Cannot initialize control group subsystem")
 		}
 	}
@@ -821,26 +821,26 @@ func (h *SHostInfo) initCgroup() error {
 	hostCpuset := hostCpusetBuilder.Result()
 	hostCpusetStr := hostCpuset.String()
 	// init host cpuset root group
-	if !cgrouputils.NewCGroupCPUSetTask("", hostconsts.HOST_CGROUP, 0, hostCpusetStr).Configure() {
+	if !cgroup1.NewCGroupCPUSetTask("", hostconsts.HOST_CGROUP, 0, hostCpusetStr).Configure() {
 		return fmt.Errorf("failed init host root cpuset")
 	}
 	// init host cpu root group
-	cgrouputils.CgroupSet("", hostconsts.HOST_CGROUP, hostCpuset.Size()*1024)
+	cgroup1.CgroupSet("", hostconsts.HOST_CGROUP, hostCpuset.Size()*1024)
 	// init host blkio root group
-	cgrouputils.CgroupIoHardlimitSet("", hostconsts.HOST_CGROUP, 0, nil, "")
+	cgroup1.CgroupIoHardlimitSet("", hostconsts.HOST_CGROUP, 0, nil, "")
 
 	if h.reservedCpusInfo != nil {
-		reservedCpusTask := cgrouputils.NewCGroupCPUSetTask("", hostconsts.HOST_RESERVED_CPUSET, 0, h.reservedCpusInfo.Cpus)
+		reservedCpusTask := cgroup1.NewCGroupCPUSetTask("", hostconsts.HOST_RESERVED_CPUSET, 0, h.reservedCpusInfo.Cpus)
 		if !reservedCpusTask.Configure() {
 			return fmt.Errorf("failed init host reserved cpuset %s", h.reservedCpusInfo.Cpus)
 		}
 		if h.reservedCpusInfo.Mems != "" &&
-			!reservedCpusTask.CustomConfig(cgrouputils.CPUSET_MEMS, h.reservedCpusInfo.Mems) {
+			!reservedCpusTask.CustomConfig(cgroup1.CPUSET_MEMS, h.reservedCpusInfo.Mems) {
 			return fmt.Errorf("failed init host reserved cpuset mems %s", h.reservedCpusInfo.Mems)
 		}
 		if h.reservedCpusInfo.DisableSchedLoadBalance != nil &&
 			*h.reservedCpusInfo.DisableSchedLoadBalance &&
-			!reservedCpusTask.CustomConfig(cgrouputils.CPUSET_SCHED_LOAD_BALANCE, "0") {
+			!reservedCpusTask.CustomConfig(cgroup1.CPUSET_SCHED_LOAD_BALANCE, "0") {
 			return fmt.Errorf("failed init host reserved cpuset sched load balance")
 		}
 		if len(h.reservedCpusInfo.ProcessesPrefix) > 0 {
@@ -2724,13 +2724,13 @@ func (h *SHostInfo) startBindReservedCpus(processesPrefix []string) {
 		} else {
 			for process, pid := range processPids {
 				cgroupName := path.Join(hostconsts.HOST_RESERVED_CPUSET, strings.ReplaceAll(process, "/", "_"))
-				task := cgrouputils.NewCGroupCPUSetTask(pid, cgroupName, 0, "")
+				task := cgroup1.NewCGroupCPUSetTask(pid, cgroupName, 0, "")
 				if !task.Configure() {
 					log.Errorf("process failed init reserved cpuset %s %s", process, pid)
 					continue
 				}
 
-				if !task.CustomConfig(cgrouputils.CPUSET_CLONE_CHILDREN, "1") {
+				if !task.CustomConfig(cgroup1.CPUSET_CLONE_CHILDREN, "1") {
 					log.Errorf("process failed set host reserved cpuset clone children %s %s", process, pid)
 					continue
 				}
