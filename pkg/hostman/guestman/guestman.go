@@ -59,7 +59,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/compute"
-	"yunion.io/x/onecloud/pkg/util/cgrouputils/cgroup1"
+	"yunion.io/x/onecloud/pkg/util/cgrouputils"
 	"yunion.io/x/onecloud/pkg/util/cgrouputils/cpuset"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/netutils2"
@@ -497,7 +497,7 @@ func (m *SGuestManager) StartCpusetBalancer() {
 
 func (m *SGuestManager) cpusetBalance() {
 	if !options.HostOptions.DisableSetCgroup {
-		cgroup1.RebalanceProcesses(nil)
+		cgrouputils.RebalanceProcesses(nil)
 	}
 }
 
@@ -1567,7 +1567,7 @@ func (m *SGuestManager) ExitGuestCleanup() {
 		return true
 	})
 	if !options.HostOptions.DisableSetCgroup {
-		cgroup1.CgroupCleanAll(hostconsts.HOST_CGROUP)
+		cgrouputils.CgroupCleanAll(hostconsts.HOST_CGROUP)
 	}
 }
 

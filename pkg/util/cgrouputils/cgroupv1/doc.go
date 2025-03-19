@@ -12,4 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cgroup1 // import "yunion.io/x/onecloud/pkg/util/cgrouputils/cgroup1"
+package cgroupv1 // import "yunion.io/x/onecloud/pkg/util/cgrouputils/cgroupv1"

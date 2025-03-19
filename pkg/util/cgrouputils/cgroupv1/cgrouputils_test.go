@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cgroup1
+package cgroupv1
 
 import (
 	"bufio"
@@ -28,6 +28,6 @@ func TestCgroupSet(t *testing.T) {
 	pid, _ := reader.ReadString('\n')
 	pid = strings.TrimSpace(pid)
 	t.Logf("Start %s cgroup set", pid)
-	CgroupSet(pid, "", 1)
+	NewCGroupCPUTask(pid, "", 1).SetTask()
 	CgroupCleanAll("")
 }
