@@ -102,7 +102,7 @@ func (h *SHostHealthChecker) startWatcher(ctx context.Context, hostname string) 
 		h.onHostOnlineCreated(ctx, hostname),
 		h.onHostOnlineModified(ctx, hostname),
 		h.onHostOfflineDeleted(ctx, hostname),
-	); err != nil {
+	); err != nil && !errors.Cause(etcd.ErrKeyRegisted) {
 		return err
 	}
 

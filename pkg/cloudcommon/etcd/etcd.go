@@ -32,7 +32,8 @@ import (
 )
 
 var (
-	ErrNoSuchKey = errors.Error("No such key")
+	ErrNoSuchKey   = errors.Error("No such key")
+	ErrKeyRegisted = errors.Error("Key regiested")
 )
 
 type SEtcdClient struct {
@@ -319,7 +320,7 @@ func (cli *SEtcdClient) Watch(
 	_, ok := cli.watchers[prefix]
 	if ok {
 		cli.watchersMu.Unlock()
-		return errors.Errorf("watch prefix %s already registered", prefix)
+		return errors.Wrap(ErrKeyRegisted, prefix)
 	}
 
 	watcher := clientv3.NewWatcher(cli.client)

@@ -6522,19 +6522,23 @@ func (host *SHost) OnHostDown(ctx context.Context, userCred mcclient.TokenCreden
 		}
 		hostname = host.GetHostnameByName()
 
-		node, err := coreCli.Nodes().Get(context.TODO(), hostname, metav1.GetOptions{})
-		if err != nil {
-			log.Errorf("failed get node %s info %s", hostname, err)
-			return
-		}
-
-		// check node status is ready
-		if length := len(node.Status.Conditions); length > 0 {
-			if node.Status.Conditions[length-1].Type == v1.NodeReady &&
-				node.Status.Conditions[length-1].Status == v1.ConditionTrue {
-				log.Infof("node %s status ready, no need entry rescue", hostname)
+		for i := 0; i < 3; i++ {
+			node, err := coreCli.Nodes().Get(context.TODO(), hostname, metav1.GetOptions{})
+			if err != nil {
+				log.Errorf("failed get node %s info %s", hostname, err)
 				return
 			}
+
+			// check node status is ready
+			if length := len(node.Status.Conditions); length > 0 {
+				if node.Status.Conditions[length-1].Type == v1.NodeReady &&
+					node.Status.Conditions[length-1].Status == v1.ConditionTrue {
+					log.Infof("node %s status ready", hostname)
+					time.Sleep(10 * time.Second)
+					continue
+				}
+			}
+			break
 		}
 	}
 
