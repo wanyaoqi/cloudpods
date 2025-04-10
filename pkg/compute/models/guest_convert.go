@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/utils"
@@ -123,22 +124,6 @@ func (self *SGuest) ConvertEsxiToKvm(ctx context.Context, userCred mcclient.Toke
 		return nil, errors.Wrap(err, "create converted server")
 	}
 
-	if data.Networks != nil && len(data.Networks) != len(createInput.Networks) {
-		return nil, httperrors.NewInputParameterError("input network configs length must equal guestnetworks length")
-	}
-
-	for i := 0; i < len(createInput.Networks); i++ {
-		createInput.Networks[i].Network = ""
-		createInput.Networks[i].Wire = ""
-		if data.Networks != nil {
-			createInput.Networks[i].Network = data.Networks[i].Network
-			createInput.Networks[i].Address = data.Networks[i].Address
-			if data.Networks[i].Schedtags != nil {
-				createInput.Networks[i].Schedtags = data.Networks[i].Schedtags
-			}
-		}
-	}
-
 	return nil, self.StartConvertToKvmTask(ctx, userCred, "GuestConvertEsxiToKvmTask", preferHost, newGuest, createInput, data)
 }
 
@@ -228,7 +213,6 @@ func (self *SGuest) createConvertedServer(ctx context.Context, userCred mcclient
 	if data.Networks != nil && len(data.Networks) != len(createInput.Networks) {
 		return nil, nil, httperrors.NewInputParameterError("input network configs length  must equal guestnetworks length")
 	}
-
 	for i := 0; i < len(createInput.Networks); i++ {
 		createInput.Networks[i].Network = ""
 		createInput.Networks[i].Wire = ""
@@ -241,17 +225,37 @@ func (self *SGuest) createConvertedServer(ctx context.Context, userCred mcclient
 		}
 	}
 
+	if data.Disks != nil && len(data.Disks) != len(createInput.Disks) {
+		return nil, nil, httperrors.NewInputParameterError("input disks config length must equal guestdisks length")
+	}
+	if data.Disks != nil {
+		for i := 0; i < len(createInput.Disks); i++ {
+			if data.Disks[i].SizeMb != createInput.Disks[i].SizeMb {
+				return nil, nil, httperrors.NewInputParameterError("input disks config size %d not equal guestdisks size %d", data.Disks[i].SizeMb, createInput.Disks[i].SizeMb)
+			}
+			createInput.Disks[i].Backend = data.Disks[i].Backend
+			createInput.Disks[i].Medium = data.Disks[i].Medium
+			createInput.Disks[i].Storage = data.Disks[i].Storage
+		}
+	}
+
 	schedDesc := self.ToSchedDesc()
 	schedDesc.PreferHost = data.PreferHost
-	for i := range schedDesc.Disks {
-		schedDesc.Disks[i].Backend = ""
-		schedDesc.Disks[i].Medium = ""
-		schedDesc.Disks[i].Storage = ""
+	if data.Disks != nil {
+		schedDesc.Disks = data.Disks
+	} else {
+		for i := range schedDesc.Disks {
+			schedDesc.Disks[i].Backend = ""
+			schedDesc.Disks[i].Medium = ""
+			schedDesc.Disks[i].Storage = ""
+		}
 	}
 	schedDesc.Networks = data.Networks
+
 	schedDesc.Hypervisor = api.HYPERVISOR_KVM
 
 	s := auth.GetAdminSession(ctx, options.Options.Region)
+	log.Infof("Scheduler forecast input: %s", jsonutils.Marshal(schedDesc))
 	succ, res, err := scheduler.SchedManager.DoScheduleForecast(s, schedDesc, 1)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Do schedule migrate forecast")

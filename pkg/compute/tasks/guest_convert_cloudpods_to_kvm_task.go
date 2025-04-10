@@ -57,11 +57,17 @@ func (task *GuestConvertCloudpodsToKvmTask) GetSchedParams() (*schedapi.Schedule
 		preferHostId, _ := task.Params.GetString("prefer_host_id")
 		schedDesc.ServerConfig.PreferHost = preferHostId
 	}
-	for i := range schedDesc.Disks {
-		schedDesc.Disks[i].Backend = ""
-		schedDesc.Disks[i].Medium = ""
-		schedDesc.Disks[i].Storage = ""
+
+	if input.Disks != nil {
+		schedDesc.Disks = input.Disks
+	} else {
+		for i := range schedDesc.Disks {
+			schedDesc.Disks[i].Backend = ""
+			schedDesc.Disks[i].Medium = ""
+			schedDesc.Disks[i].Storage = ""
+		}
 	}
+
 	schedDesc.Networks = input.Networks
 	schedDesc.Hypervisor = api.HYPERVISOR_KVM
 	return schedDesc, nil

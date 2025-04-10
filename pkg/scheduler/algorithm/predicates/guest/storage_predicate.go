@@ -238,7 +238,7 @@ func (p *StoragePredicate) Execute(ctx context.Context, u *core.Unit, c core.Can
 	sizeRequest := newDiskBackendSizeRequest()
 	storeRequest := make(map[string]int64, 0)
 	for _, disk := range d.Disks {
-		if isMigrate() && !isLocalhostBackend(disk.Backend) {
+		if isMigrate() && !isLocalhostBackend(disk.Backend) && len(disk.Storage) > 0 {
 			storeRequest[disk.Storage] = 1
 		} else if len(disk.DiskId) > 0 && len(disk.Storage) > 0 {
 			// server attach to an existing disk

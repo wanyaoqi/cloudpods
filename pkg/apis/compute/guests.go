@@ -474,6 +474,8 @@ type ConvertToKvmInput struct {
 	// dest guest network configs
 	Networks []*NetworkConfig `json:"networks"`
 
+	Disks []*DiskConfig `json:"disks"`
+
 	// deploy telegraf after convert
 	DeployTelegraf bool `json:"deploy_telegraf"`
 }
