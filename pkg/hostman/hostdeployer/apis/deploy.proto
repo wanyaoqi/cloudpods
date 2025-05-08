@@ -206,6 +206,10 @@ message EsxiDisksConnectionInfo {
   repeated EsxiDiskInfo disks = 1;
 }
 
+message SetBootOrderParams {
+  repeated
+}
+
 service DeployAgent {
   rpc DeployGuestFs (DeployParams) returns (DeployGuestFsResponse);
   rpc ResizeFs (ResizeFsParams) returns (Empty);
@@ -214,4 +218,5 @@ service DeployAgent {
   rpc ProbeImageInfo(ProbeImageInfoPramas) returns (ImageInfo);
   rpc ConnectEsxiDisks(ConnectEsxiDisksParams) returns (EsxiDisksConnectionInfo);
   rpc DisconnectEsxiDisks(EsxiDisksConnectionInfo) returns (Empty);
+  rpc SetUefiVarsBootOrder(SetBootOrderParams) returns (Empty);
 }
