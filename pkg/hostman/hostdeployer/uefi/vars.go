@@ -4,10 +4,10 @@ import (
     "bytes"
     "encoding/json"
     "fmt"
+    "io"
     "io/ioutil"
     "os"
     "os/exec"
-    "path/filepath"
     "strings"
 )
 
@@ -67,35 +67,35 @@ func ParseVarsJson(jsonPath string) ([]BootEntry, []string, error) {
         return nil, nil, fmt.Errorf("failed to parse JSON data: %v", err)
     }
     
-    // Extract boot entries and boot order
+    // Parse boot entries and boot order
     var bootEntries []BootEntry
     var bootOrder []string
     
-    for _, variable := range varsData.Variables {
-        if strings.HasPrefix(variable.Name, "Boot") && len(variable.Name) == 8 {
+    for _, v := range varsData.Variables {
+        if strings.HasPrefix(v.Name, "Boot") && len(v.Name) == 8 {
             // Parse boot entry
-            title, devicePaths, err := ParseBootEntryData(variable.Data)
+            title, devPaths, err := ParseBootEntryData(v.Data)
             if err != nil {
                 continue // Skip invalid entries
             }
             
             // Format device path
-            formattedPath := FormatDevicePath(devicePaths)
+            path := FormatDevicePath(devPaths)
             
             // Determine device type
-            devType := DetermineDeviceType(devicePaths)
+            devType := DetermineDeviceType(devPaths)
             
             bootEntries = append(bootEntries, BootEntry{
-                ID:       variable.Name,
+                ID:       v.Name,
                 Name:     title,
-                Path:     formattedPath,
-                DevPaths: devicePaths,
+                Path:     path,
+                DevPaths: devPaths,
                 DevType:  devType,
-                RawData:  variable.Data,
+                RawData:  v.Data,
             })
-        } else if variable.Name == "BootOrder" {
+        } else if v.Name == "BootOrder" {
             // Parse boot order
-            order, err := ParseBootOrderData(variable.Data)
+            order, err := ParseBootOrderData(v.Data)
             if err == nil {
                 bootOrder = order
             }
@@ -106,7 +106,7 @@ func ParseVarsJson(jsonPath string) ([]BootEntry, []string, error) {
 }
 
 // UpdateBootOrderInJson updates the boot order in a JSON file
-func UpdateBootOrderInJson(jsonPath string, newBootOrder []string) error {
+func UpdateBootOrderInJson(jsonPath string, bootOrder []string) error {
     // Read JSON file
     jsonData, err := ioutil.ReadFile(jsonPath)
     if err != nil {
@@ -120,28 +120,28 @@ func UpdateBootOrderInJson(jsonPath string, newBootOrder []string) error {
         return fmt.Errorf("failed to parse JSON data: %v", err)
     }
     
-    // Convert new boot order to hex format
-    bootOrderHex, err := BuildBootOrderHex(newBootOrder)
+    // Build boot order hex data
+    bootOrderHex, err := BuildBootOrderHex(bootOrder)
     if err != nil {
-        return fmt.Errorf("failed to convert boot order: %v", err)
+        return fmt.Errorf("failed to build boot order hex: %v", err)
     }
     
-    // Update BootOrder variable
-    bootOrderUpdated := false
-    for i, variable := range varsData.Variables {
-        if variable.Name == "BootOrder" {
+    // Update or add BootOrder variable
+    bootOrderFound := false
+    for i, v := range varsData.Variables {
+        if v.Name == "BootOrder" {
             varsData.Variables[i].Data = bootOrderHex
-            bootOrderUpdated = true
+            bootOrderFound = true
             break
         }
     }
     
-    // If BootOrder variable not found, add it
-    if !bootOrderUpdated {
+    if !bootOrderFound {
+        // Add new BootOrder variable
         varsData.Variables = append(varsData.Variables, Variable{
             Name: "BootOrder",
-            GUID: "8be4df61-93ca-11d2-aa0d-00e098032b8c",
-            Attr: 7,
+            GUID: "8be4df61-93ca-11d2-aa0d-00e098032b8c", // EFI Global Variable GUID
+            Attr: 7, // NV+BS+RT
             Data: bootOrderHex,
         })
     }
@@ -198,4 +198,4 @@ func CopyFile(src, dst string) error {
     }
     
     return destFile.Sync()
-} 
+}
