@@ -194,7 +194,7 @@ func TestBuildBootOrder(t *testing.T) {
             name:           "No boot devices",
             diskPriority:   0,
             cdromPriority:  0,
-            expectedOrder:  []string{},
+            expectedOrder:  nil,
         },
     }
 
@@ -249,7 +249,7 @@ func TestReorderBootEntries(t *testing.T) {
         {
             name:          "No matches",
             devicePaths:   []string{"NONEXISTENT"},
-            expectedOrder: []string{},
+            expectedOrder: nil,
         },
     }
 

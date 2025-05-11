@@ -23,7 +23,7 @@ func TestParseVarsJson(t *testing.T) {
                 "name": "Boot0001",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000003020800010000000000"
+                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a00000000030208000100000000007fff0400"
             },
             {
                 "name": "BootOrder",
@@ -54,34 +54,34 @@ func TestParseVarsJson(t *testing.T) {
     // Check entries
     if len(entries) != 2 {
         t.Errorf("Expected 2 boot entries, got %d", len(entries))
+    } else {
+        // Check first entry
+        if entries[0].ID != "Boot0000" {
+            t.Errorf("Expected first entry ID Boot0000, got %s", entries[0].ID)
+        }
+        if entries[0].Name != "UiApp" {
+            t.Errorf("Expected first entry name UiApp, got %s", entries[0].Name)
+        }
+        if entries[0].DevType != "UNKNOWN" {
+            t.Errorf("Expected first entry device type UNKNOWN, got %s", entries[0].DevType)
+        }
+        
+        // Check second entry
+        if entries[1].ID != "Boot0001" {
+            t.Errorf("Expected second entry ID Boot0001, got %s", entries[1].ID)
+        }
+        if entries[1].Name != "UEFI QEMU DVD-ROM QM00033 " {
+            t.Errorf("Expected second entry name 'UEFI QEMU DVD-ROM QM00033 ', got %s", entries[1].Name)
+        }
+        if entries[1].DevType != "CDROM" {
+            t.Errorf("Expected second entry device type CDROM, got %s", entries[1].DevType)
+        }
     }
     
     // Check boot order
     expectedBootOrder := []string{"0000", "0001", "0002"}
     if !reflect.DeepEqual(bootOrder, expectedBootOrder) {
         t.Errorf("Expected boot order %v, got %v", expectedBootOrder, bootOrder)
-    }
-    
-    // Check first entry
-    if entries[0].ID != "Boot0000" {
-        t.Errorf("Expected first entry ID Boot0000, got %s", entries[0].ID)
-    }
-    if entries[0].Name != "UiApp" {
-        t.Errorf("Expected first entry name UiApp, got %s", entries[0].Name)
-    }
-    if entries[0].DevType != "UNKNOWN" {
-        t.Errorf("Expected first entry device type UNKNOWN, got %s", entries[0].DevType)
-    }
-    
-    // Check second entry
-    if entries[1].ID != "Boot0001" {
-        t.Errorf("Expected second entry ID Boot0001, got %s", entries[1].ID)
-    }
-    if entries[1].Name != "UEFI QEMU DVD-ROM QM00033 " {
-        t.Errorf("Expected second entry name 'UEFI QEMU DVD-ROM QM00033 ', got %s", entries[1].Name)
-    }
-    if entries[1].DevType != "CDROM" {
-        t.Errorf("Expected second entry device type CDROM, got %s", entries[1].DevType)
     }
 }
 
@@ -100,7 +100,7 @@ func TestUpdateBootOrderInJson(t *testing.T) {
                 "name": "Boot0001",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000003020800010000000000"
+                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a00000000030208000100000000007fff0400"
             },
             {
                 "name": "BootOrder",
@@ -178,7 +178,7 @@ func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
                 "name": "Boot0001",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000003020800010000000000"
+                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a00000000030208000100000000007fff0400"
             }
         ]
     }`

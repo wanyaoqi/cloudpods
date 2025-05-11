@@ -67,8 +67,8 @@ func TestDevicePathElement_String(t *testing.T) {
 }
 
 func TestParseDevicePathElements(t *testing.T) {
-    // Sample device path data - 修改为正确的SCSI设备路径数据
-    hexData := "02010c00d041030a0000000003020800010000000000"
+    // 使用完整的设备路径数据，包括结束标记
+    hexData := "02010c00d041030a00000000030208000100000000007fff0400"
     data, _ := hex.DecodeString(hexData)
     
     elements, err := ParseDevicePathElements(data)
@@ -76,11 +76,11 @@ func TestParseDevicePathElements(t *testing.T) {
         t.Fatalf("ParseDevicePathElements() error = %v", err)
     }
     
-    if len(elements) != 2 {
-        t.Fatalf("ParseDevicePathElements() returned %d elements, want 2", len(elements))
+    if len(elements) != 3 {
+        t.Fatalf("ParseDevicePathElements() returned %d elements, want 3", len(elements))
     }
     
-    // Check first element
+    // Check first element (ACPI)
     if elements[0].Type() != DevicePathTypeACPI {
         t.Errorf("First element is not ACPI: type=%d", elements[0].Type())
     }
@@ -91,7 +91,7 @@ func TestParseDevicePathElements(t *testing.T) {
         t.Errorf("First element string = %s, want PciRoot()", elements[0].String())
     }
     
-    // Check second element
+    // Check second element (Messaging SCSI)
     if elements[1].Type() != DevicePathTypeMessaging {
         t.Errorf("Second element is not Messaging: type=%d", elements[1].Type())
     }
@@ -100,6 +100,17 @@ func TestParseDevicePathElements(t *testing.T) {
     }
     if elements[1].String() != "SCSI(pun=1,lun=0)" {
         t.Errorf("Second element string = %s, want SCSI(pun=1,lun=0)", elements[1].String())
+    }
+    
+    // Check third element (End)
+    if elements[2].Type() != DevicePathTypeEnd {
+        t.Errorf("Third element is not End: type=%d", elements[2].Type())
+    }
+    if elements[2].SubType() != EndSubTypeEndEntire {
+        t.Errorf("Third element is not End Entire: subtype=%d", elements[2].SubType())
+    }
+    if elements[2].String() != "End()" {
+        t.Errorf("Third element string = %s, want End()", elements[2].String())
     }
 }
 
