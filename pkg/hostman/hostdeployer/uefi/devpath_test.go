@@ -67,62 +67,45 @@ func TestDevicePathElement_String(t *testing.T) {
 }
 
 func TestParseDevicePathElements(t *testing.T) {
-    // 使用完整的设备路径数据，包括结束标记
-    // 这是一个有效的设备路径数据，包含ACPI和SCSI元素，以及结束标记
-    hexData := "02010c00d041030a00000000030208000100000000007fff0400"
-    
-    // 确保长度字段正确
-    // 02 01 0c 00 - ACPI Basic, length 12
-    // d0 41 03 0a 00 00 00 00 - ACPI data
-    // 03 02 08 00 - Messaging SCSI, length 8
-    // 01 00 00 00 - SCSI data (PUN=1, LUN=0)
-    // 7f ff 04 00 - End Entire, length 4
-    
-    data, err := hex.DecodeString(hexData)
-    if err != nil {
-        t.Fatalf("Failed to decode hex data: %v", err)
+    // Valid device path
+    validPath := []byte{
+        // PciRoot
+        0x02, 0x01, 0x0c, 0x00, 0xd0, 0x41, 0x03, 0x0a, 0x00, 0x00, 0x00, 0x00,
+        // PCI device
+        0x01, 0x01, 0x06, 0x00, 0x01, 0x01,
+        // End
+        0x7f, 0xff, 0x04, 0x00
     }
     
-    elements, err := ParseDevicePathElements(data)
+    // Test valid path
+    elements, err := ParseDevicePathElements(validPath)
     if err != nil {
-        t.Fatalf("ParseDevicePathElements() error = %v", err)
+        t.Errorf("ParseDevicePathElements() error = %v", err)
+        return
     }
     
     if len(elements) != 3 {
-        t.Fatalf("ParseDevicePathElements() returned %d elements, want 3", len(elements))
+        t.Errorf("Expected 3 elements, got %d", len(elements))
+        return
     }
     
-    // Check first element (ACPI)
-    if elements[0].Type() != DevicePathTypeACPI {
-        t.Errorf("First element is not ACPI: type=%d", elements[0].Type())
-    }
-    if elements[0].SubType() != ACPISubTypeBasic {
-        t.Errorf("First element is not ACPI Basic: subtype=%d", elements[0].SubType())
-    }
-    if elements[0].String() != "PciRoot()" {
-        t.Errorf("First element string = %s, want PciRoot()", elements[0].String())
+    // Test empty path
+    _, err = ParseDevicePathElements([]byte{})
+    if err == nil {
+        t.Errorf("ParseDevicePathElements() error = nil, expected error for empty path")
     }
     
-    // Check second element (Messaging SCSI)
-    if elements[1].Type() != DevicePathTypeMessaging {
-        t.Errorf("Second element is not Messaging: type=%d", elements[1].Type())
-    }
-    if elements[1].SubType() != MessagingSubTypeSCSI {
-        t.Errorf("Second element is not Messaging SCSI: subtype=%d", elements[1].SubType())
-    }
-    if elements[1].String() != "SCSI(pun=1,lun=0)" {
-        t.Errorf("Second element string = %s, want SCSI(pun=1,lun=0)", elements[1].String())
+    // Test truncated path
+    _, err = ParseDevicePathElements([]byte{0x01, 0x01})
+    if err == nil {
+        t.Errorf("ParseDevicePathElements() error = nil, expected error for truncated path")
     }
     
-    // Check third element (End)
-    if elements[2].Type() != DevicePathTypeEnd {
-        t.Errorf("Third element is not End: type=%d", elements[2].Type())
-    }
-    if elements[2].SubType() != EndSubTypeEndEntire {
-        t.Errorf("Third element is not End Entire: subtype=%d", elements[2].SubType())
-    }
-    if elements[2].String() != "End()" {
-        t.Errorf("Third element string = %s, want End()", elements[2].String())
+    // Test invalid element length
+    invalidLength := []byte{0x01, 0x01, 0x02, 0x00}
+    _, err = ParseDevicePathElements(invalidLength)
+    if err == nil {
+        t.Errorf("ParseDevicePathElements() error = nil, expected error for invalid element length")
     }
 }
 

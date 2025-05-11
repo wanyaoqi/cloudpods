@@ -70,20 +70,54 @@ func (e *DevicePathElement) SubType() byte {
     return e.subType
 }
 
-// Address returns the device path address
-func (e *DevicePathElement) Address() interface{} {
+// String returns a string representation of the device path element
+func (e *DevicePathElement) String() string {
     switch e.devType {
     case DevicePathTypeHardware:
-        if e.subType == HardwareSubTypePCI {
+        switch e.subType {
+        case HardwareSubTypePCI:
             if len(e.data) >= 2 {
-                return PCIAddress{
-                    Device:   e.data[0],
-                    Function: e.data[1],
-                }
+                return fmt.Sprintf("PCI(dev=%02x:%x)", e.data[0], e.data[1])
             }
+            return "PCI()"
+        }
+    case DevicePathTypeACPI:
+        switch e.subType {
+        case ACPISubTypeBasic:
+            return "PciRoot()"
         }
     case DevicePathTypeMessaging:
-        if e.subType == MessagingSubTypeSCSI {
+        switch e.subType {
+        case MessagingSubTypeSCSI:
+            if len(e.data) >= 4 {
+                pun := binary.LittleEndian.Uint16(e.data[0:2])
+                lun := binary.LittleEndian.Uint16(e.data[2:4])
+                return fmt.Sprintf("SCSI(pun=%d,lun=%d)", pun, lun)
+            }
+            return "SCSI()"
+        }
+    case DevicePathTypeMedia:
+        switch e.subType {
+        case MediaSubTypeFilePath:
+            return "FilePath()"
+        case MediaSubTypeCDROM:
+            return "CDROM()"
+        case MediaSubTypeHardDrive:
+            return "HD()"
+        }
+    case DevicePathTypeEnd:
+        return "End()"
+    }
+    
+    return fmt.Sprintf("Unknown(%02x,%02x)", e.devType, e.subType)
+}
+
+// Address returns the address information for the device path element
+func (e *DevicePathElement) Address() interface{} {
+    switch e.devType {
+    case DevicePathTypeMessaging:
+        switch e.subType {
+        case MessagingSubTypeSCSI:
             if len(e.data) >= 4 {
                 return SCSIAddress{
                     PUN: binary.LittleEndian.Uint16(e.data[0:2]),
@@ -92,56 +126,11 @@ func (e *DevicePathElement) Address() interface{} {
             }
         }
     }
+    
     return nil
 }
 
-// String returns a string representation of the device path element
-func (e *DevicePathElement) String() string {
-    switch e.devType {
-    case DevicePathTypeHardware:
-        if e.subType == HardwareSubTypePCI {
-            if len(e.data) >= 2 {
-                return fmt.Sprintf("PCI(dev=%02x:%x)", e.data[0], e.data[1])
-            }
-        }
-        return fmt.Sprintf("Hw(subtype=0x%x)", e.subType)
-    case DevicePathTypeACPI:
-        if e.subType == ACPISubTypeBasic {
-            return "PciRoot()"
-        }
-        return fmt.Sprintf("ACPI(subtype=0x%x)", e.subType)
-    case DevicePathTypeMessaging:
-        if e.subType == MessagingSubTypeSCSI {
-            if len(e.data) >= 4 {
-                pun := binary.LittleEndian.Uint16(e.data[0:2])
-                lun := binary.LittleEndian.Uint16(e.data[2:4])
-                return fmt.Sprintf("SCSI(pun=%d,lun=%d)", pun, lun)
-            }
-        }
-        return fmt.Sprintf("Msg(subtype=0x%x)", e.subType)
-    case DevicePathTypeMedia:
-        if e.subType == MediaSubTypeFilePath {
-            return "FilePath()"
-        } else if e.subType == MediaSubTypeHardDrive {
-            return "HD()"
-        } else if e.subType == MediaSubTypeCDROM {
-            return "CDROM()"
-        }
-        return fmt.Sprintf("Media(subtype=0x%x)", e.subType)
-    case DevicePathTypeEnd:
-        return "End()"
-    default:
-        return fmt.Sprintf("Unknown(type=0x%x,subtype=0x%x)", e.devType, e.subType)
-    }
-}
-
-// PCIAddress represents a PCI device address
-type PCIAddress struct {
-    Device   byte
-    Function byte
-}
-
-// SCSIAddress represents a SCSI device address
+// SCSIAddress represents a SCSI address
 type SCSIAddress struct {
     PUN uint16
     LUN uint16
@@ -149,15 +138,13 @@ type SCSIAddress struct {
 
 // ParseDevicePathElements parses a device path from binary data
 func ParseDevicePathElements(data []byte) ([]DevPath, error) {
-    var elements []DevPath
-    
-    // Check minimum length
-    if len(data) < 4 {
-        return nil, fmt.Errorf("device path data too short")
+    if len(data) == 0 {
+        return nil, fmt.Errorf("empty device path data")
     }
     
-    // Parse device path elements
+    var elements []DevPath
     pos := 0
+    
     for pos < len(data) {
         // Check if we have enough data for the header
         if pos+4 > len(data) {

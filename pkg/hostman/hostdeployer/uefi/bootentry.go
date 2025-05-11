@@ -52,6 +52,10 @@ func ParseBootEntryData(hexData string) (string, []DevPath, error) {
     pathListStart := 6 + uint32(strLen)
     
     // Check if we have enough data for the path list
+    if pathListLen == 0 {
+        return name, []DevPath{}, nil
+    }
+    
     if uint32(len(data)) < pathListStart+uint32(pathListLen) {
         return name, nil, fmt.Errorf("invalid path list length")
     }
@@ -79,6 +83,11 @@ func ParseBootOrder(hexData string) ([]string, error) {
     // Check data length
     if len(data) == 0 {
         return []string{}, nil
+    }
+    
+    // Check if data length is valid (must be even)
+    if len(data) % 2 != 0 {
+        return nil, fmt.Errorf("invalid boot order data length (must be even)")
     }
     
     // Parse boot order (2 bytes per entry)
