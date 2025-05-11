@@ -68,8 +68,20 @@ func TestDevicePathElement_String(t *testing.T) {
 
 func TestParseDevicePathElements(t *testing.T) {
     // 使用完整的设备路径数据，包括结束标记
+    // 这是一个有效的设备路径数据，包含ACPI和SCSI元素，以及结束标记
     hexData := "02010c00d041030a00000000030208000100000000007fff0400"
-    data, _ := hex.DecodeString(hexData)
+    
+    // 确保长度字段正确
+    // 02 01 0c 00 - ACPI Basic, length 12
+    // d0 41 03 0a 00 00 00 00 - ACPI data
+    // 03 02 08 00 - Messaging SCSI, length 8
+    // 01 00 00 00 - SCSI data (PUN=1, LUN=0)
+    // 7f ff 04 00 - End Entire, length 4
+    
+    data, err := hex.DecodeString(hexData)
+    if err != nil {
+        t.Fatalf("Failed to decode hex data: %v", err)
+    }
     
     elements, err := ParseDevicePathElements(data)
     if err != nil {

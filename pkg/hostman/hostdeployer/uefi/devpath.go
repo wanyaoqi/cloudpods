@@ -42,15 +42,10 @@ const (
     
     // End
     EndSubTypeEndEntire       = 0xFF
+    EndSubTypeEndThis         = 0x01
 )
 
-// SCSIAddress represents a SCSI address (PUN, LUN)
-type SCSIAddress struct {
-    PUN uint16
-    LUN uint16
-}
-
-// DevPath interface for device path elements
+// DevPath is the interface for device path elements
 type DevPath interface {
     Type() byte
     SubType() byte
@@ -75,16 +70,25 @@ func (e *DevicePathElement) SubType() byte {
     return e.subType
 }
 
-// Address returns the address information for the device path element
+// Address returns the device path address
 func (e *DevicePathElement) Address() interface{} {
     switch e.devType {
+    case DevicePathTypeHardware:
+        if e.subType == HardwareSubTypePCI {
+            if len(e.data) >= 2 {
+                return PCIAddress{
+                    Device:   e.data[0],
+                    Function: e.data[1],
+                }
+            }
+        }
     case DevicePathTypeMessaging:
-        switch e.subType {
-        case MessagingSubTypeSCSI:
+        if e.subType == MessagingSubTypeSCSI {
             if len(e.data) >= 4 {
-                pun := binary.LittleEndian.Uint16(e.data[0:2])
-                lun := binary.LittleEndian.Uint16(e.data[2:4])
-                return SCSIAddress{PUN: pun, LUN: lun}
+                return SCSIAddress{
+                    PUN: binary.LittleEndian.Uint16(e.data[0:2]),
+                    LUN: binary.LittleEndian.Uint16(e.data[2:4]),
+                }
             }
         }
     }
@@ -95,91 +99,98 @@ func (e *DevicePathElement) Address() interface{} {
 func (e *DevicePathElement) String() string {
     switch e.devType {
     case DevicePathTypeHardware:
-        switch e.subType {
-        case HardwareSubTypePCI:
+        if e.subType == HardwareSubTypePCI {
             if len(e.data) >= 2 {
-                dev := e.data[0]
-                fn := e.data[1]
-                return fmt.Sprintf("PCI(dev=%02x:%x)", dev, fn)
+                return fmt.Sprintf("PCI(dev=%02x:%x)", e.data[0], e.data[1])
             }
-            return "PCI()"
         }
-        return fmt.Sprintf("HW(subtype=0x%x)", e.subType)
-        
+        return fmt.Sprintf("Hw(subtype=0x%x)", e.subType)
     case DevicePathTypeACPI:
-        switch e.subType {
-        case ACPISubTypeBasic:
+        if e.subType == ACPISubTypeBasic {
             return "PciRoot()"
         }
         return fmt.Sprintf("ACPI(subtype=0x%x)", e.subType)
-        
     case DevicePathTypeMessaging:
-        switch e.subType {
-        case MessagingSubTypeSCSI:
+        if e.subType == MessagingSubTypeSCSI {
             if len(e.data) >= 4 {
                 pun := binary.LittleEndian.Uint16(e.data[0:2])
                 lun := binary.LittleEndian.Uint16(e.data[2:4])
                 return fmt.Sprintf("SCSI(pun=%d,lun=%d)", pun, lun)
             }
-            return "SCSI()"
         }
         return fmt.Sprintf("Msg(subtype=0x%x)", e.subType)
-        
     case DevicePathTypeMedia:
-        switch e.subType {
-        case MediaSubTypeHardDrive:
-            return "HD()"
-        case MediaSubTypeCDROM:
-            return "CDROM()"
-        case MediaSubTypeFilePath:
+        if e.subType == MediaSubTypeFilePath {
             return "FilePath()"
+        } else if e.subType == MediaSubTypeHardDrive {
+            return "HD()"
+        } else if e.subType == MediaSubTypeCDROM {
+            return "CDROM()"
         }
         return fmt.Sprintf("Media(subtype=0x%x)", e.subType)
-        
     case DevicePathTypeEnd:
         return "End()"
+    default:
+        return fmt.Sprintf("Unknown(type=0x%x,subtype=0x%x)", e.devType, e.subType)
     }
-    
-    return fmt.Sprintf("Unknown(type=0x%x,subtype=0x%x)", e.devType, e.subType)
+}
+
+// PCIAddress represents a PCI device address
+type PCIAddress struct {
+    Device   byte
+    Function byte
+}
+
+// SCSIAddress represents a SCSI device address
+type SCSIAddress struct {
+    PUN uint16
+    LUN uint16
 }
 
 // ParseDevicePathElements parses a device path from binary data
 func ParseDevicePathElements(data []byte) ([]DevPath, error) {
     var elements []DevPath
     
-    pos := 0
+    // Check minimum length
+    if len(data) < 4 {
+        return nil, fmt.Errorf("device path data too short")
+    }
     
+    // Parse device path elements
+    pos := 0
     for pos < len(data) {
-        // Check if we have at least 4 bytes (type, subtype, length)
+        // Check if we have enough data for the header
         if pos+4 > len(data) {
-            return elements, fmt.Errorf("truncated device path data")
+            return nil, fmt.Errorf("truncated device path data")
         }
         
         // Parse header
         devType := data[pos]
         subType := data[pos+1]
-        length := binary.LittleEndian.Uint16(data[pos+2 : pos+4])
+        length := binary.LittleEndian.Uint16(data[pos+2:pos+4])
         
         // Validate length
-        if length < 4 || pos+int(length) > len(data) {
-            return elements, fmt.Errorf("invalid device path element length")
+        if length < 4 {
+            return nil, fmt.Errorf("invalid device path element length")
         }
         
-        // Extract element data
-        elemData := make([]byte, length-4)
-        copy(elemData, data[pos+4:pos+int(length)])
+        // Check if we have enough data for the element
+        if pos+int(length) > len(data) {
+            return nil, fmt.Errorf("truncated device path element")
+        }
         
-        // Create device path element
+        // Create element
         element := &DevicePathElement{
             devType: devType,
             subType: subType,
-            data:    elemData,
+            data:    data[pos+4:pos+int(length)],
         }
         
+        // Add element to list
         elements = append(elements, element)
         
         // Check if this is the end of the device path
-        if devType == DevicePathTypeEnd && subType == EndSubTypeEndEntire {
+        if devType == DevicePathTypeEnd {
             break
         }
         

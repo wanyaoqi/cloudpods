@@ -11,19 +11,22 @@ import (
     "strings"
 )
 
-// VarsData represents the structure of the JSON output from virt-fw-vars
+// VarsData represents the UEFI variables data
 type VarsData struct {
     Version   int        `json:"version"`
     Variables []Variable `json:"variables"`
 }
 
-// Variable represents a UEFI variable in the JSON output
+// Variable represents a UEFI variable
 type Variable struct {
     Name string `json:"name"`
     GUID string `json:"guid"`
     Attr int    `json:"attr"`
     Data string `json:"data"`
 }
+
+// EFI_GLOBAL_VARIABLE_GUID is the GUID for EFI global variables
+const EFI_GLOBAL_VARIABLE_GUID = "8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
 // DumpVarsToJson dumps UEFI variables to a JSON file
 func DumpVarsToJson(ovmfVarsPath string) (string, string, error) {
@@ -55,74 +58,77 @@ func DumpVarsToJson(ovmfVarsPath string) (string, string, error) {
 // ParseVarsJson parses UEFI variables from a JSON file
 func ParseVarsJson(jsonPath string) ([]BootEntry, []string, error) {
     // Read JSON file
-    jsonData, err := ioutil.ReadFile(jsonPath)
+    data, err := ioutil.ReadFile(jsonPath)
     if err != nil {
         return nil, nil, fmt.Errorf("failed to read JSON file: %v", err)
     }
     
     // Parse JSON
     var varsData VarsData
-    err = json.Unmarshal(jsonData, &varsData)
+    err = json.Unmarshal(data, &varsData)
     if err != nil {
         return nil, nil, fmt.Errorf("failed to parse JSON: %v", err)
     }
     
-    // Extract boot entries and boot order
+    // Parse boot entries and boot order
     var bootEntries []BootEntry
     var bootOrder []string
     
     for _, v := range varsData.Variables {
-        if strings.HasPrefix(v.Name, "Boot") && len(v.Name) == 8 {
-            // Parse boot entry
-            entryID := v.Name
-            entryName, devPaths, err := ParseBootEntryData(v.Data)
-            if err != nil {
-                fmt.Printf("Warning: failed to parse boot entry %s: %v\n", entryID, err)
+        // Check if this is a boot entry
+        if len(v.Name) >= 8 && v.Name[:4] == "Boot" && v.GUID == EFI_GLOBAL_VARIABLE_GUID {
+            // Check if this is the boot order
+            if v.Name == "BootOrder" {
+                var err error
+                bootOrder, err = ParseBootOrder(v.Data)
+                if err != nil {
+                    return nil, nil, fmt.Errorf("failed to parse boot order: %v", err)
+                }
                 continue
             }
             
-            // Determine device type
-            devType := DetermineDeviceType(devPaths)
-            
-            // Format device path
-            devPathStr := FormatDevicePath(devPaths)
+            // Parse boot entry
+            name, devPaths, err := ParseBootEntryData(v.Data)
+            if err != nil {
+                fmt.Printf("Warning: failed to parse boot entry %s: %v\n", v.Name, err)
+                continue
+            }
             
             // Create boot entry
             entry := BootEntry{
-                ID:       entryID,
-                Name:     entryName,
-                Path:     devPathStr,
+                ID:       v.Name,
+                Name:     name,
                 DevPaths: devPaths,
-                DevType:  devType,
                 RawData:  v.Data,
             }
             
-            bootEntries = append(bootEntries, entry)
-        } else if v.Name == "BootOrder" {
-            // Parse boot order
-            order, err := ParseBootOrderData(v.Data)
-            if err != nil {
-                fmt.Printf("Warning: failed to parse boot order: %v\n", err)
+            // Format device path
+            if len(devPaths) > 0 {
+                entry.Path = FormatDevicePath(devPaths)
+                entry.DevType = DetermineDeviceType(devPaths)
             } else {
-                bootOrder = order
+                entry.DevType = "UNKNOWN"
             }
+            
+            // Add entry to list
+            bootEntries = append(bootEntries, entry)
         }
     }
     
     return bootEntries, bootOrder, nil
 }
 
-// UpdateBootOrderInJson updates the boot order in a JSON file
+// UpdateBootOrderInJson updates the boot order in a UEFI variables JSON file
 func UpdateBootOrderInJson(jsonPath string, bootOrder []string) error {
     // Read JSON file
-    jsonData, err := ioutil.ReadFile(jsonPath)
+    data, err := ioutil.ReadFile(jsonPath)
     if err != nil {
         return fmt.Errorf("failed to read JSON file: %v", err)
     }
     
     // Parse JSON
     var varsData VarsData
-    err = json.Unmarshal(jsonData, &varsData)
+    err = json.Unmarshal(data, &varsData)
     if err != nil {
         return fmt.Errorf("failed to parse JSON: %v", err)
     }
@@ -133,33 +139,33 @@ func UpdateBootOrderInJson(jsonPath string, bootOrder []string) error {
         return fmt.Errorf("failed to build boot order hex: %v", err)
     }
     
-    // Update or add BootOrder variable
+    // Update or add boot order
     bootOrderFound := false
     for i, v := range varsData.Variables {
-        if v.Name == "BootOrder" {
+        if v.Name == "BootOrder" && v.GUID == EFI_GLOBAL_VARIABLE_GUID {
             varsData.Variables[i].Data = bootOrderHex
             bootOrderFound = true
             break
         }
     }
     
+    // Add boot order if not found
     if !bootOrderFound {
-        // Add new BootOrder variable
         varsData.Variables = append(varsData.Variables, Variable{
             Name: "BootOrder",
-            GUID: "8be4df61-93ca-11d2-aa0d-00e098032b8c", // EFI Global Variable GUID
+            GUID: EFI_GLOBAL_VARIABLE_GUID,
             Attr: 7, // NV+BS+RT
             Data: bootOrderHex,
         })
     }
     
-    // Write updated data back to JSON file
-    updatedJsonData, err := json.MarshalIndent(varsData, "", "    ")
+    // Write updated JSON
+    updatedData, err := json.MarshalIndent(varsData, "", "    ")
     if err != nil {
-        return fmt.Errorf("failed to serialize JSON data: %v", err)
+        return fmt.Errorf("failed to marshal JSON: %v", err)
     }
     
-    err = ioutil.WriteFile(jsonPath, updatedJsonData, 0644)
+    err = ioutil.WriteFile(jsonPath, updatedData, 0644)
     if err != nil {
         return fmt.Errorf("failed to write JSON file: %v", err)
     }
@@ -205,4 +211,27 @@ func CopyFile(src, dst string) error {
     }
     
     return destFile.Sync()
+}
+
+// SaveBootOrder saves the boot order to a UEFI variables JSON file
+func SaveBootOrder(jsonPath string, diskPaths, cdromPaths []string, diskPriority, cdromPriority int) error {
+    // Parse UEFI variables
+    entries, _, err := ParseVarsJson(jsonPath)
+    if err != nil {
+        return fmt.Errorf("failed to parse UEFI variables: %v", err)
+    }
+    
+    // Match boot entries
+    diskEntries, cdromEntries := MatchBootEntries(entries, diskPaths, cdromPaths)
+    
+    // Build boot order
+    bootOrder := BuildBootOrder(diskEntries, cdromEntries, diskPriority, cdromPriority)
+    
+    // Update boot order in JSON
+    err = UpdateBootOrderInJson(jsonPath, bootOrder)
+    if err != nil {
+        return fmt.Errorf("failed to update boot order: %v", err)
+    }
+    
+    return nil
 }

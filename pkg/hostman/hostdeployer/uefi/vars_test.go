@@ -17,7 +17,7 @@ func TestParseVarsJson(t *testing.T) {
                 "name": "Boot0000",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400"
+                "data": "010000002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400"
             },
             {
                 "name": "Boot0001",
@@ -94,7 +94,7 @@ func TestUpdateBootOrderInJson(t *testing.T) {
                 "name": "Boot0000",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400"
+                "data": "010000002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400"
             },
             {
                 "name": "Boot0001",
@@ -172,7 +172,7 @@ func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
                 "name": "Boot0000",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "090100002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400"
+                "data": "010000002c0055006900410070007000000004071400c9bdb87cebf8344faaea3ee4af6516a10406140021aa2c4614760345836e8ab6f46623317fff0400"
             },
             {
                 "name": "Boot0001",
