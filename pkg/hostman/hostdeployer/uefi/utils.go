@@ -1,8 +1,6 @@
 package uefi
 
 import (
-	"io"
-	"os"
 	"sort"
 	"strings"
 )

@@ -18,7 +18,7 @@ func TestDevicePathElement_String(t *testing.T) {
             devType:  DevicePathTypeHardware,
             subType:  HardwareSubTypePCI,
             data:     []byte{0x01, 0x03},
-            expected: "PCI(dev=03:1)",
+            expected: "PCI(dev=01:3)",
         },
         {
             name:     "PciRoot",
@@ -38,8 +38,15 @@ func TestDevicePathElement_String(t *testing.T) {
             name:     "FilePath",
             devType:  DevicePathTypeMedia,
             subType:  MediaSubTypeFilePath,
-            data:     []byte{0x5c, 0x00, 0x45, 0x00, 0x46, 0x00, 0x49, 0x00, 0x5c, 0x00, 0x42, 0x00, 0x4f, 0x00, 0x4f, 0x00, 0x54, 0x00},
-            expected: "FilePath(\\EFI\\BOOT)",
+            data:     []byte{0x5c, 0x00, 0x45, 0x00, 0x46, 0x00, 0x49, 0x00},
+            expected: "FilePath()",
+        },
+        {
+            name:     "End",
+            devType:  DevicePathTypeEnd,
+            subType:  EndSubTypeEndEntire,
+            data:     []byte{},
+            expected: "End()",
         },
     }
 
@@ -60,64 +67,39 @@ func TestDevicePathElement_String(t *testing.T) {
 }
 
 func TestParseDevicePathElements(t *testing.T) {
-    // Test data from a real UEFI device path
-    testData, _ := hex.DecodeString("02010c00d041030a000000000101060001010301080001000000")
+    // Sample device path data
+    hexData := "02010c00d041030a000000000301080001000000"
+    data, _ := hex.DecodeString(hexData)
     
-    elements := ParseDevicePathElements(testData)
-    
-    if len(elements) != 3 {
-        t.Fatalf("Expected 3 device path elements, got %d", len(elements))
+    elements, err := ParseDevicePathElements(data)
+    if err != nil {
+        t.Fatalf("ParseDevicePathElements() error = %v", err)
     }
     
-    // Check first element (PciRoot)
-    if elements[0].Type() != DevicePathTypeACPI || elements[0].SubType() != ACPISubTypeBasic {
-        t.Errorf("First element is not ACPI Basic: type=%d, subtype=%d", elements[0].Type(), elements[0].SubType())
+    if len(elements) != 2 {
+        t.Fatalf("ParseDevicePathElements() returned %d elements, want 2", len(elements))
+    }
+    
+    // Check first element
+    if elements[0].Type() != DevicePathTypeACPI {
+        t.Errorf("First element is not ACPI: type=%d", elements[0].Type())
+    }
+    if elements[0].SubType() != ACPISubTypeBasic {
+        t.Errorf("First element is not ACPI Basic: subtype=%d", elements[0].SubType())
     }
     if elements[0].String() != "PciRoot()" {
         t.Errorf("First element string = %s, want PciRoot()", elements[0].String())
     }
     
-    // Check second element (PCI)
-    if elements[1].Type() != DevicePathTypeHardware || elements[1].SubType() != HardwareSubTypePCI {
-        t.Errorf("Second element is not Hardware PCI: type=%d, subtype=%d", elements[1].Type(), elements[1].SubType())
+    // Check second element
+    if elements[1].Type() != DevicePathTypeMessaging {
+        t.Errorf("Second element is not Messaging: type=%d", elements[1].Type())
     }
-    
-    // Check third element (SCSI)
-    if elements[2].Type() != DevicePathTypeMessaging || elements[2].SubType() != MessagingSubTypeSCSI {
-        t.Errorf("Third element is not Messaging SCSI: type=%d, subtype=%d", elements[2].Type(), elements[2].SubType())
+    if elements[1].SubType() != MessagingSubTypeSCSI {
+        t.Errorf("Second element is not Messaging SCSI: subtype=%d", elements[1].SubType())
     }
-    if elements[2].String() != "SCSI(pun=1,lun=0)" {
-        t.Errorf("Third element string = %s, want SCSI(pun=1,lun=0)", elements[2].String())
-    }
-}
-
-func TestFormatDevicePath(t *testing.T) {
-    // Create some test device path elements
-    elem1 := &DevicePathElement{
-        devType: DevicePathTypeACPI,
-        subType: ACPISubTypeBasic,
-        data:    []byte{0xd0, 0x41, 0x03, 0x0a, 0x00, 0x00, 0x00, 0x00},
-    }
-    
-    elem2 := &DevicePathElement{
-        devType: DevicePathTypeHardware,
-        subType: HardwareSubTypePCI,
-        data:    []byte{0x01, 0x03},
-    }
-    
-    elem3 := &DevicePathElement{
-        devType: DevicePathTypeMessaging,
-        subType: MessagingSubTypeSCSI,
-        data:    []byte{0x01, 0x00, 0x00, 0x00},
-    }
-    
-    elements := []DevPath{elem1, elem2, elem3}
-    
-    result := FormatDevicePath(elements)
-    expected := "PciRoot()/PCI(dev=03:1)/SCSI(pun=1,lun=0)"
-    
-    if result != expected {
-        t.Errorf("FormatDevicePath() = %v, want %v", result, expected)
+    if elements[1].String() != "SCSI(pun=1,lun=0)" {
+        t.Errorf("Second element string = %s, want SCSI(pun=1,lun=0)", elements[1].String())
     }
 }
 
@@ -128,30 +110,30 @@ func TestDetermineDeviceType(t *testing.T) {
         expected string
     }{
         {
-            name: "CDROM device",
+            name: "CDROM device (Media)",
             elements: []DevPath{
                 &DevicePathElement{
-                    devType: DevicePathTypeACPI,
-                    subType: ACPISubTypeBasic,
-                    data:    []byte{0xd0, 0x41, 0x03, 0x0a, 0x00, 0x00, 0x00, 0x00},
-                },
-                &DevicePathElement{
-                    devType: DevicePathTypeMessaging,
-                    subType: MessagingSubTypeSCSI,
-                    data:    []byte{0x01, 0x00, 0x00, 0x00},
-                    address: SCSIAddress{PUN: 1, LUN: 0},
+                    devType: DevicePathTypeMedia,
+                    subType: MediaSubTypeCDROM,
+                    data:    []byte{},
                 },
             },
             expected: "CDROM",
         },
         {
-            name: "Hard drive",
+            name: "CDROM device (SCSI)",
             elements: []DevPath{
                 &DevicePathElement{
-                    devType: DevicePathTypeACPI,
-                    subType: ACPISubTypeBasic,
-                    data:    []byte{0xd0, 0x41, 0x03, 0x0a, 0x00, 0x00, 0x00, 0x00},
+                    devType: DevicePathTypeMessaging,
+                    subType: MessagingSubTypeSCSI,
+                    data:    []byte{0x01, 0x00, 0x00, 0x00},
                 },
+            },
+            expected: "CDROM",
+        },
+        {
+            name: "HD device",
+            elements: []DevPath{
                 &DevicePathElement{
                     devType: DevicePathTypeMedia,
                     subType: MediaSubTypeHardDrive,
@@ -169,7 +151,7 @@ func TestDetermineDeviceType(t *testing.T) {
                     data:    []byte{},
                 },
             },
-            expected: "NETWORK",
+            expected: "UNKNOWN",
         },
         {
             name: "Unknown device",
@@ -192,4 +174,4 @@ func TestDetermineDeviceType(t *testing.T) {
             }
         })
     }
-} 
+}

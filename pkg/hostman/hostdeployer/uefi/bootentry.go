@@ -51,7 +51,7 @@ func ParseBootEntryData(hexData string) (string, []DevPath, error) {
     
     // Parse device path list
     pathListStart := 6 + descLen
-    if int(pathListStart+pathListLen) > len(data) {
+    if int(pathListStart)+int(pathListLen) > len(data) {
         return description, nil, fmt.Errorf("invalid path list length")
     }
     

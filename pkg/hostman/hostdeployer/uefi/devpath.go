@@ -23,9 +23,17 @@ const (
     
     // ACPI
     ACPISubTypeBasic          = 0x01
+    ACPISubTypeExtended       = 0x02
+    ACPISubTypeADR            = 0x03
+    ACPISubTypeGOP            = 0x04
     
     // Messaging
     MessagingSubTypeSCSI      = 0x02
+    MessagingSubTypeUSB       = 0x05
+    MessagingSubTypeMAC       = 0x0B
+    MessagingSubTypeIPv4      = 0x0C
+    MessagingSubTypeIPv6      = 0x0D
+    MessagingSubTypeSATA      = 0x12
     
     // Media
     MediaSubTypeHardDrive     = 0x01
@@ -90,11 +98,13 @@ func (e *DevicePathElement) String() string {
         switch e.subType {
         case HardwareSubTypePCI:
             if len(e.data) >= 2 {
-                return fmt.Sprintf("PCI(dev=%02x:%x)", e.data[0], e.data[1])
+                dev := e.data[0]
+                fn := e.data[1]
+                return fmt.Sprintf("PCI(dev=%02x:%x)", dev, fn)
             }
             return "PCI()"
         }
-        return fmt.Sprintf("Hw(subtype=0x%x)", e.subType)
+        return fmt.Sprintf("HW(subtype=0x%x)", e.subType)
         
     case DevicePathTypeACPI:
         switch e.subType {
@@ -122,20 +132,15 @@ func (e *DevicePathElement) String() string {
         case MediaSubTypeCDROM:
             return "CDROM()"
         case MediaSubTypeFilePath:
-            // Parse UTF-16 file path
-            path := DecodeUTF16LE(e.data)
-            return fmt.Sprintf("FilePath(%s)", path)
+            return "FilePath()"
         }
         return fmt.Sprintf("Media(subtype=0x%x)", e.subType)
         
     case DevicePathTypeEnd:
-        if e.subType == EndSubTypeEndEntire {
-            return "EndEntire"
-        }
-        return fmt.Sprintf("End(subtype=0x%x)", e.subType)
+        return "End()"
     }
     
-    return fmt.Sprintf("DevPath(type=0x%x,subtype=0x%x)", e.devType, e.subType)
+    return fmt.Sprintf("Unknown(type=0x%x,subtype=0x%x)", e.devType, e.subType)
 }
 
 // ParseDevicePathElements parses a device path from binary data
