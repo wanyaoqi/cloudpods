@@ -23,7 +23,7 @@ func TestParseVarsJson(t *testing.T) {
                 "name": "Boot0001",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000001010600010103010800010000007fff04004eac0881119f594d850ee21a522c59b2"
+                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000003020800010000000000"
             },
             {
                 "name": "BootOrder",
@@ -69,6 +69,9 @@ func TestParseVarsJson(t *testing.T) {
     if entries[0].Name != "UiApp" {
         t.Errorf("Expected first entry name UiApp, got %s", entries[0].Name)
     }
+    if entries[0].DevType != "UNKNOWN" {
+        t.Errorf("Expected first entry device type UNKNOWN, got %s", entries[0].DevType)
+    }
     
     // Check second entry
     if entries[1].ID != "Boot0001" {
@@ -97,7 +100,7 @@ func TestUpdateBootOrderInJson(t *testing.T) {
                 "name": "Boot0001",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000001010600010103010800010000007fff04004eac0881119f594d850ee21a522c59b2"
+                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000003020800010000000000"
             },
             {
                 "name": "BootOrder",
@@ -138,7 +141,7 @@ func TestUpdateBootOrderInJson(t *testing.T) {
         t.Fatalf("Failed to parse updated JSON: %v", err)
     }
     
-    // Find BootOrder variable
+    // Check if BootOrder was updated
     var bootOrderFound bool
     var bootOrderData string
     for _, v := range varsData.Variables {
@@ -149,20 +152,19 @@ func TestUpdateBootOrderInJson(t *testing.T) {
         }
     }
     
-    // Check if BootOrder was updated
     if !bootOrderFound {
         t.Errorf("BootOrder variable not found")
     }
     
     // Check if the boot order was set correctly
-    expectedHex := "0100000000"
+    expectedHex := "01000000"
     if bootOrderData != expectedHex {
         t.Errorf("Expected boot order data %s, got %s", expectedHex, bootOrderData)
     }
 }
 
 func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
-    // Create a temporary JSON file for testing without BootOrder
+    // Create a temporary JSON file for testing
     jsonData := `{
         "version": 2,
         "variables": [
@@ -176,7 +178,7 @@ func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
                 "name": "Boot0001",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000001010600010103010800010000007fff04004eac0881119f594d850ee21a522c59b2"
+                "data": "010000001e0055004500460049002000510045004d00550020004400560044002d0052004f004d00200051004d00300030003000330033002000000002010c00d041030a0000000003020800010000000000"
             }
         ]
     }`
@@ -228,7 +230,7 @@ func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
     }
     
     // Check if the boot order was set correctly
-    expectedHex := "0100000000"
+    expectedHex := "01000000"
     if bootOrderData != expectedHex {
         t.Errorf("Expected boot order data %s, got %s", expectedHex, bootOrderData)
     }

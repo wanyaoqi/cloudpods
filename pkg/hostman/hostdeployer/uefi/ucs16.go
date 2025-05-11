@@ -18,6 +18,16 @@ func ExtractUCS16String(data []byte) ([]byte, uint32) {
 	// Include the null terminator in the length
 	strLen := i + 2
 	
+	// If we reached the end without finding a null terminator,
+	// use the entire data length
+	if i >= len(data)-1 {
+		strLen = len(data)
+		i = len(data)
+		if i % 2 != 0 {
+			i--
+		}
+	}
+	
 	// Return the string data and length
 	return data[:i], uint32(strLen)
 }
@@ -32,7 +42,8 @@ func DecodeUTF16LE(b []byte) string {
 	// Convert bytes to uint16 array
 	u16s := make([]uint16, len(b)/2)
 	for i := range u16s {
-		u16s[i] = uint16(b[i*2]) | uint16(b[i*2+1])<<8
+		// Little-endian: low byte first, then high byte
+		u16s[i] = uint16(b[i*2]) | (uint16(b[i*2+1]) << 8)
 	}
 	
 	// Decode UTF-16 to UTF-8
