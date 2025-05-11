@@ -46,10 +46,10 @@ func DumpVarsToJson(ovmfVarsPath string) (string, string, error) {
     
     if err != nil {
         os.Remove(jsonPath)
-        return "", output, fmt.Errorf("failed to execute virt-fw-vars command: %v", err)
+        return output, "", fmt.Errorf("failed to execute virt-fw-vars: %v", err)
     }
     
-    return jsonPath, output, nil
+    return output, jsonPath, nil
 }
 
 // ParseVarsJson parses UEFI variables from a JSON file
@@ -64,39 +64,46 @@ func ParseVarsJson(jsonPath string) ([]BootEntry, []string, error) {
     var varsData VarsData
     err = json.Unmarshal(jsonData, &varsData)
     if err != nil {
-        return nil, nil, fmt.Errorf("failed to parse JSON data: %v", err)
+        return nil, nil, fmt.Errorf("failed to parse JSON: %v", err)
     }
     
-    // Parse boot entries and boot order
+    // Extract boot entries and boot order
     var bootEntries []BootEntry
     var bootOrder []string
     
     for _, v := range varsData.Variables {
         if strings.HasPrefix(v.Name, "Boot") && len(v.Name) == 8 {
             // Parse boot entry
-            title, devPaths, err := ParseBootEntryData(v.Data)
+            entryID := v.Name
+            entryName, devPaths, err := ParseBootEntryData(v.Data)
             if err != nil {
-                continue // Skip invalid entries
+                fmt.Printf("Warning: failed to parse boot entry %s: %v\n", entryID, err)
+                continue
             }
-            
-            // Format device path
-            path := FormatDevicePath(devPaths)
             
             // Determine device type
             devType := DetermineDeviceType(devPaths)
             
-            bootEntries = append(bootEntries, BootEntry{
-                ID:       v.Name,
-                Name:     title,
-                Path:     path,
+            // Format device path
+            devPathStr := FormatDevicePath(devPaths)
+            
+            // Create boot entry
+            entry := BootEntry{
+                ID:       entryID,
+                Name:     entryName,
+                Path:     devPathStr,
                 DevPaths: devPaths,
                 DevType:  devType,
                 RawData:  v.Data,
-            })
+            }
+            
+            bootEntries = append(bootEntries, entry)
         } else if v.Name == "BootOrder" {
             // Parse boot order
             order, err := ParseBootOrderData(v.Data)
-            if err == nil {
+            if err != nil {
+                fmt.Printf("Warning: failed to parse boot order: %v\n", err)
+            } else {
                 bootOrder = order
             }
         }
@@ -117,7 +124,7 @@ func UpdateBootOrderInJson(jsonPath string, bootOrder []string) error {
     var varsData VarsData
     err = json.Unmarshal(jsonData, &varsData)
     if err != nil {
-        return fmt.Errorf("failed to parse JSON data: %v", err)
+        return fmt.Errorf("failed to parse JSON: %v", err)
     }
     
     // Build boot order hex data

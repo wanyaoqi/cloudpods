@@ -22,63 +22,69 @@ type BootEntry struct {
     Name     string    // Entry title
     Path     string    // Formatted device path
     DevPaths []DevPath // Device path elements
-    DevType  string    // "HD", "CDROM", "NETWORK", etc.
-    RawData  string    // Original hex data
+    DevType  string    // Device type (HD, CDROM, NETWORK, etc.)
+    RawData  string    // Raw hex data
 }
 
 // ParseBootEntryData parses a boot entry from hex data
 func ParseBootEntryData(hexData string) (string, []DevPath, error) {
-    // Convert hex string to byte array
+    // Decode hex data
     data, err := hex.DecodeString(hexData)
     if err != nil {
-        return "", nil, fmt.Errorf("failed to parse hex data: %v", err)
+        return "", nil, fmt.Errorf("failed to decode hex data: %v", err)
     }
     
-    // Check if data is long enough
+    // Check minimum length
     if len(data) < 8 {
         return "", nil, fmt.Errorf("data too short")
     }
     
-    // Parse attributes and device path size
-    pathSize := binary.LittleEndian.Uint16(data[4:6])
+    // Parse attributes (4 bytes)
+    // attributes := binary.LittleEndian.Uint32(data[0:4])
     
-    // Parse title (UCS-16 encoded string)
-    titleBytes, titleSize := ExtractUCS16String(data[6:])
-    title := DecodeUTF16LE(titleBytes)
+    // Parse file path list length (2 bytes)
+    pathListLen := binary.LittleEndian.Uint16(data[4:6])
     
-    // Parse device path
-    pathStart := 6 + titleSize
-    pathEnd := pathStart + int(pathSize)
-    if pathEnd > len(data) {
-        return "", nil, fmt.Errorf("device path data out of range")
+    // Parse description (UCS-16 string)
+    descData, descLen := ExtractUCS16String(data[6:])
+    description := DecodeUTF16LE(descData)
+    
+    // Parse device path list
+    pathListStart := 6 + descLen
+    if int(pathListStart+pathListLen) > len(data) {
+        return description, nil, fmt.Errorf("invalid path list length")
     }
     
-    devicePaths := ParseDevicePathElements(data[pathStart:pathEnd])
+    pathListData := data[pathListStart : pathListStart+uint32(pathListLen)]
+    devicePaths, err := ParseDevicePathElements(pathListData)
+    if err != nil {
+        return description, nil, fmt.Errorf("failed to parse device path: %v", err)
+    }
     
-    return title, devicePaths, nil
+    return description, devicePaths, nil
 }
 
 // ParseBootOrderData parses boot order from hex data
 func ParseBootOrderData(hexData string) ([]string, error) {
-    // Convert hex string to byte array
+    // Decode hex data
     data, err := hex.DecodeString(hexData)
     if err != nil {
-        return nil, fmt.Errorf("failed to parse hex data: %v", err)
+        return nil, fmt.Errorf("failed to decode hex data: %v", err)
     }
     
-    // Check if data length is even (each boot entry is 2 bytes)
-    if len(data)%2 != 0 {
-        return nil, fmt.Errorf("data length not multiple of 2")
+    // Check data length
+    if len(data) == 0 {
+        return []string{}, nil
     }
     
-    // Parse boot order
-    var bootList []string
+    // Parse boot order (2 bytes per entry)
+    var bootOrder []string
     for i := 0; i < len(data); i += 2 {
-        nr := binary.LittleEndian.Uint16(data[i : i+2])
-        bootList = append(bootList, fmt.Sprintf("%04x", nr))
+        entryNum := binary.LittleEndian.Uint16(data[i : i+2])
+        bootOrder = append(bootOrder, fmt.Sprintf("%04x", entryNum))
     }
     
-    return bootList, nil
+    return bootOrder, nil
 }
 
 // BuildBootOrderHex builds a hex string from boot order list

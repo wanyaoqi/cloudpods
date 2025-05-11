@@ -2,44 +2,45 @@ package uefi
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 )
 
 func TestExtractUCS16String(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    []byte
-		expected []byte
-		size     int
+		name           string
+		data           []byte
+		expectedString []byte
+		expectedLen    uint32
 	}{
 		{
-			name:     "Empty string",
-			input:    []byte{0, 0},
-			expected: []byte{},
-			size:     2,
+			name:           "Simple string",
+			data:           []byte{0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00, 0x00, 0x00, 0xFF, 0xFF},
+			expectedString: []byte{0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00},
+			expectedLen:    12,
 		},
 		{
-			name:     "Simple string",
-			input:    []byte{65, 0, 116, 0, 116, 0, 101, 0, 109, 0, 112, 0, 116, 0, 32, 0, 49, 0, 0, 0},
-			expected: []byte{65, 0, 116, 0, 116, 0, 101, 0, 109, 0, 112, 0, 116, 0, 32, 0, 49, 0},
-			size:     20,
+			name:           "Empty string",
+			data:           []byte{0x00, 0x00, 0xFF, 0xFF},
+			expectedString: []byte{},
+			expectedLen:    2,
 		},
 		{
-			name:     "String with data after null",
-			input:    []byte{65, 0, 66, 0, 0, 0, 67, 0},
-			expected: []byte{65, 0, 66, 0},
-			size:     6,
+			name:           "No null terminator",
+			data:           []byte{0x48, 0x00, 0x65, 0x00},
+			expectedString: []byte{0x48, 0x00, 0x65, 0x00},
+			expectedLen:    4,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, size := ExtractUCS16String(tt.input)
-			if !bytes.Equal(result, tt.expected) {
-				t.Errorf("ExtractUCS16String() result = %v, want %v", result, tt.expected)
+			str, length := ExtractUCS16String(tt.data)
+			if !reflect.DeepEqual(str, tt.expectedString) {
+				t.Errorf("ExtractUCS16String() string = %v, want %v", str, tt.expectedString)
 			}
-			if size != tt.size {
-				t.Errorf("ExtractUCS16String() size = %v, want %v", size, tt.size)
+			if length != tt.expectedLen {
+				t.Errorf("ExtractUCS16String() length = %v, want %v", length, tt.expectedLen)
 			}
 		})
 	}
@@ -48,34 +49,29 @@ func TestExtractUCS16String(t *testing.T) {
 func TestDecodeUTF16LE(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    []byte
+		data     []byte
 		expected string
 	}{
 		{
+			name:     "Hello",
+			data:     []byte{0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00},
+			expected: "Hello",
+		},
+		{
 			name:     "Empty string",
-			input:    []byte{},
+			data:     []byte{},
 			expected: "",
 		},
 		{
-			name:     "Simple string",
-			input:    []byte{65, 0, 116, 0, 116, 0, 101, 0, 109, 0, 112, 0, 116, 0, 32, 0, 49, 0},
-			expected: "Attempt 1",
-		},
-		{
-			name:     "UEFI string",
-			input:    []byte{85, 0, 69, 0, 70, 0, 73, 0, 32, 0, 81, 0, 69, 0, 77, 0, 85, 0, 32, 0, 68, 0, 86, 0, 68, 0, 45, 0, 82, 0, 79, 0, 77, 0},
-			expected: "UEFI QEMU DVD-ROM",
-		},
-		{
-			name:     "Odd length",
-			input:    []byte{65, 0, 66, 0, 67},
-			expected: "",
+			name:     "Unicode characters",
+			data:     []byte{0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00, 0x20, 0x00, 0x4D, 0x04, 0x38, 0x04, 0x40, 0x04},
+			expected: "Hello Мир",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := DecodeUTF16LE(tt.input)
+			result := DecodeUTF16LE(tt.data)
 			if result != tt.expected {
 				t.Errorf("DecodeUTF16LE() = %v, want %v", result, tt.expected)
 			}

@@ -3,6 +3,7 @@ package uefi
 import (
 	"io"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -16,7 +17,7 @@ func Contains(s string, substrs ...string) bool {
 	return false
 }
 
-// MatchBootEntries matches disk and CDROM boot entries
+// MatchBootEntries matches boot entries by device paths
 func MatchBootEntries(entries []BootEntry, diskPaths, cdromPaths []string) ([]BootEntry, []BootEntry) {
 	var diskEntries, cdromEntries []BootEntry
 	
@@ -96,6 +97,42 @@ func BuildBootOrder(diskEntries, cdromEntries []BootEntry, diskPriority, cdromPr
 		// Extract the numeric part of the ID (e.g., "0002" from "Boot0002")
 		idNumber := strings.TrimPrefix(pe.entry.ID, "Boot")
 		bootOrder = append(bootOrder, idNumber)
+	}
+	
+	return bootOrder
+}
+
+// FindBootEntryByDevicePath finds a boot entry by device path
+func FindBootEntryByDevicePath(entries []BootEntry, devicePath string) *BootEntry {
+	for i, entry := range entries {
+		if Contains(entry.Path, devicePath) {
+			return &entries[i]
+		}
+	}
+	return nil
+}
+
+// ReorderBootEntries reorders boot entries according to the specified order
+func ReorderBootEntries(entries []BootEntry, devicePaths []string) []string {
+	// Map to store boot entry IDs by device path
+	entryMap := make(map[string]string)
+	
+	// Build map of device paths to boot entry IDs
+	for _, entry := range entries {
+		for _, path := range devicePaths {
+			if Contains(entry.Path, path) {
+				entryMap[path] = strings.TrimPrefix(entry.ID, "Boot")
+				break
+			}
+		}
+	}
+	
+	// Build boot order based on device paths
+	var bootOrder []string
+	for _, path := range devicePaths {
+		if id, ok := entryMap[path]; ok {
+			bootOrder = append(bootOrder, id)
+		}
 	}
 	
 	return bootOrder

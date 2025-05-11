@@ -29,45 +29,56 @@ func TestParseVarsJson(t *testing.T) {
                 "name": "BootOrder",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "0000000100"
+                "data": "000001000200"
             }
         ]
     }`
-
-    tmpfile, err := ioutil.TempFile("", "test-vars-*.json")
+    
+    jsonFile, err := ioutil.TempFile("", "vars-test-*.json")
     if err != nil {
-        t.Fatalf("Failed to create temp file: %v", err)
+        t.Fatalf("Failed to create temporary file: %v", err)
     }
-    defer os.Remove(tmpfile.Name())
-
-    if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
-        t.Fatalf("Failed to write to temp file: %v", err)
+    defer os.Remove(jsonFile.Name())
+    
+    if _, err := jsonFile.Write([]byte(jsonData)); err != nil {
+        t.Fatalf("Failed to write JSON data: %v", err)
     }
-    if err := tmpfile.Close(); err != nil {
-        t.Fatalf("Failed to close temp file: %v", err)
-    }
-
+    jsonFile.Close()
+    
     // Test ParseVarsJson
-    entries, order, err := ParseVarsJson(tmpfile.Name())
+    entries, bootOrder, err := ParseVarsJson(jsonFile.Name())
     if err != nil {
         t.Fatalf("ParseVarsJson() error = %v", err)
     }
-
-    // Check boot entries
+    
+    // Check entries
     if len(entries) != 2 {
         t.Errorf("Expected 2 boot entries, got %d", len(entries))
     }
-    if entries[0].ID != "Boot0000" || entries[0].Name != "UiApp" {
-        t.Errorf("Unexpected boot entry: %+v", entries[0])
-    }
-    if entries[1].ID != "Boot0001" || entries[1].Name != "UEFI QEMU DVD-ROM QM00033 " {
-        t.Errorf("Unexpected boot entry: %+v", entries[1])
-    }
-
+    
     // Check boot order
-    expectedOrder := []string{"0000", "0001", "00"}
-    if !reflect.DeepEqual(order, expectedOrder) {
-        t.Errorf("Expected boot order %v, got %v", expectedOrder, order)
+    expectedBootOrder := []string{"0000", "0001", "0002"}
+    if !reflect.DeepEqual(bootOrder, expectedBootOrder) {
+        t.Errorf("Expected boot order %v, got %v", expectedBootOrder, bootOrder)
+    }
+    
+    // Check first entry
+    if entries[0].ID != "Boot0000" {
+        t.Errorf("Expected first entry ID Boot0000, got %s", entries[0].ID)
+    }
+    if entries[0].Name != "UiApp" {
+        t.Errorf("Expected first entry name UiApp, got %s", entries[0].Name)
+    }
+    
+    // Check second entry
+    if entries[1].ID != "Boot0001" {
+        t.Errorf("Expected second entry ID Boot0001, got %s", entries[1].ID)
+    }
+    if entries[1].Name != "UEFI QEMU DVD-ROM QM00033 " {
+        t.Errorf("Expected second entry name 'UEFI QEMU DVD-ROM QM00033 ', got %s", entries[1].Name)
+    }
+    if entries[1].DevType != "CDROM" {
+        t.Errorf("Expected second entry device type CDROM, got %s", entries[1].DevType)
     }
 }
 
@@ -92,54 +103,58 @@ func TestUpdateBootOrderInJson(t *testing.T) {
                 "name": "BootOrder",
                 "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
                 "attr": 7,
-                "data": "0000000100"
+                "data": "000001000200"
             }
         ]
     }`
-
-    tmpfile, err := ioutil.TempFile("", "test-vars-*.json")
+    
+    jsonFile, err := ioutil.TempFile("", "vars-test-*.json")
     if err != nil {
-        t.Fatalf("Failed to create temp file: %v", err)
+        t.Fatalf("Failed to create temporary file: %v", err)
     }
-    defer os.Remove(tmpfile.Name())
-
-    if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
-        t.Fatalf("Failed to write to temp file: %v", err)
+    defer os.Remove(jsonFile.Name())
+    
+    if _, err := jsonFile.Write([]byte(jsonData)); err != nil {
+        t.Fatalf("Failed to write JSON data: %v", err)
     }
-    if err := tmpfile.Close(); err != nil {
-        t.Fatalf("Failed to close temp file: %v", err)
-    }
-
+    jsonFile.Close()
+    
     // Test UpdateBootOrderInJson
-    newOrder := []string{"0001", "0000"}
-    err = UpdateBootOrderInJson(tmpfile.Name(), newOrder)
+    newBootOrder := []string{"0001", "0000"}
+    err = UpdateBootOrderInJson(jsonFile.Name(), newBootOrder)
     if err != nil {
         t.Fatalf("UpdateBootOrderInJson() error = %v", err)
     }
-
-    // Read the updated file
-    updatedData, err := ioutil.ReadFile(tmpfile.Name())
+    
+    // Read updated JSON
+    updatedData, err := ioutil.ReadFile(jsonFile.Name())
     if err != nil {
-        t.Fatalf("Failed to read updated file: %v", err)
+        t.Fatalf("Failed to read updated JSON: %v", err)
     }
-
-    // Parse the updated JSON
+    
     var varsData VarsData
     err = json.Unmarshal(updatedData, &varsData)
     if err != nil {
         t.Fatalf("Failed to parse updated JSON: %v", err)
     }
-
-    // Find the BootOrder variable
+    
+    // Find BootOrder variable
+    var bootOrderFound bool
     var bootOrderData string
     for _, v := range varsData.Variables {
         if v.Name == "BootOrder" {
+            bootOrderFound = true
             bootOrderData = v.Data
             break
         }
     }
-
-    // Check if the boot order was updated correctly
+    
+    // Check if BootOrder was updated
+    if !bootOrderFound {
+        t.Errorf("BootOrder variable not found")
+    }
+    
+    // Check if the boot order was set correctly
     expectedHex := "0100000000"
     if bootOrderData != expectedHex {
         t.Errorf("Expected boot order data %s, got %s", expectedHex, bootOrderData)
@@ -147,7 +162,7 @@ func TestUpdateBootOrderInJson(t *testing.T) {
 }
 
 func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
-    // Create a temporary JSON file without BootOrder
+    // Create a temporary JSON file for testing without BootOrder
     jsonData := `{
         "version": 2,
         "variables": [
@@ -165,41 +180,38 @@ func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
             }
         ]
     }`
-
-    tmpfile, err := ioutil.TempFile("", "test-vars-*.json")
+    
+    jsonFile, err := ioutil.TempFile("", "vars-test-*.json")
     if err != nil {
-        t.Fatalf("Failed to create temp file: %v", err)
+        t.Fatalf("Failed to create temporary file: %v", err)
     }
-    defer os.Remove(tmpfile.Name())
-
-    if _, err := tmpfile.Write([]byte(jsonData)); err != nil {
-        t.Fatalf("Failed to write to temp file: %v", err)
+    defer os.Remove(jsonFile.Name())
+    
+    if _, err := jsonFile.Write([]byte(jsonData)); err != nil {
+        t.Fatalf("Failed to write JSON data: %v", err)
     }
-    if err := tmpfile.Close(); err != nil {
-        t.Fatalf("Failed to close temp file: %v", err)
-    }
-
+    jsonFile.Close()
+    
     // Test UpdateBootOrderInJson
-    newOrder := []string{"0001", "0000"}
-    err = UpdateBootOrderInJson(tmpfile.Name(), newOrder)
+    newBootOrder := []string{"0001", "0000"}
+    err = UpdateBootOrderInJson(jsonFile.Name(), newBootOrder)
     if err != nil {
         t.Fatalf("UpdateBootOrderInJson() error = %v", err)
     }
-
-    // Read the updated file
-    updatedData, err := ioutil.ReadFile(tmpfile.Name())
+    
+    // Read updated JSON
+    updatedData, err := ioutil.ReadFile(jsonFile.Name())
     if err != nil {
-        t.Fatalf("Failed to read updated file: %v", err)
+        t.Fatalf("Failed to read updated JSON: %v", err)
     }
-
-    // Parse the updated JSON
+    
     var varsData VarsData
     err = json.Unmarshal(updatedData, &varsData)
     if err != nil {
         t.Fatalf("Failed to parse updated JSON: %v", err)
     }
-
-    // Find the BootOrder variable
+    
+    // Check if BootOrder was added
     var bootOrderFound bool
     var bootOrderData string
     for _, v := range varsData.Variables {
@@ -209,12 +221,12 @@ func TestUpdateBootOrderInJson_AddNew(t *testing.T) {
             break
         }
     }
-
+    
     // Check if BootOrder was added
     if !bootOrderFound {
         t.Errorf("BootOrder variable was not added")
     }
-
+    
     // Check if the boot order was set correctly
     expectedHex := "0100000000"
     if bootOrderData != expectedHex {

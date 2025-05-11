@@ -4,34 +4,38 @@ import (
 	"unicode/utf16"
 )
 
-// ExtractUCS16String extracts a UCS-16 encoded string from data until null terminator
-func ExtractUCS16String(data []byte) ([]byte, int) {
-	var result []byte
-	pos := 0
-	
-	for pos+1 < len(data) {
-		// Check for null terminator
-		if data[pos] == 0 && data[pos+1] == 0 {
+// ExtractUCS16String extracts a UCS-16 string from a byte array
+// Returns the string data and the total length (including null terminator)
+func ExtractUCS16String(data []byte) ([]byte, uint32) {
+	// Find the null terminator (two consecutive zero bytes)
+	var i int
+	for i = 0; i < len(data)-1; i += 2 {
+		if data[i] == 0 && data[i+1] == 0 {
 			break
 		}
-		result = append(result, data[pos], data[pos+1])
-		pos += 2
 	}
 	
-	// Include null terminator in size
-	return result, len(result) + 2
+	// Include the null terminator in the length
+	strLen := i + 2
+	
+	// Return the string data and length
+	return data[:i], uint32(strLen)
 }
 
-// DecodeUTF16LE decodes UTF-16LE bytes to a string
+// DecodeUTF16LE decodes a UTF-16LE byte array to a string
 func DecodeUTF16LE(b []byte) string {
-	if len(b)%2 != 0 {
+	// Check if the byte array is empty
+	if len(b) == 0 {
 		return ""
 	}
 	
-	u16s := make([]uint16, 0, len(b)/2)
-	for i := 0; i < len(b); i += 2 {
-		u16s = append(u16s, uint16(b[i]) | (uint16(b[i+1])<<8))
+	// Convert bytes to uint16 array
+	u16s := make([]uint16, len(b)/2)
+	for i := range u16s {
+		u16s[i] = uint16(b[i*2]) | uint16(b[i*2+1])<<8
 	}
+	
+	// Decode UTF-16 to UTF-8
 	return string(utf16.Decode(u16s))
 }
 
