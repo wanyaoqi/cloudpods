@@ -225,7 +225,7 @@ func SaveBootOrder(jsonPath string, diskPaths, cdromPaths []string, diskPriority
     diskEntries, cdromEntries := MatchBootEntries(entries, diskPaths, cdromPaths)
     
     // Build boot order
-    bootOrder := BuildBootOrder(diskEntries, cdromEntries, diskPriority, cdromPriority)
+    bootOrder := BuildBootOrder(diskEntries, cdromEntries, int32(diskPriority), int32(cdromPriority))
     
     // Update boot order in JSON
     err = UpdateBootOrderInJson(jsonPath, bootOrder)
