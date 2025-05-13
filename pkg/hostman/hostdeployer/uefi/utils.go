@@ -16,43 +16,43 @@ func Contains(s string, substrs ...string) bool {
 }
 
 // MatchBootEntries matches boot entries by device paths
-func MatchBootEntries(entries []BootEntry, diskPaths, cdromPaths []string) ([]BootEntry, []BootEntry) {
-	var diskEntries, cdromEntries []BootEntry
-	
-	for _, entry := range entries {
-		if entry.DevType == "HD" {
-			// If no disk paths specified, add all disk entries
-			if len(diskPaths) == 0 {
-				diskEntries = append(diskEntries, entry)
-				continue
-			}
-			
-			// Check if entry matches any of the disk paths
-			for _, diskPath := range diskPaths {
-				if Contains(entry.Name, diskPath) || Contains(entry.Path, diskPath) {
-					diskEntries = append(diskEntries, entry)
-					break
-				}
-			}
-		} else if entry.DevType == "CDROM" {
-			// If no CDROM paths specified, add all CDROM entries
-			if len(cdromPaths) == 0 {
-				cdromEntries = append(cdromEntries, entry)
-				continue
-			}
-			
-			// Check if entry matches any of the CDROM paths
-			for _, cdromPath := range cdromPaths {
-				if Contains(entry.Name, cdromPath) || Contains(entry.Path, cdromPath) {
-					cdromEntries = append(cdromEntries, entry)
-					break
-				}
-			}
-		}
-	}
-	
-	return diskEntries, cdromEntries
-}
+//func MatchBootEntries(entries []BootEntry, diskPaths, cdromPaths []string) ([]BootEntry, []BootEntry) {
+//	var diskEntries, cdromEntries []BootEntry
+//
+//	for _, entry := range entries {
+//		if entry.DevType == "HD" {
+//			// If no disk paths specified, add all disk entries
+//			if len(diskPaths) == 0 {
+//				diskEntries = append(diskEntries, entry)
+//				continue
+//			}
+//
+//			// Check if entry matches any of the disk paths
+//			for _, diskPath := range diskPaths {
+//				if Contains(entry.Name, diskPath) || Contains(entry.Path, diskPath) {
+//					diskEntries = append(diskEntries, entry)
+//					break
+//				}
+//			}
+//		} else if entry.DevType == "CDROM" {
+//			// If no CDROM paths specified, add all CDROM entries
+//			if len(cdromPaths) == 0 {
+//				cdromEntries = append(cdromEntries, entry)
+//				continue
+//			}
+//
+//			// Check if entry matches any of the CDROM paths
+//			for _, cdromPath := range cdromPaths {
+//				if Contains(entry.Name, cdromPath) || Contains(entry.Path, cdromPath) {
+//					cdromEntries = append(cdromEntries, entry)
+//					break
+//				}
+//			}
+//		}
+//	}
+//
+//	return diskEntries, cdromEntries
+//}
 
 // BuildBootOrder builds a boot order based on priorities
 func BuildBootOrder(diskEntries, cdromEntries []BootEntry, diskPriority, cdromPriority int32) []string {
@@ -61,9 +61,9 @@ func BuildBootOrder(diskEntries, cdromEntries []BootEntry, diskPriority, cdromPr
 		entry    BootEntry
 		priority int32
 	}
-	
+
 	var priorityEntries []priorityEntry
-	
+
 	// Add disk boot entries
 	if diskPriority > 0 {
 		for _, entry := range diskEntries {
@@ -73,7 +73,7 @@ func BuildBootOrder(diskEntries, cdromEntries []BootEntry, diskPriority, cdromPr
 			})
 		}
 	}
-	
+
 	// Add CDROM boot entries
 	if cdromPriority > 0 {
 		for _, entry := range cdromEntries {
@@ -83,12 +83,12 @@ func BuildBootOrder(diskEntries, cdromEntries []BootEntry, diskPriority, cdromPr
 			})
 		}
 	}
-	
+
 	// Sort by priority (higher priority first)
 	sort.Slice(priorityEntries, func(i, j int) bool {
 		return priorityEntries[i].priority > priorityEntries[j].priority
 	})
-	
+
 	// Build boot order
 	var bootOrder []string
 	for _, pe := range priorityEntries {
@@ -96,7 +96,7 @@ func BuildBootOrder(diskEntries, cdromEntries []BootEntry, diskPriority, cdromPr
 		idNumber := strings.TrimPrefix(pe.entry.ID, "Boot")
 		bootOrder = append(bootOrder, idNumber)
 	}
-	
+
 	return bootOrder
 }
 
@@ -114,7 +114,7 @@ func FindBootEntryByDevicePath(entries []BootEntry, devicePath string) *BootEntr
 func ReorderBootEntries(entries []BootEntry, devicePaths []string) []string {
 	// Map to store boot entry IDs by device path
 	entryMap := make(map[string]string)
-	
+
 	// Build map of device paths to boot entry IDs
 	for _, entry := range entries {
 		for _, path := range devicePaths {
@@ -124,7 +124,7 @@ func ReorderBootEntries(entries []BootEntry, devicePaths []string) []string {
 			}
 		}
 	}
-	
+
 	// Build boot order based on device paths
 	var bootOrder []string
 	for _, path := range devicePaths {
@@ -132,6 +132,6 @@ func ReorderBootEntries(entries []BootEntry, devicePaths []string) []string {
 			bootOrder = append(bootOrder, id)
 		}
 	}
-	
+
 	return bootOrder
-} 
+}

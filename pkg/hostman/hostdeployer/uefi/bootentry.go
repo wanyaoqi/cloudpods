@@ -4,30 +4,65 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
-// BootEntry constants
+type OvmfDevicePathType int
+
 const (
-	LoadOptionActive         = 0x00000001
-	LoadOptionForceReconnect = 0x00000002
-	LoadOptionHidden         = 0x00000008
-	LoadOptionCategoryMask   = 0x00001F00
-	LoadOptionCategoryBoot   = 0x00000000
-	LoadOptionCategoryApp    = 0x00000100
+	DEVICE_TYPE_UNKNOWN OvmfDevicePathType = 0
+	DEVICE_TYPE_CDROM
+	DEVICE_TYPE_IDE
+	DEVICE_TYPE_SCSI
+	DEVICE_TYPE_SCSI_CDROM
+	DEVICE_TYPE_PCI
+	DEVICE_TYPE_SATA
 )
 
 // BootEntry represents a UEFI boot entry
 type BootEntry struct {
-	ID       string    // Boot0000, Boot0001, etc.
-	Name     string    // Entry title
-	Path     string    // Formatted device path
-	DevPaths []DevPath // Device path elements
-	DevType  string    // Device type (HD, CDROM, NETWORK, etc.)
-	RawData  string    // Raw hex data
+	ID       string               // Boot0000, Boot0001, etc.
+	Name     string               // Entry title
+	DevPaths []*DevicePathElement // Device path elements
+	RawData  string               // Raw hex data
+}
+
+func (b *BootEntry) GetType() OvmfDevicePathType {
+	lenElements := len(b.DevPaths)
+	if lenElements == 0 {
+		return DEVICE_TYPE_UNKNOWN
+	}
+	devElement := b.DevPaths[lenElements-1]
+	// fetch last device path element type
+	switch devElement.devType {
+	case DevicePathTypeHardware:
+		if devElement.subType == 0x01 {
+			return DEVICE_TYPE_PCI
+		}
+	case DevicePathTypeMessaging:
+		switch devElement.subType {
+		case 0x01:
+			if strings.HasPrefix(b.Name, "UEFI QEMU DVD-ROM") {
+				return DEVICE_TYPE_CDROM
+			} else if strings.HasPrefix(b.Name, "UEFI QEMU HARDDISK") {
+				return DEVICE_TYPE_IDE
+			}
+		case 0x02:
+			if strings.HasPrefix(b.Name, "UEFI QEMU QEMU CD-ROM") {
+				return DEVICE_TYPE_SCSI_CDROM
+			} else if strings.HasPrefix(b.Name, "UEFI QEMU QEMU HARDDISK") {
+				return DEVICE_TYPE_SCSI
+			}
+		case 0x12:
+			return DEVICE_TYPE_SATA
+		}
+	}
+
+	return DEVICE_TYPE_UNKNOWN
 }
 
 // ParseBootEntryData parses a boot entry from hex data
-func ParseBootEntryData(hexData string) (string, []DevPath, error) {
+func ParseBootEntryData(hexData string) (string, []*DevicePathElement, error) {
 	// Decode hex data
 	data, err := hex.DecodeString(hexData)
 	if err != nil {
@@ -53,7 +88,7 @@ func ParseBootEntryData(hexData string) (string, []DevPath, error) {
 
 	// Check if we have enough data for the path list
 	if pathListLen == 0 {
-		return name, []DevPath{}, nil
+		return name, []*DevicePathElement{}, nil
 	}
 
 	if uint32(len(data)) < pathListStart+uint32(pathListLen) {

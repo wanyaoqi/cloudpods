@@ -45,6 +45,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/guestfs/fsdriver"
 	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 	"yunion.io/x/onecloud/pkg/hostman/hostdeployer/consts"
+	"yunion.io/x/onecloud/pkg/hostman/hostdeployer/uefi"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/qemuimg"
@@ -261,6 +262,26 @@ func (*DeployerServer) DisconnectEsxiDisks(
 			continue
 		}
 	}
+	return new(deployapi.Empty), nil
+}
+
+func (*DeployerServer) SetOvmfBootOrder(ctx context.Context, req *deployapi.OvmfBootOrderParams) (*deployapi.Empty, error) {
+	log.Infof("Request SetOvmfBootOrder of %s", req.OvmfVarsPath)
+	if !fileutils2.Exists(req.OvmfVarsPath) {
+		return new(deployapi.Empty), errors.Errorf("ovmf %s not found", req.OvmfVarsPath)
+	}
+
+	// parse boot entry from ovmf vars
+	bootEntries, bootOrder, ovmfJsonTmpPath, err := uefi.ParseUefiVars(req.OvmfVarsPath)
+	if err != nil {
+		return new(deployapi.Empty), errors.Wrapf(err, "failed parse uefi vars %s", req.OvmfVarsPath)
+	}
+
+	for i := range bootEntries {
+		switch bootEntries[i] {
+		}
+	}
+
 	return new(deployapi.Empty), nil
 }
 
