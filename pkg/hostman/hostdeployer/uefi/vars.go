@@ -1,15 +1,13 @@
 package uefi
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"os"
-	"os/exec"
 
 	"yunion.io/x/log"
+
+	"yunion.io/x/onecloud/pkg/util/procutils"
 )
 
 // VarsData represents the UEFI variables data
@@ -85,7 +83,7 @@ func ParseVarsJson(jsonPath string) ([]*BootEntry, []uint16, error) {
 }
 
 // UpdateBootOrderInJson updates the boot order in a UEFI variables JSON file
-func UpdateBootOrderInJson(jsonPath string, bootOrder []string) error {
+func UpdateBootOrderInJson(jsonPath string, bootOrder []uint16) error {
 	// Read JSON file
 	data, err := ioutil.ReadFile(jsonPath)
 	if err != nil {
@@ -99,13 +97,7 @@ func UpdateBootOrderInJson(jsonPath string, bootOrder []string) error {
 		return fmt.Errorf("failed to parse JSON: %v", err)
 	}
 
-	// Build boot order hex data
-	bootOrderHex, err := BuildBootOrderHex(bootOrder)
-	if err != nil {
-		return fmt.Errorf("failed to build boot order hex: %v", err)
-	}
-
-	// Update or add boot order
+	bootOrderHex := BuildBootOrderHex(bootOrder)
 	bootOrderFound := false
 	for i, v := range varsData.Variables {
 		if v.Name == "BootOrder" && v.GUID == EFI_GLOBAL_VARIABLE_GUID {
@@ -140,64 +132,12 @@ func UpdateBootOrderInJson(jsonPath string, bootOrder []string) error {
 }
 
 // ApplyJsonToVars applies a JSON file to OVMF_VARS.fd
-func ApplyJsonToVars(jsonPath, inputVarsPath, outputVarsPath string) (string, error) {
+func ApplyJsonToVars(jsonPath, inputVarsPath, outputVarsPath string) ([]byte, error) {
 	// Execute virt-fw-vars to apply JSON
-	cmd := exec.Command("virt-fw-vars", "-i", inputVarsPath, "-o", outputVarsPath, "--set-json", jsonPath)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	output := stdout.String() + stderr.String()
-
+	output, err := procutils.NewCommand("virt-fw-vars", "-i", inputVarsPath, "-o", outputVarsPath, "--set-json", jsonPath).Output()
 	if err != nil {
 		return output, fmt.Errorf("failed to execute virt-fw-vars --set-json command: %v", err)
 	}
 
 	return output, nil
 }
-
-// CopyFile copies a file from src to dst
-func CopyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return err
-	}
-
-	return destFile.Sync()
-}
-
-// SaveBootOrder saves the boot order to a UEFI variables JSON file
-//func SaveBootOrder(jsonPath string, diskPaths, cdromPaths []string, diskPriority, cdromPriority int) error {
-//	// Parse UEFI variables
-//	entries, _, err := ParseVarsJson(jsonPath)
-//	if err != nil {
-//		return fmt.Errorf("failed to parse UEFI variables: %v", err)
-//	}
-//
-//	// Match boot entries
-//	diskEntries, cdromEntries := MatchBootEntries(entries, diskPaths, cdromPaths)
-//
-//	// Build boot order
-//	bootOrder := BuildBootOrder(diskEntries, cdromEntries, int32(diskPriority), int32(cdromPriority))
-//
-//	// Update boot order in JSON
-//	err = UpdateBootOrderInJson(jsonPath, bootOrder)
-//	if err != nil {
-//		return fmt.Errorf("failed to update boot order: %v", err)
-//	}
-//
-//	return nil
-//}

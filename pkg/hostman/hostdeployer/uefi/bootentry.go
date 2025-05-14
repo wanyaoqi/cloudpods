@@ -19,7 +19,6 @@ const (
 	DEVICE_TYPE_SATA
 )
 
-// BootEntry represents a UEFI boot entry
 type BootEntry struct {
 	ID       string               // Boot0000, Boot0001, etc.
 	Name     string               // Entry title
@@ -135,32 +134,28 @@ func ParseBootOrder(hexData string) ([]uint16, error) {
 	return bootOrder, nil
 }
 
-// ToStringBootOrder convert []uint16 to []string style
-func ToStringBootOrder(bootOrder []uint16) []string {
-	strBootOrder := []string{}
-	for i := 0; i < len(bootOrder); i++ {
-		strBootOrder = append(strBootOrder, fmt.Sprintf("%04x", bootOrder[i]))
+func ParseBootentryToBootorder(entry string) (uint16, error) {
+	if !strings.HasPrefix(entry, "Boot") {
+		return 0, fmt.Errorf("unknonw boot entry %s", entry)
 	}
-	return strBootOrder
+	hexData := entry[4:]
+	// Decode hex data
+	data, err := hex.DecodeString(hexData)
+	if err != nil {
+		return 0, fmt.Errorf("failed to decode hex data %s: %v", hexData, err)
+	}
+	return binary.BigEndian.Uint16(data), nil
 }
 
 // BuildBootOrderHex builds a hex string from boot order list
-func BuildBootOrderHex(bootOrder []string) (string, error) {
+func BuildBootOrderHex(bootOrder []uint16) string {
 	// Allocate space for boot order (2 bytes per entry)
 	data := make([]byte, len(bootOrder)*2)
-
 	for i, entry := range bootOrder {
-		// Parse hex string to uint16
-		var val uint16
-		_, err := fmt.Sscanf(entry, "%04x", &val)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse boot entry %s: %v", entry, err)
-		}
-
 		// Write little-endian uint16
-		binary.LittleEndian.PutUint16(data[i*2:], val)
+		binary.LittleEndian.PutUint16(data[i*2:], entry)
 	}
 
 	// Return hex string
-	return hex.EncodeToString(data), nil
+	return hex.EncodeToString(data)
 }

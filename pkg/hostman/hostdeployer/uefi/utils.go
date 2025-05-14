@@ -1,137 +1,45 @@
 package uefi
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
 	"sort"
-	"strings"
+
+	"yunion.io/x/pkg/errors"
+
+	"yunion.io/x/onecloud/pkg/util/procutils"
 )
 
-// Contains checks if a string contains any of the substrings
-func Contains(s string, substrs ...string) bool {
-	for _, substr := range substrs {
-		if strings.Contains(s, substr) {
-			return true
-		}
+func DumpOvmfVarsToJson(ovmfVarsPath string) (string, error) {
+	// Create temporary file for JSON output
+	jsonFile, err := ioutil.TempFile("", "ovmf-vars-*.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %v", err)
 	}
-	return false
+	jsonPath := jsonFile.Name()
+	jsonFile.Close()
+
+	output, err := procutils.NewCommand("virt-fw-vars", "-i", ovmfVarsPath, "--output-json", jsonPath).Output()
+	if err != nil {
+		os.Remove(jsonPath)
+		return "", errors.Wrapf(err, "virt-fw-vars failed dump to json %s", output)
+	}
+	return jsonPath, nil
 }
 
-// MatchBootEntries matches boot entries by device paths
-//func MatchBootEntries(entries []BootEntry, diskPaths, cdromPaths []string) ([]BootEntry, []BootEntry) {
-//	var diskEntries, cdromEntries []BootEntry
-//
-//	for _, entry := range entries {
-//		if entry.DevType == "HD" {
-//			// If no disk paths specified, add all disk entries
-//			if len(diskPaths) == 0 {
-//				diskEntries = append(diskEntries, entry)
-//				continue
-//			}
-//
-//			// Check if entry matches any of the disk paths
-//			for _, diskPath := range diskPaths {
-//				if Contains(entry.Name, diskPath) || Contains(entry.Path, diskPath) {
-//					diskEntries = append(diskEntries, entry)
-//					break
-//				}
-//			}
-//		} else if entry.DevType == "CDROM" {
-//			// If no CDROM paths specified, add all CDROM entries
-//			if len(cdromPaths) == 0 {
-//				cdromEntries = append(cdromEntries, entry)
-//				continue
-//			}
-//
-//			// Check if entry matches any of the CDROM paths
-//			for _, cdromPath := range cdromPaths {
-//				if Contains(entry.Name, cdromPath) || Contains(entry.Path, cdromPath) {
-//					cdromEntries = append(cdromEntries, entry)
-//					break
-//				}
-//			}
-//		}
-//	}
-//
-//	return diskEntries, cdromEntries
-//}
-
-// BuildBootOrder builds a boot order based on priorities
-func BuildBootOrder(diskEntries, cdromEntries []BootEntry, diskPriority, cdromPriority int32) []string {
-	// Sort entries by priority
-	type priorityEntry struct {
-		entry    BootEntry
-		priority int32
+func ParseUefiVars(ovmfVarsPath string) ([]*BootEntry, []uint16, string, error) {
+	jsonPath, err := DumpOvmfVarsToJson(ovmfVarsPath)
+	if err != nil {
+		return nil, nil, "", errors.Wrap(err, "DumpOvmfVarsToJson")
 	}
 
-	var priorityEntries []priorityEntry
-
-	// Add disk boot entries
-	if diskPriority > 0 {
-		for _, entry := range diskEntries {
-			priorityEntries = append(priorityEntries, priorityEntry{
-				entry:    entry,
-				priority: diskPriority,
-			})
-		}
+	bootEntry, bootOrder, err := ParseVarsJson(jsonPath)
+	if err != nil {
+		return nil, nil, "", errors.Wrap(err, "ParseVarsJson")
 	}
-
-	// Add CDROM boot entries
-	if cdromPriority > 0 {
-		for _, entry := range cdromEntries {
-			priorityEntries = append(priorityEntries, priorityEntry{
-				entry:    entry,
-				priority: cdromPriority,
-			})
-		}
-	}
-
-	// Sort by priority (higher priority first)
-	sort.Slice(priorityEntries, func(i, j int) bool {
-		return priorityEntries[i].priority > priorityEntries[j].priority
+	sort.Slice(bootEntry, func(i, j int) bool {
+		return bootEntry[i].ID < bootEntry[j].ID
 	})
-
-	// Build boot order
-	var bootOrder []string
-	for _, pe := range priorityEntries {
-		// Extract the numeric part of the ID (e.g., "0002" from "Boot0002")
-		idNumber := strings.TrimPrefix(pe.entry.ID, "Boot")
-		bootOrder = append(bootOrder, idNumber)
-	}
-
-	return bootOrder
-}
-
-// FindBootEntryByDevicePath finds a boot entry by device path
-func FindBootEntryByDevicePath(entries []BootEntry, devicePath string) *BootEntry {
-	for i, entry := range entries {
-		if Contains(entry.Path, devicePath) {
-			return &entries[i]
-		}
-	}
-	return nil
-}
-
-// ReorderBootEntries reorders boot entries according to the specified order
-func ReorderBootEntries(entries []BootEntry, devicePaths []string) []string {
-	// Map to store boot entry IDs by device path
-	entryMap := make(map[string]string)
-
-	// Build map of device paths to boot entry IDs
-	for _, entry := range entries {
-		for _, path := range devicePaths {
-			if Contains(entry.Path, path) {
-				entryMap[path] = strings.TrimPrefix(entry.ID, "Boot")
-				break
-			}
-		}
-	}
-
-	// Build boot order based on device paths
-	var bootOrder []string
-	for _, path := range devicePaths {
-		if id, ok := entryMap[path]; ok {
-			bootOrder = append(bootOrder, id)
-		}
-	}
-
-	return bootOrder
+	return bootEntry, bootOrder, jsonPath, nil
 }

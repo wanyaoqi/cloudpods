@@ -31,30 +31,6 @@ func (e *DevicePathElement) SubType() byte {
 	return e.subType
 }
 
-//// Address returns the address information for the device path element
-//func (e *DevicePathElement) Address() interface{} {
-//	switch e.devType {
-//	case DevicePathTypeMessaging:
-//		switch e.subType {
-//		case MessagingSubTypeSCSI:
-//			if len(e.data) >= 4 {
-//				return SCSIAddress{
-//					PUN: binary.LittleEndian.Uint16(e.data[0:2]),
-//					LUN: binary.LittleEndian.Uint16(e.data[2:4]),
-//				}
-//			}
-//		}
-//	}
-//
-//	return nil
-//}
-
-// SCSIAddress represents a SCSI address
-//type SCSIAddress struct {
-//	PUN uint16
-//	LUN uint16
-//}
-
 // ParseDevicePathElements parses a device path from binary data
 func ParseDevicePathElements(data []byte) ([]*DevicePathElement, error) {
 	if len(data) == 0 {
@@ -104,27 +80,3 @@ func ParseDevicePathElements(data []byte) ([]*DevicePathElement, error) {
 
 	return elements, nil
 }
-
-// DetermineDeviceType determines the device type from a device path
-//func DetermineDeviceType(devPaths []*DevicePathElement) string {
-//	for _, elem := range devPaths {
-//		// Check for CDROM
-//		if elem.Type() == DevicePathTypeMedia && elem.SubType() == MediaSubTypeCDROM {
-//			return "CDROM"
-//		}
-//
-//		// Check for SCSI with PUN=1 (typically CDROM)
-//		if elem.Type() == DevicePathTypeMessaging && elem.SubType() == MessagingSubTypeSCSI {
-//			if addr, ok := elem.Address().(SCSIAddress); ok && addr.PUN == 1 {
-//				return "CDROM"
-//			}
-//		}
-//
-//		// Check for HD
-//		if elem.Type() == DevicePathTypeMedia && elem.SubType() == MediaSubTypeHardDrive {
-//			return "HD"
-//		}
-//	}
-//
-//	return "UNKNOWN"
-//}
