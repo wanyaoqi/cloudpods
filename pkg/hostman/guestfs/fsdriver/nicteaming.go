@@ -46,46 +46,56 @@ func findTeamingNic(nics []*types.SServerNic, mac string) *types.SServerNic {
 	return nil
 }
 
-func ToServerNics(nics []*deployapi.Nic) []*types.SServerNic {
+func ToServerNics(nics []*deployapi.Nic, hypervisor string) []*types.SServerNic {
 	ret := make([]*types.SServerNic, len(nics))
 	for i := 0; i < len(nics); i++ {
 		domain := nics[i].Domain
 		if apis.IsIllegalSearchDomain(domain) {
 			domain = ""
 		}
-		ret[i] = &types.SServerNic{
-			Name:      nics[i].Name,
-			Index:     int(nics[i].Index),
-			Bridge:    nics[i].Bridge,
+		nic := nics[i]
+		snic := &types.SServerNic{
+			Name:      nic.Name,
+			Index:     int(nic.Index),
+			Bridge:    nic.Bridge,
 			Domain:    domain,
-			Ip:        nics[i].Ip,
-			Vlan:      int(nics[i].Vlan),
-			Driver:    nics[i].Driver,
-			Masklen:   int(nics[i].Masklen),
-			Virtual:   nics[i].Virtual,
-			Manual:    nics[i].Manual,
-			WireId:    nics[i].WireId,
-			NetId:     nics[i].NetId,
-			Mac:       nics[i].Mac,
-			BandWidth: int(nics[i].Bw),
-			Dns:       nics[i].Dns,
-			Net:       nics[i].Net,
-			Interface: nics[i].Interface,
-			Gateway:   nics[i].Gateway,
-			Ifname:    nics[i].Ifname,
-			Routes:    deployapi.ConvertRoutes(nics[i].Routes),
-			NicType:   compute.TNicType(nics[i].NicType),
-			LinkUp:    nics[i].LinkUp,
-			Mtu:       int16(nics[i].Mtu),
-			TeamWith:  nics[i].TeamWith,
-			IsDefault: nics[i].IsDefault,
+			Ip:        nic.Ip,
+			Vlan:      int(nic.Vlan),
+			Driver:    nic.Driver,
+			Masklen:   int(nic.Masklen),
+			Virtual:   nic.Virtual,
+			Manual:    nic.Manual,
+			WireId:    nic.WireId,
+			NetId:     nic.NetId,
+			Mac:       nic.Mac,
+			BandWidth: int(nic.Bw),
+			Dns:       nic.Dns,
+			Net:       nic.Net,
+			Interface: nic.Interface,
+			Gateway:   nic.Gateway,
+			Ifname:    nic.Ifname,
+			Routes:    deployapi.ConvertRoutes(nic.Routes),
+			NicType:   compute.TNicType(nic.NicType),
+			LinkUp:    nic.LinkUp,
+			Mtu:       int16(nic.Mtu),
+			TeamWith:  nic.TeamWith,
+			IsDefault: nic.IsDefault,
 
-			Ip6:      nics[i].Ip6,
-			Masklen6: int(nics[i].Masklen6),
-			Gateway6: nics[i].Gateway6,
+			Ip6:      nic.Ip6,
+			Masklen6: int(nic.Masklen6),
+			Gateway6: nic.Gateway6,
+
+			VlanInterface: shouldConfigureVlanInterface(nic, hypervisor),
 		}
+		ret[i] = snic
 	}
 	return ret
+}
+
+func shouldConfigureVlanInterface(nic *deployapi.Nic, hypervisor string) bool {
+	return hypervisor == api.HYPERVISOR_BAREMETAL && 
+		   nic.Manual && 
+		   nic.Vlan > 1
 }
 
 func convertNicConfigs(nics []*types.SServerNic) ([]*types.SServerNic, []*types.SServerNic) {

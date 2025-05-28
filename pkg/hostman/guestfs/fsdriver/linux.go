@@ -948,6 +948,67 @@ func (d *sDebianLikeRootFs) DeployNetworkingScripts(rootFs IDiskPartition, nics 
 	domains := []string{}
 	for i := range allNics {
 		nicDesc := allNics[i]
+		
+		// 处理 VLAN 子接口
+		if nicDesc.VlanInterface {
+			vlanIfName := fmt.Sprintf("%s.%d", nicDesc.Name, nicDesc.Vlan)
+			
+			// 配置主接口（去除 IP 配置）
+			cmds.WriteString(fmt.Sprintf("auto %s\n", nicDesc.Name))
+			cmds.WriteString(fmt.Sprintf("iface %s inet manual\n", nicDesc.Name))
+			cmds.WriteString(fmt.Sprintf("    hwaddress ether %s\n", nicDesc.Mac))
+			if nicDesc.Mtu > 0 {
+				cmds.WriteString(fmt.Sprintf("    mtu %d\n", nicDesc.Mtu))
+			}
+			cmds.WriteString("\n")
+			
+			// 配置 VLAN 子接口
+			cmds.WriteString(fmt.Sprintf("auto %s\n", vlanIfName))
+			if nicDesc.Manual {
+				netmask := netutils2.Netlen2Mask(int(nicDesc.Masklen))
+				cmds.WriteString(fmt.Sprintf("iface %s inet static\n", vlanIfName))
+				cmds.WriteString(fmt.Sprintf("    address %s\n", nicDesc.Ip))
+				cmds.WriteString(fmt.Sprintf("    netmask %s\n", netmask))
+				cmds.WriteString(fmt.Sprintf("    vlan-raw-device %s\n", nicDesc.Name))
+				if len(nicDesc.Gateway) > 0 && nicDesc.Ip == mainIp {
+					cmds.WriteString(fmt.Sprintf("    gateway %s\n", nicDesc.Gateway))
+				}
+				
+				var routes = make([][]string, 0)
+				routes = netutils2.AddNicRoutes(routes, nicDesc, mainIp, nicCnt)
+				for _, r := range routes {
+					cmds.WriteString(fmt.Sprintf("    up route add -net %s gw %s || true\n", r[0], r[1]))
+					cmds.WriteString(fmt.Sprintf("    down route del -net %s gw %s || true\n", r[0], r[1]))
+				}
+				
+				dnslist := netutils2.GetNicDns(nicDesc)
+				if len(dnslist) > 0 {
+					cmds.WriteString(fmt.Sprintf("    dns-nameservers %s\n", strings.Join(dnslist, " ")))
+					dnss = append(dnss, dnslist...)
+					if len(nicDesc.Domain) > 0 {
+						cmds.WriteString(fmt.Sprintf("    dns-search %s\n", nicDesc.Domain))
+						domains = append(domains, nicDesc.Domain)
+					}
+				}
+				
+				if len(nicDesc.Ip6) > 0 {
+					cmds.WriteString(fmt.Sprintf("iface %s inet6 static\n", vlanIfName))
+					cmds.WriteString(fmt.Sprintf("    address %s\n", nicDesc.Ip6))
+					cmds.WriteString(fmt.Sprintf("    netmask %d\n", nicDesc.Masklen6))
+					if len(nicDesc.Gateway6) > 0 && nicDesc.Ip == mainIp {
+						cmds.WriteString(fmt.Sprintf("    gateway %s\n", nicDesc.Gateway6))
+					}
+					cmds.WriteString("\n")
+				}
+			} else {
+				cmds.WriteString(fmt.Sprintf("iface %s inet dhcp\n", vlanIfName))
+				cmds.WriteString(fmt.Sprintf("    vlan-raw-device %s\n", nicDesc.Name))
+			}
+			cmds.WriteString("\n")
+			continue
+		}
+		
+		// 原有的网卡配置逻辑保持不变
 		cmds.WriteString(fmt.Sprintf("auto %s\n", nicDesc.Name))
 		if nicDesc.TeamingMaster != nil {
 			cmds.WriteString(fmt.Sprintf("iface %s inet manual\n", nicDesc.Name))
@@ -1380,6 +1441,139 @@ func (r *sRedhatLikeRootFs) deployNetworkingScripts(rootFs IDiskPartition, nics 
 	}
 	for i := range allNics {
 		nicDesc := allNics[i]
+		
+		// 处理 VLAN 子接口
+		if nicDesc.VlanInterface {
+			vlanIfName := fmt.Sprintf("%s.%d", nicDesc.Name, nicDesc.Vlan)
+			
+			// 配置主接口（去除 IP 配置）
+			var baseCmds strings.Builder
+			baseCmds.WriteString("DEVICE=")
+			baseCmds.WriteString(nicDesc.Name)
+			baseCmds.WriteString("\n")
+			baseCmds.WriteString("NAME=")
+			baseCmds.WriteString(nicDesc.Name)
+			baseCmds.WriteString("\n")
+			baseCmds.WriteString("ONBOOT=yes\n")
+			baseCmds.WriteString("BOOTPROTO=none\n")
+			if r.isNetworkManagerEnabled(rootFs) {
+				baseCmds.WriteString("NM_CONTROLLED=yes\n")
+			} else {
+				baseCmds.WriteString("NM_CONTROLLED=no\n")
+			}
+			baseCmds.WriteString("USERCTL=no\n")
+			if nicDesc.Mtu > 0 {
+				baseCmds.WriteString(fmt.Sprintf("MTU=%d\n", nicDesc.Mtu))
+			}
+			if len(nicDesc.Mac) > 0 && nicDesc.NicType != api.NIC_TYPE_INFINIBAND {
+				baseCmds.WriteString("HWADDR=")
+				baseCmds.WriteString(nicDesc.Mac)
+				baseCmds.WriteString("\n")
+				baseCmds.WriteString("MACADDR=")
+				baseCmds.WriteString(nicDesc.Mac)
+				baseCmds.WriteString("\n")
+			}
+			
+			var baseFn = fmt.Sprintf("%s/ifcfg-%s", scriptPath, nicDesc.Name)
+			log.Debugf("%s: %s", baseFn, baseCmds.String())
+			if err := rootFs.FilePutContents(baseFn, baseCmds.String(), false, false); err != nil {
+				return err
+			}
+			
+			// 配置 VLAN 子接口
+			var vlanCmds strings.Builder
+			vlanCmds.WriteString("DEVICE=")
+			vlanCmds.WriteString(vlanIfName)
+			vlanCmds.WriteString("\n")
+			vlanCmds.WriteString("NAME=")
+			vlanCmds.WriteString(vlanIfName)
+			vlanCmds.WriteString("\n")
+			vlanCmds.WriteString("ONBOOT=yes\n")
+			if r.isNetworkManagerEnabled(rootFs) {
+				vlanCmds.WriteString("NM_CONTROLLED=yes\n")
+			} else {
+				vlanCmds.WriteString("NM_CONTROLLED=no\n")
+			}
+			vlanCmds.WriteString("USERCTL=no\n")
+			vlanCmds.WriteString("VLAN=yes\n")
+			vlanCmds.WriteString(fmt.Sprintf("PHYSDEV=%s\n", nicDesc.Name))
+			
+			if nicDesc.Manual {
+				netmask := netutils2.Netlen2Mask(int(nicDesc.Masklen))
+				vlanCmds.WriteString("BOOTPROTO=none\n")
+				vlanCmds.WriteString("NETMASK=")
+				vlanCmds.WriteString(netmask)
+				vlanCmds.WriteString("\n")
+				vlanCmds.WriteString("IPADDR=")
+				vlanCmds.WriteString(nicDesc.Ip)
+				vlanCmds.WriteString("\n")
+				if len(nicDesc.Gateway) > 0 && nicDesc.Ip == mainIp {
+					vlanCmds.WriteString("GATEWAY=")
+					vlanCmds.WriteString(nicDesc.Gateway)
+					vlanCmds.WriteString("\n")
+				}
+				
+				var routes = make([][]string, 0)
+				routes = netutils2.AddNicRoutes(routes, nicDesc, mainIp, nicCnt)
+				var rtbl strings.Builder
+				for _, r := range routes {
+					rtbl.WriteString(r[0])
+					rtbl.WriteString(" via ")
+					rtbl.WriteString(r[1])
+					rtbl.WriteString(" dev ")
+					rtbl.WriteString(vlanIfName)
+					rtbl.WriteString("\n")
+				}
+				rtblStr := rtbl.String()
+				if len(rtblStr) > 0 {
+					var routeFn = fmt.Sprintf("%s/route-%s", scriptPath, vlanIfName)
+					if err := rootFs.FilePutContents(routeFn, rtblStr, false, false); err != nil {
+						return err
+					}
+				}
+				
+				dnslist := netutils2.GetNicDns(nicDesc)
+				if len(dnslist) > 0 {
+					vlanCmds.WriteString("PEERDNS=yes\n")
+					for i := 0; i < len(dnslist); i++ {
+						vlanCmds.WriteString(fmt.Sprintf("DNS%d=%s\n", i+1, dnslist[i]))
+					}
+					if len(nicDesc.Domain) > 0 {
+						vlanCmds.WriteString(fmt.Sprintf("DOMAIN=%s\n", nicDesc.Domain))
+					}
+				}
+				
+				if len(nicDesc.Ip6) > 0 {
+					vlanCmds.WriteString("IPV6INIT=yes\n")
+					vlanCmds.WriteString("DHCPV6C=no\n")
+					vlanCmds.WriteString("IPV6_AUTOCONF=no\n")
+					vlanCmds.WriteString(fmt.Sprintf("IPV6ADDR=%s/%d\n", nicDesc.Ip6, nicDesc.Masklen6))
+					if len(nicDesc.Gateway6) > 0 {
+						vlanCmds.WriteString(fmt.Sprintf("IPV6_DEFAULTGW=%s\n", nicDesc.Gateway6))
+					}
+				}
+			} else {
+				vlanCmds.WriteString("BOOTPROTO=dhcp\n")
+				if len(nicDesc.Ip6) > 0 {
+					vlanCmds.WriteString("IPV6INIT=yes\n")
+					vlanCmds.WriteString("DHCPV6C=no\n")
+					vlanCmds.WriteString("IPV6_AUTOCONF=no\n")
+					vlanCmds.WriteString(fmt.Sprintf("IPV6ADDR=%s/%d\n", nicDesc.Ip6, nicDesc.Masklen6))
+					if len(nicDesc.Gateway6) > 0 {
+						vlanCmds.WriteString(fmt.Sprintf("IPV6_DEFAULTGW=%s\n", nicDesc.Gateway6))
+					}
+				}
+			}
+			
+			var vlanFn = fmt.Sprintf("%s/ifcfg-%s", scriptPath, vlanIfName)
+			log.Debugf("%s: %s", vlanFn, vlanCmds.String())
+			if err := rootFs.FilePutContents(vlanFn, vlanCmds.String(), false, false); err != nil {
+				return err
+			}
+			continue
+		}
+		
+		// 原有的网卡配置逻辑保持不变
 		var cmds strings.Builder
 		cmds.WriteString("DEVICE=")
 		cmds.WriteString(nicDesc.Name)

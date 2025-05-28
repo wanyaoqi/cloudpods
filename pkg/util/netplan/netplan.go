@@ -44,6 +44,7 @@ type Network struct {
 	Renderer  NetworkRenderer            `json:"renderer"`
 	Ethernets map[string]*EthernetConfig `json:"ethernets"`
 	Bonds     map[string]*Bond           `json:"bonds"`
+	Vlans     map[string]*VlanConfig     `json:"vlans,omitempty"`
 }
 
 type EthernetConfigMatch struct {
@@ -168,6 +169,7 @@ func NewNetwork() *Network {
 		Renderer:  NetworkRendererNetworkd,
 		Ethernets: make(map[string]*EthernetConfig),
 		Bonds:     make(map[string]*Bond),
+		Vlans:     make(map[string]*VlanConfig),
 	}
 }
 
@@ -254,4 +256,16 @@ func NewBondMode4(conf *EthernetConfig, interfaces []string) *Bond {
 	// xmit_hash_policy: 1
 	params.SetMiiMonitorInterval(100)
 	return newBondModeByParams(conf, interfaces, params)
+}
+
+func (n *Network) AddVlan(name string, vlan *VlanConfig) *Network {
+	n.Vlans[name] = vlan
+	return n
+}
+
+// VlanConfig represents a VLAN interface configuration in netplan
+type VlanConfig struct {
+	EthernetConfig
+	Id   int    `json:"id"`
+	Link string `json:"link"`
 }

@@ -34,12 +34,33 @@ func newNetplanNetwork(allNics []*types.SServerNic, bondNics []*types.SServerNic
 
 	nicCnt := len(allNics) - len(bondNics)
 	for _, nic := range allNics {
+		// 检查是否需要配置 VLAN 子接口
+		if nic.VlanInterface {
+			vlanIfName := fmt.Sprintf("%s.%d", nic.Name, nic.Vlan)
+			
+			// 配置主接口（去除 IP 配置）
+			baseNicConf := &netplan.EthernetConfig{
+				DHCP4:      false,
+				MacAddress: nic.Mac,
+				Match:      netplan.NewEthernetConfigMatchMac(nic.Mac),
+			}
+			if nic.Mtu > 0 {
+				baseNicConf.Mtu = nic.Mtu
+			}
+			network.AddEthernet(nic.Name, baseNicConf)
+			
+			// 配置 VLAN 子接口
+			vlanConf := getNetplanVlanConfig(nic, mainIp, nicCnt)
+			if vlanConf != nil {
+				network.AddVlan(vlanIfName, vlanConf)
+			}
+			continue
+		}
+		
 		nicConf := getNetplanEthernetConfig(nic, false, mainIp, nicCnt)
-
 		if nicConf == nil {
 			continue
 		}
-
 		network.AddEthernet(nic.Name, nicConf)
 	}
 
@@ -139,4 +160,26 @@ func getNetplanEthernetConfig(nic *types.SServerNic, isBond bool, mainIp string,
 	}
 
 	return nicConf
+}
+
+// 为 VLAN 子接口生成 netplan 配置
+func getNetplanVlanConfig(nic *types.SServerNic, mainIp string, nicCnt int) *netplan.VlanConfig {
+	if !nic.VlanInterface {
+		return nil
+	}
+
+	// 生成基础的以太网配置
+	ethernetConf := getNetplanEthernetConfig(nic, false, mainIp, nicCnt)
+	if ethernetConf == nil {
+		return nil
+	}
+
+	// 创建 VLAN 配置
+	vlanConf := &netplan.VlanConfig{
+		EthernetConfig: *ethernetConf,
+		Id:             nic.Vlan,
+		Link:           nic.Name,
+	}
+
+	return vlanConf
 }

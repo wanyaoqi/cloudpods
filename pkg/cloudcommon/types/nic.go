@@ -101,6 +101,8 @@ type SServerNic struct {
 
 	TeamingMaster *SServerNic   `json:"-"`
 	TeamingSlaves []*SServerNic `json:"-"`
+
+	VlanInterface bool `json:"vlan_interface"`
 }
 
 func (n SServerNic) GetNetMask() string {
