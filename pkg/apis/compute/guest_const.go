@@ -438,6 +438,7 @@ const (
 	VM_METADATA_START_VCPU_COUNT            = "start_vcpu_count"
 	VM_METADATA_CPU_NUMA_PIN                = "__cpu_numa_pin"
 	VM_METADATA_DISABLE_AUTO_MERGE_SNAPSHOT = "disable_auto_merge_snapshot"
+	VM_METADATA_ENABLE_TPM                  = "enable_tpm"
 )
 
 func Hypervisors2HostTypes(hypervisors []string) []string {
