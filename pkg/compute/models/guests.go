@@ -2421,6 +2421,9 @@ func (guest *SGuest) PostCreate(ctx context.Context, userCred mcclient.TokenCred
 	if jsonutils.QueryBoolean(data, api.VM_METADATA_ENABLE_MEMCLEAN, false) {
 		guest.SetMetadata(ctx, api.VM_METADATA_ENABLE_MEMCLEAN, "true", userCred)
 	}
+	if jsonutils.QueryBoolean(data, api.VM_METADATA_ENABLE_TPM, false) {
+		guest.SetMetadata(ctx, api.VM_METADATA_ENABLE_TPM, "true", userCred)
+	}
 	if jsonutils.QueryBoolean(data, imageapi.IMAGE_DISABLE_USB_KBD, false) {
 		guest.SetMetadata(ctx, imageapi.IMAGE_DISABLE_USB_KBD, "true", userCred)
 	}

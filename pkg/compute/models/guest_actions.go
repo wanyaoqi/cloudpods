@@ -6232,6 +6232,15 @@ func (self *SGuest) PerformEnableMemclean(ctx context.Context, userCred mcclient
 	return nil, self.SetMetadata(ctx, api.VM_METADATA_ENABLE_MEMCLEAN, "true", userCred)
 }
 
+func (self *SGuest) PerformSetTpm(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	enableTpm := jsonutils.QueryBoolean(data, api.VM_METADATA_ENABLE_TPM, false)
+	if enableTpm {
+		return nil, self.SetMetadata(ctx, api.VM_METADATA_ENABLE_TPM, enableTpm, userCred)
+	} else {
+		return nil, self.RemoveMetadata(ctx, api.VM_METADATA_ENABLE_TPM, userCred)
+	}
+}
+
 func (self *SGuest) PerformSetOsInfo(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input api.ServerSetOSInfoInput) (jsonutils.JSONObject, error) {
 	if err := self.GetDriver().ValidateSetOSInfo(ctx, userCred, self, &input); err != nil {
 		return nil, err

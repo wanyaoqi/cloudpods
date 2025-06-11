@@ -129,6 +129,7 @@ func init() {
 	cmd.BatchPerform("stop-rescue", &options.ServerStartOptions{})
 	cmd.BatchPerform("sync-os-info", &options.ServerIdsOptions{})
 	cmd.BatchPerform("set-root-disk-matcher", &options.ServerSetRootDiskMatcher{})
+	cmd.BatchPerform("set-tpm", &options.ServerSetTpmOptions{})
 
 	cmd.Get("vnc", new(options.ServerVncOptions))
 	cmd.Get("desc", new(options.ServerIdOptions))
