@@ -202,56 +202,69 @@ func (r *sSuseLikeRootFs) deployNetworkingScripts(rootFs IDiskPartition, nics []
 			cmds.WriteString(netutils2.PSEUDO_VIP)
 			cmds.WriteString("\n")
 		} else if nicDesc.Manual {
-			cmds.WriteString("STARTMODE=auto\n")
-			cmds.WriteString("BOOTPROTO=static\n")
-			cmds.WriteString(fmt.Sprintf("IPADDR=%s/%d\n", nicDesc.Ip, nicDesc.Masklen))
-
-			if len(nicDesc.Ip6) > 0 {
-				cmds.WriteString("IPV6INIT=yes\n")
-				cmds.WriteString("IPV6_AUTOCONF=no\n")
-				cmds.WriteString(fmt.Sprintf("IPADDR_V6=%s/%d\n", nicDesc.Ip6, nicDesc.Masklen6))
-			}
-
-			var routes = make([][]string, 0)
-			routes = netutils2.AddNicRoutes(routes, nicDesc, mainIp, nicCnt)
-			if len(nicDesc.Gateway) > 0 && nicDesc.Ip == mainIp {
-				routes = append(routes, []string{
-					"default",
-					nicDesc.Gateway,
-				})
-			}
-			if len(nicDesc.Gateway6) > 0 && nicDesc.Ip == mainIp {
-				routes = append(routes, []string{
-					"default",
-					nicDesc.Gateway6,
-				})
-			}
-			var rtbl strings.Builder
-			for _, r := range routes {
-				rtbl.WriteString(r[0])
-				rtbl.WriteString(" ")
-				rtbl.WriteString(r[1])
-				rtbl.WriteString(" - ")
-				rtbl.WriteString(nicDesc.Name)
-				rtbl.WriteString("\n")
-			}
-			rtblStr := rtbl.String()
-			if len(rtblStr) > 0 {
-				var fn = fmt.Sprintf("/etc/sysconfig/network/ifroute-%s", nicDesc.Name)
-				if err := rootFs.FilePutContents(fn, rtblStr, false, false); err != nil {
+			if nicDesc.VlanInterface {
+				if err := r.deployVlanNetworkingScripts(rootFs, "", mainIp, nicCnt, nicDesc); err != nil {
 					return err
 				}
-			}
+			} else {
 
-			dnslist := netutils2.GetNicDns(nicDesc)
-			for i := 0; i < len(dnslist); i++ {
-				if !utils.IsInArray(dnslist[i], dnsSrv) {
-					dnsSrv = append(dnsSrv, dnslist[i])
+				cmds.WriteString("STARTMODE=auto\n")
+				cmds.WriteString("BOOTPROTO=static\n")
+				if len(nicDesc.Ip) > 0 {
+					cmds.WriteString(fmt.Sprintf("IPADDR=%s/%d\n", nicDesc.Ip, nicDesc.Masklen))
+				}
+
+				if len(nicDesc.Ip6) > 0 {
+					cmds.WriteString("IPV6INIT=yes\n")
+					cmds.WriteString("IPV6_AUTOCONF=no\n")
+					cmds.WriteString(fmt.Sprintf("IPADDR_V6=%s/%d\n", nicDesc.Ip6, nicDesc.Masklen6))
+				}
+
+				var routes = make([][]string, 0)
+				routes = netutils2.AddNicRoutes(routes, nicDesc, mainIp, nicCnt)
+				if len(nicDesc.Gateway) > 0 && nicDesc.Ip == mainIp {
+					routes = append(routes, []string{
+						"default",
+						nicDesc.Gateway,
+					})
+				}
+				if len(nicDesc.Gateway6) > 0 && nicDesc.Ip == mainIp {
+					routes = append(routes, []string{
+						"default",
+						nicDesc.Gateway6,
+					})
+				}
+				var rtbl strings.Builder
+				for _, r := range routes {
+					rtbl.WriteString(r[0])
+					rtbl.WriteString(" ")
+					rtbl.WriteString(r[1])
+					rtbl.WriteString(" - ")
+					rtbl.WriteString(nicDesc.Name)
+					rtbl.WriteString("\n")
+				}
+				rtblStr := rtbl.String()
+				if len(rtblStr) > 0 {
+					var fn = fmt.Sprintf("/etc/sysconfig/network/ifroute-%s", nicDesc.Name)
+					if err := rootFs.FilePutContents(fn, rtblStr, false, false); err != nil {
+						return err
+					}
+				}
+
+				dnslist := netutils2.GetNicDns(nicDesc)
+				for i := 0; i < len(dnslist); i++ {
+					if !utils.IsInArray(dnslist[i], dnsSrv) {
+						dnsSrv = append(dnsSrv, dnslist[i])
+					}
 				}
 			}
+
 		} else {
 			cmds.WriteString("STARTMODE=auto\n")
-			cmds.WriteString("BOOTPROTO=dhcp4\n")
+			if len(nicDesc.Ip) > 0 {
+				cmds.WriteString("BOOTPROTO=dhcp4\n")
+			}
+
 			if len(nicDesc.Ip6) > 0 {
 				// IPv6 support static temporarily
 				// TODO
