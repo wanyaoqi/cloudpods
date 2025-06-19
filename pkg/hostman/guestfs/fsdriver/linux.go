@@ -966,12 +966,14 @@ func (d *sDebianLikeRootFs) DeployNetworkingScripts(rootFs IDiskPartition, nics 
 			cmds.WriteString("\n")
 		} else if nicDesc.Manual {
 			ifname := nicDesc.Name
-			cmds.WriteString(fmt.Sprintf("iface %s inet static\n", nicDesc.Name))
-			if nicDesc.VlanInterface {
-				cmds.WriteString("\n")
-				ifname = fmt.Sprintf("%s.%d", nicDesc.Name, nicDesc.Vlan)
-				cmds.WriteString(fmt.Sprintf("auto %s\n", ifname))
-				cmds.WriteString(fmt.Sprintf("iface %s inet static\n", ifname))
+			if len(nicDesc.Ip) > 0 {
+				cmds.WriteString(fmt.Sprintf("iface %s inet static\n", nicDesc.Name))
+				if nicDesc.VlanInterface {
+					cmds.WriteString("\n")
+					ifname = fmt.Sprintf("%s.%d", nicDesc.Name, nicDesc.Vlan)
+					cmds.WriteString(fmt.Sprintf("auto %s\n", ifname))
+					cmds.WriteString(fmt.Sprintf("iface %s inet static\n", ifname))
+				}
 			}
 
 			netmask := netutils2.Netlen2Mask(int(nicDesc.Masklen))
@@ -1003,11 +1005,24 @@ func (d *sDebianLikeRootFs) DeployNetworkingScripts(rootFs IDiskPartition, nics 
 					cmds.WriteString(fmt.Sprintf("    dns-search %s\n", nicDesc.Domain))
 					domains = append(domains, nicDesc.Domain)
 				}
+				if nicDesc.Mtu > 0 {
+					cmds.WriteString(fmt.Sprintf("    mtu %d\n", nicDesc.Mtu))
+				}
+				dnslist := netutils2.GetNicDns(nicDesc)
+				if len(dnslist) > 0 {
+					cmds.WriteString(fmt.Sprintf("    dns-nameservers %s\n", strings.Join(dnslist, " ")))
+					dnss = append(dnss, dnslist...)
+					if len(nicDesc.Domain) > 0 {
+						cmds.WriteString(fmt.Sprintf("    dns-search %s\n", nicDesc.Domain))
+						domains = append(domains, nicDesc.Domain)
+					}
+				}
+				if len(nicDesc.TeamingSlaves) > 0 {
+					cmds.WriteString(getNicTeamingConfigCmds(nicDesc.TeamingSlaves))
+				}
+				cmds.WriteString("\n")
 			}
-			if len(nicDesc.TeamingSlaves) > 0 {
-				cmds.WriteString(getNicTeamingConfigCmds(nicDesc.TeamingSlaves))
-			}
-			cmds.WriteString("\n")
+
 			if len(nicDesc.Ip6) > 0 {
 				cmds.WriteString(fmt.Sprintf("iface %s inet6 static\n", ifname))
 				cmds.WriteString(fmt.Sprintf("    address %s\n", nicDesc.Ip6))
@@ -1018,11 +1033,14 @@ func (d *sDebianLikeRootFs) DeployNetworkingScripts(rootFs IDiskPartition, nics 
 				cmds.WriteString("\n")
 			}
 		} else {
-			cmds.WriteString(fmt.Sprintf("iface %s inet dhcp\n", nicDesc.Name))
-			if len(nicDesc.TeamingSlaves) > 0 {
-				cmds.WriteString(getNicTeamingConfigCmds(nicDesc.TeamingSlaves))
+			if len(nicDesc.Ip) > 0 {
+				cmds.WriteString(fmt.Sprintf("iface %s inet dhcp\n", nicDesc.Name))
+				if len(nicDesc.TeamingSlaves) > 0 {
+					cmds.WriteString(getNicTeamingConfigCmds(nicDesc.TeamingSlaves))
+				}
+				cmds.WriteString("\n")
 			}
-			cmds.WriteString("\n")
+
 			if len(nicDesc.Ip6) > 0 {
 				// ipv6 support static temporarily
 				// TODO
@@ -1471,13 +1489,15 @@ func (r *sRedhatLikeRootFs) deployNetworkingScripts(rootFs IDiskPartition, nics 
 					return errors.Wrap(err, "deployVlanNetworkingScripts")
 				}
 			} else {
-				netmask := netutils2.Netlen2Mask(int(nicDesc.Masklen))
-				cmds.WriteString("NETMASK=")
-				cmds.WriteString(netmask)
-				cmds.WriteString("\n")
-				cmds.WriteString("IPADDR=")
-				cmds.WriteString(nicDesc.Ip)
-				cmds.WriteString("\n")
+				if len(nicDesc.Ip) > 0 {
+					netmask := netutils2.Netlen2Mask(int(nicDesc.Masklen))
+					cmds.WriteString("NETMASK=")
+					cmds.WriteString(netmask)
+					cmds.WriteString("\n")
+					cmds.WriteString("IPADDR=")
+					cmds.WriteString(nicDesc.Ip)
+					cmds.WriteString("\n")
+				}
 				if len(nicDesc.Gateway) > 0 && nicDesc.Ip == mainIp {
 					cmds.WriteString("GATEWAY=")
 					cmds.WriteString(nicDesc.Gateway)
@@ -1501,17 +1521,18 @@ func (r *sRedhatLikeRootFs) deployNetworkingScripts(rootFs IDiskPartition, nics 
 					if err := rootFs.FilePutContents(fn, rtblStr, false, false); err != nil {
 						return err
 					}
-				}
-				dnslist := netutils2.GetNicDns(nicDesc)
-				if len(dnslist) > 0 {
-					cmds.WriteString("PEERDNS=yes\n")
-					for i := 0; i < len(dnslist); i++ {
-						cmds.WriteString(fmt.Sprintf("DNS%d=%s\n", i+1, dnslist[i]))
+					dnslist := netutils2.GetNicDns(nicDesc)
+					if len(dnslist) > 0 {
+						cmds.WriteString("PEERDNS=yes\n")
+						for i := 0; i < len(dnslist); i++ {
+							cmds.WriteString(fmt.Sprintf("DNS%d=%s\n", i+1, dnslist[i]))
+						}
+						if len(nicDesc.Domain) > 0 {
+							cmds.WriteString(fmt.Sprintf("DOMAIN=%s\n", nicDesc.Domain))
+						}
 					}
-					if len(nicDesc.Domain) > 0 {
-						cmds.WriteString(fmt.Sprintf("DOMAIN=%s\n", nicDesc.Domain))
-					}
 				}
+
 				if len(nicDesc.Ip6) > 0 {
 					cmds.WriteString("IPV6INIT=yes\n")
 					cmds.WriteString("DHCPV6C=no\n")
@@ -1523,7 +1544,10 @@ func (r *sRedhatLikeRootFs) deployNetworkingScripts(rootFs IDiskPartition, nics 
 				}
 			}
 		} else {
-			cmds.WriteString("BOOTPROTO=dhcp\n")
+			if len(nicDesc.Ip) > 0 {
+				cmds.WriteString("BOOTPROTO=dhcp\n")
+			}
+
 			if len(nicDesc.Ip6) > 0 {
 				// IPv6 support static temporarily
 				// TODO

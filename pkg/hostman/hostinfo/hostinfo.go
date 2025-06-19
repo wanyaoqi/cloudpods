@@ -394,7 +394,7 @@ func (h *SHostInfo) parseConfig() error {
 
 	if len(options.HostOptions.ListenInterface) > 0 {
 		h.MasterNic = netutils2.NewNetInterface(options.HostOptions.ListenInterface)
-		if len(h.MasterNic.Addr) == 0 {
+		if len(h.MasterNic.Addr) == 0 && len(h.MasterNic.Addr6) == 0 {
 			return fmt.Errorf("Listen interface %s master have no IP", options.HostOptions.ListenInterface)
 		}
 	} else {
@@ -1135,12 +1135,19 @@ func (h *SHostInfo) detectOvsKOVersion() error {
 }
 
 func (h *SHostInfo) GetMasterNicIpAndMask() (string, int) {
-	mask, _ := h.MasterNic.Mask.Size()
-	return h.MasterNic.Addr, mask
+	if h.MasterNic.Addr != "" {
+		mask, _ := h.MasterNic.Mask.Size()
+		return h.MasterNic.Addr, mask
+	}
+	mask, _ := h.MasterNic.Mask6.Size()
+	return h.MasterNic.Addr6, mask
 }
 
 func (h *SHostInfo) GetMasterIp() string {
-	return h.MasterNic.Addr
+	if h.MasterNic.Addr != "" {
+		return h.MasterNic.Addr
+	}
+	return h.MasterNic.Addr6
 }
 
 func (h *SHostInfo) GetMasterMac() string {
@@ -1421,12 +1428,12 @@ func (h *SHostInfo) initZoneInfo(zoneId string) error {
 func (h *SHostInfo) waitMasterNicIp() error {
 	const maxWaitSeconds = 900
 	waitSeconds := 0
-	for h.MasterNic.Addr == "" && waitSeconds < maxWaitSeconds {
+	for h.MasterNic.Addr == "" &&  h.MasterNic.Addr6 == "" && waitSeconds < maxWaitSeconds {
 		time.Sleep(time.Second)
 		waitSeconds++
 		h.MasterNic.FetchConfig()
 	}
-	if h.MasterNic.Addr == "" {
+	if h.MasterNic.Addr == "" &&  h.MasterNic.Addr6 == "" {
 		return errors.Wrap(httperrors.ErrInvalidStatus, "fail to fetch master nic IP address")
 	}
 	if h.MasterNic.GetMac() == "" {

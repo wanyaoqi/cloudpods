@@ -117,7 +117,12 @@ func (s *rawSocketConn) Recv6(b []byte) ([]byte, *net.UDPAddr, net.HardwareAddr,
 			}
 			return sbf.Bytes(), &net.UDPAddr{IP: srcIp, Port: icmpRAFakePort}, srcMac, 0, nil
 		} else {
-			return nil, nil, nil, 0, errors.Wrap(p.ErrorLayer().Error(), "expect an ICMPv6 RA solitation packet")
+			errly := p.ErrorLayer()
+			var err = errors.Errorf("Recv6")
+			if errly != nil {
+				err = errly.Error()
+			}
+			return nil, nil, nil, 0, errors.Wrap(err, "expect an ICMPv6 RA solitation packet")
 		}
 	}
 
