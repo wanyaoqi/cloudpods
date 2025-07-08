@@ -73,9 +73,22 @@ func mustPrepOvsdbConfig(opts SOvnOptions) {
 			)
 			switch {
 			case strings.HasPrefix(meth, "can-reach:"):
-				encapIp, err = netutils2.MyIPTo(meth[10:])
+				target := meth[10:]
+				// 尝试智能连接到指定目标
+				if strings.Contains(target, ":") {
+					// 看起来像 IPv6 地址
+					encapIp, err = netutils2.MyIPSmartTo("", target)
+				} else {
+					// 看起来像 IPv4 地址
+					encapIp, err = netutils2.MyIPSmartTo(target, "")
+				}
 			default:
-				encapIp, err = netutils2.MyIP()
+				// 使用智能检测，支持 IPv4/IPv6 双栈和本地 fallback
+				encapIp, err = netutils2.MyIPSmart()
+				if err != nil {
+					// Fallback: 尝试旧的方法（仅 IPv4）
+					encapIp, err = netutils2.MyIP()
+				}
 			}
 			if err != nil {
 				panic(errors.Wrapf(ErrOvnConfig, "determine encap ip, method: %q: %v", meth, err))

@@ -542,45 +542,74 @@ func TransSQLAchemyURL(pySQLSrc string) (dialect, ret string, err error) {
 	}
 
 	dialect = "mysql"
+	
+	// If URL doesn't contain //, treat as direct connection string
 	if !strings.Contains(pySQLSrc, `//`) {
 		return dialect, pySQLSrc, nil
 	}
 
-	lastAtIndex := strings.LastIndex(pySQLSrc, "@")
-	firstPart := pySQLSrc[:lastAtIndex]
-	secondPart := pySQLSrc[lastAtIndex+1:]
-
-	r := regexp.MustCompile(`[/:]+`)
-	firstPartArr := r.Split(firstPart, -1)
-	secondPartArr := r.Split(secondPart, -1)
-
-	strs := append(firstPartArr, secondPartArr...)
-	if len(strs) != 6 {
-		err = fmt.Errorf("Incorrect mysql connection url: %s", pySQLSrc)
+	// Parse the URL using Go's standard library
+	parsedURL, err := url.Parse(pySQLSrc)
+	if err != nil {
+		err = fmt.Errorf("Failed to parse URL: %s, error: %v", pySQLSrc, err)
 		return
 	}
-	user, passwd, host, port, dburl := strs[1], strs[2], strs[3], strs[4], strs[5]
-	queryPos := strings.IndexByte(dburl, '?')
-	if queryPos == 0 {
-		err = fmt.Errorf("Missing database name")
-		return
+
+	// Extract scheme (e.g., mysql+pymysql -> mysql)
+	if parsedURL.Scheme != "" {
+		parts := strings.Split(parsedURL.Scheme, "+")
+		dialect = parts[0]
 	}
-	var query url.Values
-	if queryPos > 0 {
-		queryStr := dburl[queryPos+1:]
-		if len(queryStr) > 0 {
-			query, err = url.ParseQuery(queryStr)
-			if err != nil {
-				return
-			}
+
+	// Extract user info
+	user := ""
+	password := ""
+	if parsedURL.User != nil {
+		user = parsedURL.User.Username()
+		if pwd, ok := parsedURL.User.Password(); ok {
+			password = pwd
 		}
-		dburl = dburl[:queryPos]
-	} else {
+	}
+
+	// Extract host and port
+	host := parsedURL.Hostname()
+	port := parsedURL.Port()
+	
+	// Handle IPv6 addresses - they should be wrapped in brackets in the final connection string
+	// url.Parse already handles bracketed IPv6 addresses correctly
+	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+		host = "[" + host + "]"
+	}
+
+	// Default port if not specified
+	if port == "" {
+		port = "3306"
+	}
+
+	// Construct host:port
+	hostPort := host + ":" + port
+
+	// Extract database name
+	database := strings.TrimPrefix(parsedURL.Path, "/")
+	if database == "" {
+		err = fmt.Errorf("Missing database name in URL: %s", pySQLSrc)
+		return
+	}
+
+	// Handle query parameters
+	query := parsedURL.Query()
+	if query == nil {
 		query = url.Values{}
 	}
+	
+	// Ensure parseTime=True is set for MySQL driver compatibility
 	query.Set("parseTime", "True")
-	ret = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", user, passwd, host, port, dburl, query.Encode())
-	return
+
+	// Construct the Go MySQL driver connection string
+	// Format: user:password@tcp(host:port)/database?params
+	ret = fmt.Sprintf("%s:%s@tcp(%s)/%s?%s", user, password, hostPort, database, query.Encode())
+	
+	return dialect, ret, nil
 }
 
 func ComposeURL(paths ...string) string {
