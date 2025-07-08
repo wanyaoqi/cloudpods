@@ -78,6 +78,215 @@ func MyIPTo(dstIP string) (ip string, err error) {
 	return
 }
 
+// MyIPSmart 智能获取本机IP地址，支持 IPv4 和 IPv6
+// 优先尝试 IPv4，如果失败则尝试 IPv6，最后 fallback 到本地检测
+func MyIPSmart() (ip string, err error) {
+	return MyIPSmartTo("114.114.114.114", "2001:4860:4860::8888")
+}
+
+// MyIPSmartTo 智能获取到达指定目标的源IP地址
+// 支持 IPv4 和 IPv6 双栈，包含本地 fallback
+func MyIPSmartTo(ipv4Target, ipv6Target string) (ip string, err error) {
+	// 尝试 1: IPv4 连接
+	if ipv4Target != "" {
+		conn, err4 := net.Dial("udp4", ipv4Target+":53")
+		if err4 == nil {
+			defer conn.Close()
+			if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+				return addr.IP.String(), nil
+			}
+		}
+	}
+
+	// 尝试 2: IPv6 连接
+	if ipv6Target != "" {
+		conn, err6 := net.Dial("udp6", "["+ipv6Target+"]:53")
+		if err6 == nil {
+			defer conn.Close()
+			if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+				return addr.IP.String(), nil
+			}
+		}
+	}
+
+	// 尝试 3: 使用默认路由获取本地IP
+	return getLocalIP()
+}
+
+// getLocalIP 通过本地网络接口获取IP地址（fallback方法）
+func getLocalIP() (string, error) {
+	// 方法1: 通过默认路由获取
+	if ip := getIPFromDefaultRoute(); ip != "" {
+		return ip, nil
+	}
+
+	// 方法2: 通过网络接口获取非环回地址
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", errors.Wrap(err, "get network interfaces")
+	}
+
+	var candidateIPs []string
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					// 优先返回 IPv4 地址
+					return ipnet.IP.String(), nil
+				} else if ipnet.IP.To16() != nil && !ipnet.IP.IsLinkLocalUnicast() {
+					// IPv6 地址作为候选
+					candidateIPs = append(candidateIPs, ipnet.IP.String())
+				}
+			}
+		}
+	}
+
+	// 如果没有找到 IPv4 地址，返回第一个有效的 IPv6 地址
+	if len(candidateIPs) > 0 {
+		return candidateIPs[0], nil
+	}
+
+	return "", fmt.Errorf("no suitable IP address found")
+}
+
+// getIPFromDefaultRoute 通过解析默认路由获取源IP地址
+func getIPFromDefaultRoute() string {
+	// 尝试 IPv4 默认路由
+	if ip := getIPFromDefaultRouteV4(); ip != "" {
+		return ip
+	}
+
+	// 尝试 IPv6 默认路由
+	if ip := getIPFromDefaultRouteV6(); ip != "" {
+		return ip
+	}
+
+	return ""
+}
+
+// getIPFromDefaultRouteV4 从 IPv4 默认路由获取源IP
+func getIPFromDefaultRouteV4() string {
+	output, err := procutils.NewCommand("ip", "route", "show", "default").Output()
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		// 解析如: "default via 192.168.1.1 dev eth0 src 192.168.1.100"
+		if strings.Contains(line, "default") && strings.Contains(line, "src") {
+			fields := strings.Fields(line)
+			for i, field := range fields {
+				if field == "src" && i+1 < len(fields) {
+					return fields[i+1]
+				}
+			}
+		}
+		// 解析如: "default via 192.168.1.1 dev eth0"（没有 src 时，通过设备获取）
+		if strings.Contains(line, "default") && strings.Contains(line, "dev") {
+			fields := strings.Fields(line)
+			for i, field := range fields {
+				if field == "dev" && i+1 < len(fields) {
+					if ip := getIPFromInterface(fields[i+1]); ip != "" {
+						return ip
+					}
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// getIPFromDefaultRouteV6 从 IPv6 默认路由获取源IP
+func getIPFromDefaultRouteV6() string {
+	output, err := procutils.NewCommand("ip", "-6", "route", "show", "default").Output()
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		// 解析如: "default via fe80::1 dev eth0 src 2001:db8::100"
+		if strings.Contains(line, "default") && strings.Contains(line, "src") {
+			fields := strings.Fields(line)
+			for i, field := range fields {
+				if field == "src" && i+1 < len(fields) {
+					return fields[i+1]
+				}
+			}
+		}
+		// 解析如: "default via fe80::1 dev eth0"（没有 src 时，通过设备获取）
+		if strings.Contains(line, "default") && strings.Contains(line, "dev") {
+			fields := strings.Fields(line)
+			for i, field := range fields {
+				if field == "dev" && i+1 < len(fields) {
+					if ip := getIPFromInterfaceV6(fields[i+1]); ip != "" {
+						return ip
+					}
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// getIPFromInterface 从指定网络接口获取 IPv4 地址
+func getIPFromInterface(ifaceName string) string {
+	iface, err := net.InterfaceByName(ifaceName)
+	if err != nil {
+		return ""
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+				return ipv4.String()
+			}
+		}
+	}
+
+	return ""
+}
+
+// getIPFromInterfaceV6 从指定网络接口获取 IPv6 地址（非链路本地）
+func getIPFromInterfaceV6(ifaceName string) string {
+	iface, err := net.InterfaceByName(ifaceName)
+	if err != nil {
+		return ""
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipv6 := ipnet.IP.To16(); ipv6 != nil && ipnet.IP.To4() == nil && !ipnet.IP.IsLinkLocalUnicast() {
+				return ipv6.String()
+			}
+		}
+	}
+
+	return ""
+}
+
 func GetPrivatePrefixes(privatePrefixes []string) []string {
 	if privatePrefixes != nil {
 		return privatePrefixes

@@ -439,14 +439,15 @@ func (d *SBaseBridgeDriver) SetupAddresses() error {
 			addr    string
 			masklen int
 		)
-		if len(d.ip) == 0 {
+		if len(d.ip) == 0 && len(d.ip6) == 0 {
 			addr, masklen = netutils2.GetSecretInterfaceAddress()
 		} else {
 			addr = d.ip
 			masklen = d.maskLen
 		}
-		addrStr := []string{
-			fmt.Sprintf("%s/%d", addr, masklen),
+		addrStr := []string{}
+		if len(d.ip) > 0 {
+			addrStr = append(addrStr, fmt.Sprintf("%s/%d", addr, masklen))
 		}
 		if len(d.ip6) > 0 {
 			addrStr = append(addrStr, fmt.Sprintf("%s/%d", d.ip6, d.mask6Len))
@@ -559,7 +560,7 @@ func addr2Prefix(addrStr string, maskLen int) string {
 func (d *SBaseBridgeDriver) Setup(o IBridgeDriver) error {
 	var routes []iproute2.RouteSpec
 	var slaveAddrs []netutils2.SNicAddress
-	if d.inter != nil && len(d.inter.Addr) > 0 {
+	if d.inter != nil && (len(d.inter.Addr) > 0 || len(d.inter.Addr6) > 0) {
 		routes = d.inter.GetRouteSpecs()
 		slaveAddrs = d.inter.GetSlaveAddresses()
 		log.Infof("to migrate routes: %s slaveAddress: %s", jsonutils.Marshal(routes), jsonutils.Marshal(slaveAddrs))

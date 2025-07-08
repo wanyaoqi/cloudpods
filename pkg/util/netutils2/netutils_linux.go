@@ -76,9 +76,12 @@ func (n *SNetInterface) GetRouteSpecs() []iproute2.RouteSpec {
 		rets = append(rets, routes4[i])
 	}
 	for i := range routes6 {
-		if routes6[i].Gw == nil {
+		isDefaultRoute := routes6[i].Dst.String() == "::/0"
+
+		if !isDefaultRoute && routes6[i].Gw == nil {
 			continue
 		}
+
 		if strings.HasPrefix(routes6[i].Dst.String(), "fe80:") {
 			continue
 		}

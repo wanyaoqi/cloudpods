@@ -401,7 +401,7 @@ func (h *SHostInfo) parseConfig() error {
 		// set MasterNic to the first NIC with IP
 		h.MasterNic = nil
 		for _, n := range h.Nics {
-			if len(n.Ip) > 0 {
+			if len(n.Ip) > 0 || len(n.Ip6) > 0 {
 				h.MasterNic = netutils2.NewNetInterface(n.Bridge)
 			}
 		}
