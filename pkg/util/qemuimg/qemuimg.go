@@ -66,6 +66,8 @@ const (
 
 const DefaultConvertCorutines = 8
 
+const DefaultQcow2ClusterSize = 65536
+
 var preallocation = "metadata"
 
 func SetPreallocation(prealloc string) error {
@@ -381,6 +383,9 @@ func convertOther(srcInfo, destInfo SImageInfo, compact bool, workerOpions []str
 
 	if compact {
 		cmdline = append(cmdline, "-c")
+		if destInfo.ClusterSize <= 0 {
+			destInfo.ClusterSize = DefaultQcow2ClusterSize
+		}
 	}
 	cmdline = append(cmdline, "-f", srcInfo.Format.String(), "-O", destInfo.Format.String())
 
@@ -392,9 +397,6 @@ func convertOther(srcInfo, destInfo SImageInfo, compact bool, workerOpions []str
 		options = append(options, fmt.Sprintf("cluster_size=%d", destInfo.ClusterSize))
 	} else if srcInfo.ClusterSize > 0 {
 		options = append(options, fmt.Sprintf("cluster_size=%d", srcInfo.ClusterSize))
-	}
-	if srcInfo.ClusterSize > 0 || destInfo.ClusterSize > 0 {
-
 	}
 	if len(options) > 0 {
 		cmdline = append(cmdline, "-o")
