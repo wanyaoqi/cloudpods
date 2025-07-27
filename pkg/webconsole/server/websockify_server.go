@@ -27,6 +27,17 @@ import (
 	"yunion.io/x/onecloud/pkg/webconsole/session"
 )
 
+// formatNetworkAddress formats the network address correctly for both IPv4 and IPv6
+func formatNetworkAddress(host string, port int) string {
+	// Check if it's an IPv6 address
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		// IPv6 address needs brackets
+		return fmt.Sprintf("[%s]:%d", host, port)
+	}
+	// IPv4 or hostname
+	return fmt.Sprintf("%s:%d", host, port)
+}
+
 const (
 	BINARY_PROTOL = "binary"
 	BASE64_PROTOL = "base64"
@@ -69,7 +80,7 @@ func (s *WebsockifyServer) isBase64Subprotocol(wsConn *websocket.Conn) bool {
 }
 
 func (s *WebsockifyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	targetAddr := fmt.Sprintf("%s:%d", s.TargetHost, s.TargetPort)
+	targetAddr := formatNetworkAddress(s.TargetHost, s.TargetPort)
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Errorf("New websocket connection error: %v", err)

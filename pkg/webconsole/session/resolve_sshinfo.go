@@ -16,6 +16,9 @@ package session
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"strconv"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/errors"
@@ -28,6 +31,17 @@ import (
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/compute"
 	options "yunion.io/x/onecloud/pkg/mcclient/options/compute"
 )
+
+// formatNetworkAddress formats the network address correctly for both IPv4 and IPv6
+func formatNetworkAddress(host string, port int) string {
+	// Check if it's an IPv6 address
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		// IPv6 address needs brackets
+		return fmt.Sprintf("[%s]:%d", host, port)
+	}
+	// IPv4 or hostname
+	return fmt.Sprintf("%s:%d", host, port)
+}
 
 type SSshConnectionInfo struct {
 	IP           string `json:"ip"`
@@ -102,18 +116,16 @@ func resolveServerIPPortById(ctx context.Context, s *mcclient.ClientSession, id 
 	}
 
 	if len(ip) == 0 {
-		// guest ip
+		// guest ip - try IPv4 first, then IPv6
 		if len(guestNicDetails.EipAddr) > 0 {
 			ip = guestNicDetails.EipAddr
 		} else if len(guestNicDetails.IpAddr) > 0 {
 			ip = guestNicDetails.IpAddr
+		} else if len(guestNicDetails.Ip6Addr) > 0 {
+			ip = guestNicDetails.Ip6Addr
 		} else {
-			return "", 0, nil, errors.Wrap(httperrors.ErrNotSupported, "no valid ipv4 addr")
+			return "", 0, nil, errors.Wrap(httperrors.ErrNotSupported, "no valid ip addr")
 		}
-	}
-
-	if ip == guestNicDetails.Ip6Addr {
-		return "", 0, nil, errors.Wrap(httperrors.ErrNotSupported, "ipv6 not supported")
 	}
 
 	if ip == guestNicDetails.IpAddr && len(guestNicDetails.MappedIpAddr) > 0 {

@@ -17,6 +17,7 @@ package helper
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -29,6 +30,17 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient/modules/compute"
 	o "yunion.io/x/onecloud/pkg/webconsole/options"
 )
+
+// formatNetworkAddress formats the network address correctly for both IPv4 and IPv6
+func formatNetworkAddress(host string, port int) string {
+	// Check if it's an IPv6 address
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		// IPv6 address needs brackets
+		return fmt.Sprintf("[%s]:%d", host, port)
+	}
+	// IPv4 or hostname
+	return fmt.Sprintf("%s:%d", host, port)
+}
 
 func GetValidPrivateKey(host string, port int, username string, projectId string) (string, error) {
 	errs := []error{}
@@ -82,7 +94,7 @@ func GetValidPrivateKey(host string, port int, username string, projectId string
 				ssh.PublicKeys(signer),
 			},
 		}
-		addr := fmt.Sprintf("%s:%d", host, port)
+		addr := formatNetworkAddress(host, port)
 		client, err := ssh.Dial("tcp", addr, config)
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "dial %s by %s", addr, username))

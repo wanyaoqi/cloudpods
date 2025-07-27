@@ -16,6 +16,7 @@ package command
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 
 	"yunion.io/x/log"
@@ -25,13 +26,24 @@ import (
 	o "yunion.io/x/onecloud/pkg/webconsole/options"
 )
 
+// formatNetworkAddress formats the network address correctly for both IPv4 and IPv6
+func formatNetworkAddress(host string, port int) string {
+	// Check if it's an IPv6 address
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		// IPv6 address needs brackets
+		return fmt.Sprintf("[%s]:%d", host, port)
+	}
+	// IPv4 or hostname
+	return fmt.Sprintf("%s:%d", host, port)
+}
+
 type SAdbShellInfo struct {
 	HostIp   string `json:"host_ip"`
 	HostPort int    `json:"host_port"`
 }
 
 func (info SAdbShellInfo) connStr() string {
-	return fmt.Sprintf("%s:%d", info.HostIp, info.HostPort)
+	return formatNetworkAddress(info.HostIp, info.HostPort)
 }
 
 type SAdbShellCommand struct {

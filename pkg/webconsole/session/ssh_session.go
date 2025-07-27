@@ -111,7 +111,7 @@ func (s *SSshSession) IsNeedLogin() (bool, error) {
 				ssh.Password(s.Password),
 			},
 		}
-		addr := fmt.Sprintf("%s:%d", s.Host, s.Port)
+		addr := formatNetworkAddress(s.Host, s.Port)
 		client, err := ssh.Dial("tcp", addr, config)
 		if err != nil {
 			return true, err

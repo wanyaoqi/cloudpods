@@ -34,6 +34,17 @@ import (
 	"yunion.io/x/onecloud/pkg/webconsole/session"
 )
 
+// formatNetworkAddress formats the network address correctly for both IPv4 and IPv6
+func formatNetworkAddress(host string, port int) string {
+	// Check if it's an IPv6 address
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		// IPv6 address needs brackets
+		return fmt.Sprintf("[%s]:%d", host, port)
+	}
+	// IPv4 or hostname
+	return fmt.Sprintf("%s:%d", host, port)
+}
+
 type WebsocketServer struct {
 	Session    *session.SSession
 	Host       string
@@ -102,7 +113,7 @@ func (s *WebsocketServer) initWs(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	var err error
-	addr := fmt.Sprintf("%s:%d", s.Host, s.Port)
+	addr := formatNetworkAddress(s.Host, s.Port)
 	s.conn, s.sshNetConn, err = NewSshClient("tcp", addr, config)
 	if err != nil {
 		return errors.Wrapf(err, "dial %s", addr)

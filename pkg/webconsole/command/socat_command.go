@@ -16,10 +16,22 @@ package command
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
+
+// formatSocatAddress formats the socat TCP address correctly for both IPv4 and IPv6
+func formatSocatAddress(host string, port int) string {
+	// Check if it's an IPv6 address
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		// IPv6 address uses TCP6 with brackets
+		return fmt.Sprintf("TCP6:[%s]:%d", host, port)
+	}
+	// IPv4 or hostname uses TCP
+	return fmt.Sprintf("TCP:%s:%d", host, port)
+}
 
 type SocatInfo struct {
 	IP   string `json:"ip"`
@@ -41,9 +53,10 @@ func NewSocatCommand(info *SocatInfo, s *mcclient.ClientSession) (*SocatCmd, err
 	}
 
 	name := "bash"
+	tcpAddr := formatSocatAddress(info.IP, info.Port)
 	args := []string{
 		"-c",
-		fmt.Sprintf("socat FILE:`tty`,raw,echo=0 TCP:%s:%d", info.IP, info.Port),
+		fmt.Sprintf("socat FILE:`tty`,raw,echo=0 %s", tcpAddr),
 	}
 	cmd := NewBaseCommand(s, name, args...)
 	scmd := &SocatCmd{
