@@ -361,7 +361,7 @@ func (d *QemuKvmDriver) IsLVMPartition() bool {
 
 func (d *QemuKvmDriver) Zerofree() {}
 
-func (d *QemuKvmDriver) ResizePartition() error {
+func (d *QemuKvmDriver) ResizePartition(string) error {
 	return nil
 }
 

@@ -243,7 +243,7 @@ func (d *NBDDriver) FormatPartition(fs, uuid string) error {
 	return fsutils.FormatPartition(fmt.Sprintf("%sp1", d.nbdDev), fs, uuid)
 }
 
-func (d *NBDDriver) ResizePartition() error {
+func (d *NBDDriver) ResizePartition(string) error {
 	if d.IsLVMPartition() {
 		// do not resize LVM partition
 		return nil

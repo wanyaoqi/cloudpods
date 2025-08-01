@@ -26,7 +26,7 @@ type IDeployer interface {
 	GetPartitions() []fsdriver.IDiskPartition
 	IsLVMPartition() bool
 	Zerofree()
-	ResizePartition() error
+	ResizePartition(partDev string) error
 	FormatPartition(fs, uuid string) error
 	MakePartition(fs string) error
 

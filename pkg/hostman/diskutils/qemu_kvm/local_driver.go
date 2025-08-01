@@ -88,7 +88,7 @@ func (d *LocalDiskDriver) Zerofree() {
 	log.Infof("Zerofree %d partitions takes %f seconds", len(d.partitions), time.Now().Sub(startTime).Seconds())
 }
 
-func (d *LocalDiskDriver) ResizePartition() error {
+func (d *LocalDiskDriver) ResizePartition(string) error {
 	if d.IsLVMPartition() {
 		// do not resize LVM partition
 		return nil

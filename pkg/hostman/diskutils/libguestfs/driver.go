@@ -209,7 +209,7 @@ func (d *SLibguestfsDriver) Zerofree() {
 		len(d.parts), time.Now().Sub(startTime).Seconds())
 }
 
-func (d *SLibguestfsDriver) ResizePartition() error {
+func (d *SLibguestfsDriver) ResizePartition(string) error {
 	if d.IsLVMPartition() {
 		// do not try to resize LVM partition
 		return nil

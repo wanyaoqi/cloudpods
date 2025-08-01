@@ -525,6 +525,7 @@ func ResizeFs(d deploy_iface.IDeployer) (*apis.Empty, error) {
 		return nil
 	}
 
+	var partDev string
 	root, err := d.MountRootfs(false)
 	if err != nil && errors.Cause(err) != errors.ErrNotFound {
 		return new(apis.Empty), errors.Wrapf(err, "disk.MountRootfs")
@@ -536,6 +537,7 @@ func ResizeFs(d deploy_iface.IDeployer) (*apis.Empty, error) {
 			}
 			return new(apis.Empty), errors.ErrNotSupported
 		}
+		partDev = root.GetPartition().GetPartDev()
 
 		// must umount rootfs before resize partition
 		err = unmount(root)
@@ -544,7 +546,7 @@ func ResizeFs(d deploy_iface.IDeployer) (*apis.Empty, error) {
 		}
 	}
 
-	err = d.ResizePartition()
+	err = d.ResizePartition(partDev)
 	if err != nil {
 		return new(apis.Empty), errors.Wrap(err, "resize disk partition")
 	}
