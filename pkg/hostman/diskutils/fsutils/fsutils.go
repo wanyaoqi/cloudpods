@@ -441,7 +441,7 @@ func FormatPartition(path, fs, uuid string, fsFeatures *apis.FsFeatures) error {
 		cmd = []string{"mkfs.xfs", "-f", "-m", "crc=0", "-i", "projid32bit=0", "-n", "ftype=1"}
 		cmdUuid = []string{"xfs_admin", "-U", uuid}
 	case fs == "f2fs":
-		cmd = []string{"mkfs.f2fs", "-O", "extra_attr,inode_checksum,sb_checksum"}
+		cmd = []string{"mkfs.f2fs", "-U", uuid, "-O", "extra_attr,inode_checksum,sb_checksum"}
 	}
 
 	if len(cmd) > 0 {
