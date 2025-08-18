@@ -388,6 +388,8 @@ func FsFormatToDiskType(fsFormat string) string {
 		return "fat32"
 	case fsFormat == "ntfs":
 		return fsFormat
+	case fsFormat == "f2fs":
+		return fsFormat
 	default:
 		return ""
 	}
