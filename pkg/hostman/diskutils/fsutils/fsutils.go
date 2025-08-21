@@ -637,6 +637,7 @@ func ProbeImageInfo(d deploy_iface.IDeployer) (*apis.ImageInfo, error) {
 	// multi partition concurrent, so we need umount rootfs first
 	imageInfo.IsUefiSupport = d.DetectIsUEFISupport(rootfs)
 	imageInfo.PhysicalPartitionType = partition.GetPhysicalPartitionType()
+	imageInfo.IsBiosSupport = d.DetectIsUEFISupport()
 	log.Infof("ProbeImageInfo response %s", imageInfo)
 	return imageInfo, nil
 }
