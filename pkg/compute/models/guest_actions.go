@@ -2766,7 +2766,7 @@ func (self *SGuest) PerformChangeIpaddr(
 	}
 	ip6Mask := ""
 	if networkJsonDesc.Ip6 != "" {
-		ip6Mask = fmt.Sprintf("%s/%d", networkJsonDesc.Ip6, networkJsonDesc.Gateway6)
+		ip6Mask = fmt.Sprintf("%s/%d", networkJsonDesc.Ip6, networkJsonDesc.Masklen6)
 	}
 
 	notes := gn.GetShortDesc(ctx)
