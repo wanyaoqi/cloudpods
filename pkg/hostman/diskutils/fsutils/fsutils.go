@@ -462,6 +462,10 @@ func DetectIsUEFISupport(rootfs fsdriver.IRootFsDriver, partitions []fsdriver.ID
 	return false
 }
 
+func DetectIsBIOSSupport(rootfs fsdriver.IRootFsDriver, partitions []fsdriver.IDiskPartition) bool {
+	return false
+}
+
 func MountRootfs(readonly bool, partitions []fsdriver.IDiskPartition) (fsdriver.IRootFsDriver, error) {
 	errs := []error{}
 	for i := 0; i < len(partitions); i++ {
@@ -620,7 +624,7 @@ func ProbeImageInfo(d deploy_iface.IDeployer) (*apis.ImageInfo, error) {
 	// multi partition concurrent, so we need umount rootfs first
 	imageInfo.IsUefiSupport = d.DetectIsUEFISupport(rootfs)
 	imageInfo.PhysicalPartitionType = partition.GetPhysicalPartitionType()
-	imageInfo.IsBiosSupport = d.DetectIsUEFISupport()
+	imageInfo.IsBiosSupport = d.DetectIsBIOSSupport(rootfs)
 	log.Infof("ProbeImageInfo response %s", imageInfo)
 	return imageInfo, nil
 }
