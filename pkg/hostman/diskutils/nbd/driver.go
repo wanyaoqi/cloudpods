@@ -268,7 +268,7 @@ func (d *NBDDriver) DetectIsUEFISupport(rootfs fsdriver.IRootFsDriver) bool {
 }
 
 func (d *NBDDriver) DetectIsBIOSSupport(rootfs fsdriver.IRootFsDriver) bool {
-	return fsutils.DetectIsBIOSSupport(rootfs, d.GetPartitions())
+	return fsutils.DetectIsBIOSSupport(d.nbdDev)
 }
 
 func (d *NBDDriver) MountRootfs(readonly bool) (fsdriver.IRootFsDriver, error) {

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -462,7 +463,28 @@ func DetectIsUEFISupport(rootfs fsdriver.IRootFsDriver, partitions []fsdriver.ID
 	return false
 }
 
-func DetectIsBIOSSupport(rootfs fsdriver.IRootFsDriver, partitions []fsdriver.IDiskPartition) bool {
+func DetectIsBIOSSupport(partDev string) bool {
+	fi, err := os.OpenFile(partDev, os.O_RDONLY, 0444)
+	if err != nil {
+		log.Errorf("failed open partdev %s: %s", partDev, err)
+		return false
+	}
+	defer fi.Close()
+
+	// read first sector
+	sector := make([]byte, 512)
+	n, err := fi.Read(sector)
+	if err != nil || n != 512 {
+		log.Errorf("failed read first sector %d %s: %s", n, partDev, err)
+		return false
+	}
+
+	bootSignature := sector[510:512]
+	expectedSignature := []byte{0x55, 0xAA}
+	log.Infof("Detect is bios support bootSignature: %x", bootSignature)
+	if bootSignature[0] == expectedSignature[0] && bootSignature[1] == expectedSignature[1] {
+		return true
+	}
 	return false
 }
 

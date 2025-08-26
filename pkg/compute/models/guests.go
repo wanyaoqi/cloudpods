@@ -1695,10 +1695,20 @@ func (manager *SGuestManager) validateCreateData(
 
 		if imageDiskFormat != "iso" {
 			var imgSupportUEFI *bool
+			var imgSupportBIOS *bool
 			if desc, ok := imgProperties[imageapi.IMAGE_UEFI_SUPPORT]; ok {
 				support := desc == "true"
 				imgSupportUEFI = &support
 			}
+			if biosDesc, ok := imgProperties[imageapi.IMAGE_BIOS_SUPPORT]; ok {
+
+			} else {
+				if imgSupportUEFI == nil {
+					supportBIOS := true
+					imgSupportBIOS = &supportBIOS
+				}
+			}
+
 			if input.OsArch == apis.OS_ARCH_AARCH64 {
 				// arm image supports UEFI by default
 				support := true

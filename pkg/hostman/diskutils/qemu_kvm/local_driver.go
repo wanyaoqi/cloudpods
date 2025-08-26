@@ -109,7 +109,7 @@ func (d *LocalDiskDriver) DetectIsUEFISupport(rootfs fsdriver.IRootFsDriver) boo
 }
 
 func (d *LocalDiskDriver) DetectIsBIOSSupport(rootfs fsdriver.IRootFsDriver) bool {
-	return fsutils.DetectIsBIOSSupport(rootfs, d.GetPartitions())
+	return fsutils.DetectIsBIOSSupport("/dev/sda")
 }
 
 func (d *LocalDiskDriver) MountRootfs(readonly bool) (fsdriver.IRootFsDriver, error) {
