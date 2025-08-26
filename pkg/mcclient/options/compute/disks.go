@@ -108,14 +108,50 @@ func (o *DiskResetTemplateOptions) Params() (jsonutils.JSONObject, error) {
 
 type DiskRebuildOptions struct {
 	options.ResourceIdOptions
-	BackupId   string `help:"disk backup id" json:"backup_id"`
-	TemplateId string `help:"disk template id" json:"template_id"`
-	Size       string `help:"disk size in MB" json:"size"`
-	Fs         string `help:"disk fs type"`
+	BackupId                                  string `help:"disk backup id" json:"backup_id"`
+	TemplateId                                string `help:"disk template id" json:"template_id"`
+	Size                                      string `help:"disk size in MB" json:"size"`
+	Fs                                        string `help:"disk fs type"`
+	FsFeatureF2fsCaseInsensitive              *bool  `help:"f2fs enable CaseInsensitive" json:"-"`
+	FsFeatureF2fsOverprovisionRatioPercentage *int   `help:"f2fs OverprovisionRatioPercentage" json:"-"`
+	FsFeatureExt4CaseInsensitive              *bool  `help:"ext4 enable CaseInsensitive" json:"-"`
+	FsFeatureExt4ReservedBlocksPercentage     *int   `help:"ext4 ReservedBlocksPercentage" json:"-"`
 }
 
 func (o *DiskRebuildOptions) Params() (jsonutils.JSONObject, error) {
-	return jsonutils.Marshal(o), nil
+	res := api.DiskRebuildInput{}
+	if o.BackupId != "" {
+		res.BackupId = &o.BackupId
+	}
+	if o.TemplateId != "" {
+		res.TemplateId = &o.TemplateId
+	}
+	if o.Size != "" {
+		res.TemplateId = &o.Size
+	}
+	if o.Fs != "" {
+		res.Fs = &o.Fs
+	}
+	fsfeature := api.DiskFsFeatures{}
+	if o.FsFeatureExt4CaseInsensitive != nil || o.FsFeatureExt4ReservedBlocksPercentage != nil {
+		fsfeature.Ext4 = &api.DiskFsExt4Features{}
+		if o.FsFeatureExt4CaseInsensitive != nil {
+			fsfeature.Ext4.CaseInsensitive = *o.FsFeatureExt4CaseInsensitive
+		}
+		if o.FsFeatureExt4ReservedBlocksPercentage != nil {
+			fsfeature.Ext4.ReservedBlocksPercentage = *o.FsFeatureExt4ReservedBlocksPercentage
+		}
+	}
+	if o.FsFeatureF2fsCaseInsensitive != nil || o.FsFeatureF2fsOverprovisionRatioPercentage != nil {
+		fsfeature.F2fs = &api.DiskFsF2fsFeatures{}
+		if o.FsFeatureF2fsCaseInsensitive != nil {
+			fsfeature.F2fs.CaseInsensitive = *o.FsFeatureF2fsCaseInsensitive
+		}
+		if o.FsFeatureF2fsOverprovisionRatioPercentage != nil {
+			fsfeature.F2fs.OverprovisionRatioPercentage = *o.FsFeatureF2fsOverprovisionRatioPercentage
+		}
+	}
+	return jsonutils.Marshal(res), nil
 }
 
 type DiskListOptions struct {

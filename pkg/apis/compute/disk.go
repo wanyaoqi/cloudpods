@@ -359,10 +359,11 @@ type DiskSnapshotpolicyInput struct {
 }
 
 type DiskRebuildInput struct {
-	BackupId   *string `json:"backup_id,allowempty"`
-	TemplateId *string `json:"template_id,allowempty"`
-	Size       *string `json:"size,allowempty"`
-	Fs         *string `json:"fs,allowempty"`
+	BackupId   *string         `json:"backup_id,allowempty"`
+	TemplateId *string         `json:"template_id,allowempty"`
+	Size       *string         `json:"size,allowempty"`
+	Fs         *string         `json:"fs,allowempty"`
+	FsFeatures *DiskFsFeatures `json:"fs_features,allowempty"`
 }
 
 type DiskFsExt4Features struct {
