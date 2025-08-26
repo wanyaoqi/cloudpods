@@ -1701,12 +1701,14 @@ func (manager *SGuestManager) validateCreateData(
 				imgSupportUEFI = &support
 			}
 			if biosDesc, ok := imgProperties[imageapi.IMAGE_BIOS_SUPPORT]; ok {
+				supportBIOS := biosDesc == "true"
+				imgSupportBIOS = &supportBIOS
+			}
 
-			} else {
-				if imgSupportUEFI == nil {
-					supportBIOS := true
-					imgSupportBIOS = &supportBIOS
-				}
+			// uefi is not support set default support bios
+			if imgSupportUEFI == nil || !*imgSupportUEFI {
+				supportBIOS := true
+				imgSupportBIOS = &supportBIOS
 			}
 
 			if input.OsArch == apis.OS_ARCH_AARCH64 {
@@ -1714,6 +1716,18 @@ func (manager *SGuestManager) validateCreateData(
 				support := true
 				imgSupportUEFI = &support
 			}
+			switch input.Bios {
+			case "UEFI":
+				if imgSupportUEFI == nil || !*imgSupportUEFI {
+					return nil, httperrors.NewInputParameterError("UEFI boot mode requires UEFI image")
+				}
+			case "BIOS":
+				if imgSupportBIOS == nil || !*imgSupportBIOS {
+
+				}
+			default:
+			}
+
 			switch {
 			case imgSupportUEFI != nil && *imgSupportUEFI:
 				if len(input.Bios) == 0 {
