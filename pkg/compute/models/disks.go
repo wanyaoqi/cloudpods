@@ -3280,6 +3280,15 @@ func (disk *SDisk) resetDiskinfo(
 	if len(disk.FsFormat) == 0 {
 		return errors.Wrap(errors.ErrInvalidStatus, "fs_format must be set")
 	}
+	if input.Fs != nil {
+		if disk.FsFeatures != nil {
+			err := DiskManager.ValidateFsFeatures(*input.Fs, input.FsFeatures)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if input.TemplateId != nil {
 		if len(*input.TemplateId) > 0 {
 			imageObj, err := CachedimageManager.FetchByIdOrName(ctx, userCred, *input.TemplateId)
@@ -3328,6 +3337,7 @@ func (disk *SDisk) resetDiskinfo(
 		}
 		if input.Fs != nil {
 			disk.FsFormat = *input.Fs
+			disk.FsFeatures = input.FsFeatures
 		}
 		return nil
 	})
