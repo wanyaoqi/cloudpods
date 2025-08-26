@@ -370,8 +370,14 @@ type DiskFsExt4Features struct {
 	ReservedBlocksPercentage int  `json:"reserved_blocks_percentage"`
 }
 
+type DiskFsF2fsFeatures struct {
+	CaseInsensitive              bool `json:"case_insensitive"`
+	OverprovisionRatioPercentage int  `json:"overprovision_ratio_percentage"`
+}
+
 type DiskFsFeatures struct {
 	Ext4 *DiskFsExt4Features `json:"ext4"`
+	F2fs *DiskFsF2fsFeatures `json:"f2fs"`
 }
 
 func (d *DiskFsFeatures) String() string {

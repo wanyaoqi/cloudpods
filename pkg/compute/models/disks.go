@@ -649,6 +649,14 @@ func (manager *SDiskManager) ValidateFsFeatures(fsType string, feature *api.Disk
 			return httperrors.NewInputParameterError("ext4.reserved_blocks_percentage must in range [1, 99]")
 		}
 	}
+	if feature.F2fs != nil {
+		if fsType != "f2fs" {
+			return httperrors.NewInputParameterError("only f2fs fs can set fs_features.f2fs, current is %q", fsType)
+		}
+		if feature.F2fs.OverprovisionRatioPercentage < 0 || feature.F2fs.OverprovisionRatioPercentage >= 100 {
+			return httperrors.NewInputParameterError("f2fs.reserved_blocks_percentage must in range [1, 99]")
+		}
+	}
 	return nil
 }
 
