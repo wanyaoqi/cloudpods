@@ -1704,7 +1704,6 @@ func (manager *SGuestManager) validateCreateData(
 				supportBIOS := biosDesc == "true"
 				imgSupportBIOS = &supportBIOS
 			}
-
 			// uefi is not support set default support bios
 			if imgSupportUEFI == nil || !*imgSupportUEFI {
 				supportBIOS := true
@@ -1723,22 +1722,13 @@ func (manager *SGuestManager) validateCreateData(
 				}
 			case "BIOS":
 				if imgSupportBIOS == nil || !*imgSupportBIOS {
-
+					return nil, httperrors.NewInputParameterError("BIOS boot mode requires BIOS image")
 				}
 			default:
-			}
-
-			switch {
-			case imgSupportUEFI != nil && *imgSupportUEFI:
-				if len(input.Bios) == 0 {
+				if imgSupportUEFI != nil && *imgSupportUEFI {
 					input.Bios = "UEFI"
-				} else if input.Bios != "UEFI" {
-					return nil, httperrors.NewInputParameterError("UEFI image requires UEFI boot mode")
-				}
-			default:
-				// not UEFI image
-				if input.Bios == "UEFI" && len(imgProperties) != 0 {
-					return nil, httperrors.NewInputParameterError("UEFI boot mode requires UEFI image")
+				} else {
+					input.Bios = "BIOS"
 				}
 			}
 		}
