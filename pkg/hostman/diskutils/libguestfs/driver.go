@@ -257,7 +257,7 @@ func (d *SLibguestfsDriver) DetectIsUEFISupport(rootfs fsdriver.IRootFsDriver) b
 }
 
 func (d *SLibguestfsDriver) DetectIsBIOSSupport(rootfs fsdriver.IRootFsDriver) bool {
-	return fsutils.DetectIsBIOSSupport(d.nbddev)
+	return fsutils.DetectIsBIOSSupport(d.nbddev, rootfs)
 }
 
 func (d *SLibguestfsDriver) MountRootfs(readonly bool) (fsdriver.IRootFsDriver, error) {
