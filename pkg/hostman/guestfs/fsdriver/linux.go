@@ -740,8 +740,8 @@ func (l *sLinuxRootFs) DetectIsUEFISupport(part IDiskPartition) bool {
 	// if it does this is definitely the ESP.
 	hasEFIFirmware := false
 
-	for _, efiDir := range []string{"/efi", "/EFI"} {
-		if !part.Exists(efiDir, true) {
+	for _, efiDir := range []string{"/EFI", "/efi"} {
+		if !part.Exists(efiDir, false) {
 			continue
 		}
 		l.dirWalk(part, efiDir, func(path string, isDir bool) bool {
