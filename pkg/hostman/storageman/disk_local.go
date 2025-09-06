@@ -153,12 +153,7 @@ func (d *SLocalDisk) OnRebuildRoot(ctx context.Context, params api.DiskAllocateI
 	return err
 }
 
-func (d *SLocalDisk) Resize(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {
-	diskInfo, ok := params.(*jsonutils.JSONDict)
-	if !ok {
-		return nil, hostutils.ParamsError
-	}
-
+func (d *SLocalDisk) Resize(ctx context.Context, diskInfo *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
 	sizeMb, _ := diskInfo.Int("size")
 	disk, err := qemuimg.NewQemuImage(d.GetPath())
 	if err != nil {
@@ -192,7 +187,7 @@ func (d *SLocalDisk) Resize(ctx context.Context, params interface{}) (jsonutils.
 		}
 	}
 
-	if err := d.ResizeFs(resizeFsInfo); err != nil {
+	if err := d.ResizeFs(resizeFsInfo, diskInfo); err != nil {
 		log.Errorf("Resize fs %s fail %s", d.GetPath(), err)
 		// return nil, errors.Wrapf(err, "resize fs %s", d.GetPath())
 	}

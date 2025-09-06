@@ -118,11 +118,7 @@ func (d *SRBDDisk) OnRebuildRoot(ctx context.Context, params api.DiskAllocateInp
 	return storage.renameImage(pool, d.Id, params.BackingDiskId)
 }
 
-func (d *SRBDDisk) Resize(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {
-	diskInfo, ok := params.(*jsonutils.JSONDict)
-	if !ok {
-		return nil, hostutils.ParamsError
-	}
+func (d *SRBDDisk) Resize(ctx context.Context, diskInfo *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
 	storage := d.Storage.(*SRbdStorage)
 	sizeMb, _ := diskInfo.Int("size")
 	if err := storage.resizeImage(d.Id, uint64(sizeMb)); err != nil {
