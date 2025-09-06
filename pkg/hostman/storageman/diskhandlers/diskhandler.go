@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 
 	"yunion.io/x/cloudmux/pkg/cloudprovider"
 	"yunion.io/x/jsonutils"
@@ -314,12 +315,31 @@ func diskResize(ctx context.Context, userCred mcclient.TokenCredential, storage 
 	if err != nil {
 		return nil, httperrors.NewMissingParameterError("disk")
 	}
+	resizeDiskInfo := &storageman.SDiskResizeInput{
+		DiskInfo: diskInfo,
+	}
 	serverId, _ := diskInfo.GetString("server_id")
+	if len(serverId) > 0 {
+		guest, ok := guestman.GetGuestManager().GetServer(serverId)
+		if !ok {
+			return nil, httperrors.NewBadRequestError("server %s not found", serverId)
+		}
+		deployDesc := deployapi.GuestStructDescToDeployDesc(guest.Desc)
+		resizeDiskInfo.GuestDesc = deployDesc
+	}
+
 	if len(serverId) > 0 && guestman.GetGuestManager().Status(serverId) == "running" {
 		sizeMb, _ := diskInfo.Int("size")
 		return guestman.GetGuestManager().OnlineResizeDisk(ctx, serverId, disk, sizeMb)
 	} else {
-		hostutils.DelayTask(ctx, disk.Resize, diskInfo)
+		resizeFunc := func(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {
+			input, ok := params.(*storageman.SDiskResizeInput)
+			if !ok {
+				return nil, hostutils.ParamsError
+			}
+			return disk.Resize(ctx, input)
+		}
+		hostutils.DelayTask(ctx, resizeFunc, diskInfo)
 		return nil, nil
 	}
 }

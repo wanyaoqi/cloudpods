@@ -243,7 +243,7 @@ func (d *NBDDriver) FormatPartition(fs, uuid string) error {
 	return fsutils.FormatPartition(fmt.Sprintf("%sp1", d.nbdDev), fs, uuid)
 }
 
-func (d *NBDDriver) ResizePartition() error {
+func (d *NBDDriver) ResizePartition(string, string) error {
 	if d.IsLVMPartition() {
 		// do not resize LVM partition
 		return nil
@@ -282,8 +282,8 @@ func (d *NBDDriver) DeployGuestfs(req *apis.DeployParams) (res *apis.DeployGuest
 	return fsutils.DeployGuestfs(d, req)
 }
 
-func (d *NBDDriver) ResizeFs() (*apis.Empty, error) {
-	return fsutils.ResizeFs(d)
+func (d *NBDDriver) ResizeFs(string) (*apis.Empty, error) {
+	return fsutils.ResizeFs(d, "")
 }
 
 func (d *NBDDriver) SaveToGlance(req *apis.SaveToGlanceParams) (*apis.SaveToGlanceResponse, error) {

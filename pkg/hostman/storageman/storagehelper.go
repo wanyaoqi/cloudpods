@@ -16,6 +16,7 @@ package storageman
 
 import (
 	"fmt"
+	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 
 	"yunion.io/x/jsonutils"
 
@@ -119,4 +120,9 @@ type SStorageUnpackInstanceBackup struct {
 type SStorageSaveToGlanceInfo struct {
 	UserCred mcclient.TokenCredential
 	DiskInfo *jsonutils.JSONDict
+}
+
+type SDiskResizeInput struct {
+	DiskInfo  jsonutils.JSONObject
+	GuestDesc *deployapi.GuestDesc
 }
