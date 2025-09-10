@@ -28,7 +28,6 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/hostman/diskutils/fsutils"
-	"yunion.io/x/onecloud/pkg/hostman/diskutils/fsutils/driver"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/types"
@@ -777,7 +776,7 @@ func (qga *QemuGuestAgent) QgaResizeWindowsDisk(diskId string) error {
 }
 
 func (qga *QemuGuestAgent) QgaResizeLinuxDisk(diskId string) error {
-	qgaDriver := driver.NewQgaFsutilDriver(qga)
+	qgaDriver := NewQgaFsutilDriver(qga)
 	fsutilDriver := fsutils.NewFsutilDriver(qgaDriver)
 
 	err := qga.FilePutContents("/usr/bin/growpart", fsutils.GrowPartScript, false)
