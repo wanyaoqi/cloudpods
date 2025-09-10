@@ -37,7 +37,7 @@ import (
 
 const (
 	QGA_DEFAULT_READ_TIMEOUT_SECOND int = 5
-	QGA_EXEC_DEFAULT_WAIT_TIMEOUT   int = 5
+	QGA_EXEC_DEFAULT_WAIT_TIMEOUT   int = 300
 )
 
 type QGACallback func([]byte)

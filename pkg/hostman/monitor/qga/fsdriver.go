@@ -17,11 +17,11 @@ func NewQgaFsutilDriver(agent *QemuGuestAgent) driver.IFsutilExecDriver {
 }
 
 func (q *SQgaDriver) ExecInputWait(name string, args []string, input []string) (int, string, string, error) {
-	return q.agent.CommandWithTimeout(name, args, nil, "", true, 60)
+	return q.agent.CommandWithTimeout(name, args, nil, "", true, -1)
 }
 
 func (q *SQgaDriver) Exec(name string, args ...string) ([]byte, error) {
-	retCode, stdout, stderr, err := q.agent.CommandWithTimeout(name, args, nil, "", true, 60)
+	retCode, stdout, stderr, err := q.agent.CommandWithTimeout(name, args, nil, "", true, -1)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func (q *SQgaDriver) Exec(name string, args ...string) ([]byte, error) {
 }
 
 func (q *SQgaDriver) Run(name string, args ...string) error {
-	retCode, stdout, stderr, err := q.agent.CommandWithTimeout(name, args, nil, "", true, 60)
+	retCode, stdout, stderr, err := q.agent.CommandWithTimeout(name, args, nil, "", true, -1)
 	if err != nil {
 		return err
 	}
