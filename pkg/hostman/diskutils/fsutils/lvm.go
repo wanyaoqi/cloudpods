@@ -18,7 +18,7 @@ func VgActive(vgname string) error {
 }
 
 func (d *SFsutilDriver) ExtendLv(lvPath string) error {
-	out, err := procutils.NewCommand("lvextend", "-l", "+100%FREE", lvPath).Output()
+	out, err := d.Exec("lvextend", "-l", "+100%FREE", lvPath)
 	if err != nil {
 		return errors.Wrapf(err, "extend lv %s failed %s", lvPath, out)
 	}
@@ -41,7 +41,7 @@ type LvNames struct {
 
 func (d *SFsutilDriver) GetVgLvs(vg string) ([]LvProps, error) {
 	cmd := fmt.Sprintf("lvs --reportformat json -o lv_name,lv_path %s 2>/dev/null", vg)
-	out, err := procutils.NewCommand("sh", "-c", cmd).Output()
+	out, err := d.Exec("sh", "-c", cmd)
 	if err != nil {
 		return nil, errors.Wrap(err, "find vg lvs")
 	}
