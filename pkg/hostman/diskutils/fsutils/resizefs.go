@@ -87,7 +87,7 @@ func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string) 
 		if err != nil {
 			return err
 		}
-		fsType = d.GetFsFormat(resizeDev)
+		fsType = d.GetFsFormat(resizeLv)
 		err, _ = d.ResizePartitionFs(resizeLv, fsType, false)
 		if err != nil {
 			return err
