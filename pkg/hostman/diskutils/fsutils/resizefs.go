@@ -108,6 +108,7 @@ func (d *SFsutilDriver) GetResizeDevBySerial(diskId string) (string, error) {
 	resizeDev := ""
 	for i := range lines {
 		segs := strings.Split(strings.TrimSpace(lines[i]), " ")
+		log.Errorf("segs %v", segs)
 		if len(segs) != 2 {
 			continue
 		}
