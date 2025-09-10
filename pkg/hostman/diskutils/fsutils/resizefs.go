@@ -50,6 +50,9 @@ func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string) 
 		if !d.IsLvmPvDevice(resizeDev) {
 			return nil
 		}
+		if err := d.Pvresize(resizeDev); err != nil {
+			return err
+		}
 
 		vg := d.GetVgOfPvDevice(resizeDev)
 		if vg == "" {
