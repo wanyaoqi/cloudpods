@@ -314,11 +314,13 @@ func (d *SLVMDisk) CreateFromTemplate(
 	retSize, _ := ret.Int("disk_size")
 	log.Infof("REQSIZE: %d, RETSIZE: %d", sizeMb, retSize)
 	if sizeMb > retSize {
-		params := jsonutils.NewDict()
-		params.Set("size", jsonutils.NewInt(sizeMb))
+		params := new(SDiskResizeInput)
+		diskInfo := jsonutils.NewDict()
+		diskInfo.Set("size", jsonutils.NewInt(sizeMb))
 		if encryptInfo != nil {
-			params.Set("encrypt_info", jsonutils.Marshal(encryptInfo))
+			diskInfo.Set("encrypt_info", jsonutils.Marshal(encryptInfo))
 		}
+		params.DiskInfo = diskInfo
 		return d.Resize(ctx, params)
 	}
 	return ret, nil

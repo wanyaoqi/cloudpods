@@ -173,8 +173,10 @@ func (d *SRBDDisk) CreateFromTemplate(ctx context.Context, imageId string, forma
 	retSize, _ := ret.Int("disk_size")
 	log.Infof("REQSIZE: %d, RETSIZE: %d", size, retSize)
 	if size > retSize {
-		params := jsonutils.NewDict()
-		params.Set("size", jsonutils.NewInt(size))
+		params := new(SDiskResizeInput)
+		diskInfo := jsonutils.NewDict()
+		diskInfo.Set("size", jsonutils.NewInt(size))
+		params.DiskInfo = diskInfo
 		return d.Resize(ctx, params)
 	}
 
