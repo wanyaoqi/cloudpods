@@ -798,6 +798,7 @@ func (qga *QemuGuestAgent) QgaResizeLinuxDisk(diskId string) error {
 		return errors.Errorf("df / | awk 'NR==2{print $1}' failed: %s %s", stdout, stderr)
 	}
 	rootPartDev := strings.TrimSpace(stdout)
+	log.Infof("disk %s resize root part dev %s", diskId, rootPartDev)
 	return fsutilDriver.ResizeDiskWithDiskId(diskId, rootPartDev)
 }
 
