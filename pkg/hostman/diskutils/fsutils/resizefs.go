@@ -47,7 +47,9 @@ func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string, 
 	}
 	if partDev == "" {
 		if !d.IsLvmPvDevice(resizeDev) {
-			return nil
+			fsType = d.GetFsFormat(resizeDev)
+			err, _ := d.ResizePartitionFs(resizeDev, fsType, false, onlineResize)
+			return err
 		}
 		if err := d.Pvresize(resizeDev); err != nil {
 			return err
@@ -89,16 +91,10 @@ func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string, 
 		}
 		fsType = d.GetFsFormat(resizeLv)
 		err, _ = d.ResizePartitionFs(resizeLv, fsType, false, onlineResize)
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	} else {
 		err, _ = d.ResizePartitionFs(partDev, fsType, false, onlineResize)
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	}
 }
 
