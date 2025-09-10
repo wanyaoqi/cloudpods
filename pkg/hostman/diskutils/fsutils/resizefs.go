@@ -9,7 +9,6 @@ import (
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/hostman/diskutils/fsutils/driver"
-	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/xfsutils"
 )
@@ -199,7 +198,7 @@ func (d *SFsutilDriver) ResizePartitionFs(fpath, fs string, raiseError bool) (er
 	}
 	var (
 		cmds     = [][]string{}
-		uuids, _ = fileutils2.GetDevUuid(fpath)
+		uuids, _ = d.GetDevUuid(fpath)
 	)
 	if strings.HasPrefix(fs, "linux-swap") {
 		if v, ok := uuids["UUID"]; ok {
@@ -307,6 +306,31 @@ func (d *SFsutilDriver) GetFsFormat(diskPath string) string {
 		res += line
 	}
 	return res
+}
+
+func (d *SFsutilDriver) GetDevUuid(dev string) (map[string]string, error) {
+	lines, err := d.Exec("blkid", dev)
+	if err != nil {
+		log.Errorf("GetDevUuid %s error: %v", dev, err)
+		return map[string]string{}, errors.Wrapf(err, "blkid")
+	}
+	for _, l := range strings.Split(string(lines), "\n") {
+		if strings.HasPrefix(l, dev) {
+			var ret = map[string]string{}
+			for _, part := range strings.Split(l, " ") {
+				data := strings.Split(part, "=")
+				if len(data) == 2 && strings.HasSuffix(data[0], "UUID") {
+					if data[1][0] == '"' || data[1][0] == '\'' {
+						ret[data[0]] = data[1][1 : len(data[1])-1]
+					} else {
+						ret[data[0]] = data[1]
+					}
+				}
+			}
+			return ret, nil
+		}
+	}
+	return map[string]string{}, nil
 }
 
 func IsSupportResizeFs(fs string) bool {
