@@ -290,19 +290,6 @@ func FileGetIntContent(file string) (int, error) {
 	return val, nil
 }
 
-func GetFsFormat(diskPath string) string {
-	ret, err := procutils.NewCommand("blkid", "-o", "value", "-s", "TYPE", diskPath).Output()
-	if err != nil {
-		log.Errorf("failed exec blkid of dev %s: %s, %s", diskPath, err, ret)
-		return ""
-	}
-	var res string
-	for _, line := range strings.Split(string(ret), "\n") {
-		res += line
-	}
-	return res
-}
-
 func CleanFailedMountpoints() {
 	var mtfile = "/etc/mtab"
 	if _, err := os.Stat(mtfile); os.IsNotExist(err) {

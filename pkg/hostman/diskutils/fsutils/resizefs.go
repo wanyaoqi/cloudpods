@@ -88,6 +88,7 @@ func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string) 
 		if err != nil {
 			return err
 		}
+		fsType = d.GetFsFormat(resizeDev)
 		err, _ = d.ResizePartitionFs(resizeLv, fsType, false)
 		if err != nil {
 			return err
@@ -288,6 +289,24 @@ func (d *SFsutilDriver) FsckXfsFs(fpath string) bool {
 		}
 	}
 	return true
+}
+
+func GetFsFormat(diskPath string) string {
+	fsutilDriver := NewFsutilDriver(driver.NewProcDriver())
+	return fsutilDriver.GetFsFormat(diskPath)
+}
+
+func (d *SFsutilDriver) GetFsFormat(diskPath string) string {
+	ret, err := d.Exec("blkid", "-o", "value", "-s", "TYPE", diskPath)
+	if err != nil {
+		log.Errorf("failed exec blkid of dev %s: %s, %s", diskPath, err, ret)
+		return ""
+	}
+	var res string
+	for _, line := range strings.Split(string(ret), "\n") {
+		res += line
+	}
+	return res
 }
 
 func IsSupportResizeFs(fs string) bool {
