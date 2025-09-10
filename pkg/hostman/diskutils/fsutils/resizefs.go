@@ -107,7 +107,7 @@ func (d *SFsutilDriver) GetResizeDevBySerial(diskId string) (string, error) {
 	diskSerial := strings.ReplaceAll(diskId, "-", "")
 	resizeDev := ""
 	for i := range lines {
-		segs := strings.Split(strings.TrimSpace(lines[i]), " ")
+		segs := strings.Fields(lines[i])
 		log.Errorf("segs %v", segs)
 		if len(segs) != 2 {
 			continue
