@@ -27,7 +27,6 @@ import (
 
 	"yunion.io/x/onecloud/pkg/apis"
 	api "yunion.io/x/onecloud/pkg/apis/compute"
-	"yunion.io/x/onecloud/pkg/hostman/guestman"
 	"yunion.io/x/onecloud/pkg/hostman/guestman/desc"
 	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 	"yunion.io/x/onecloud/pkg/hostman/hostdeployer/deployclient"
@@ -58,7 +57,7 @@ type IDisk interface {
 	DiskSnapshot(ctx context.Context, params interface{}) (jsonutils.JSONObject, error)
 	DiskDeleteSnapshot(ctx context.Context, params interface{}) (jsonutils.JSONObject, error)
 	Delete(ctx context.Context, params interface{}) (jsonutils.JSONObject, error)
-	Resize(ctx context.Context, params *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	Resize(ctx context.Context, params *SDiskResizeInput) (jsonutils.JSONObject, error)
 	PreResize(ctx context.Context, sizeMb int64) error
 	PrepareSaveToGlance(ctx context.Context, params interface{}) (jsonutils.JSONObject, error)
 	ResetFromSnapshot(ctx context.Context, params interface{}) (jsonutils.JSONObject, error)
@@ -134,7 +133,7 @@ func (d *SBaseDisk) CreateFromRemoteHostImage(ctx context.Context, url string, s
 	return errors.Errorf("unsupported operation")
 }
 
-func (d *SBaseDisk) Resize(context.Context, *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+func (d *SBaseDisk) Resize(context.Context, *SDiskResizeInput) (jsonutils.JSONObject, error) {
 	return nil, errors.Errorf("unsupported operation")
 }
 
@@ -202,11 +201,12 @@ func (d *SBaseDisk) DeployGuestFs(diskInfo *deployapi.DiskInfo, guestDesc *desc.
 	return jsonutils.Marshal(ret), nil
 }
 
-func (d *SBaseDisk) ResizeFs(resizeDiskInput *deployapi.DiskInfo, diskInfo *jsonutils.JSONDict) error {
-	serverId, _ := diskInfo.GetString("server_id")
-
+func (d *SBaseDisk) ResizeFs(resizeDiskInput *deployapi.DiskInfo, guestDesc *deployapi.GuestDesc) error {
 	_, err := deployclient.GetDeployClient().ResizeFs(
-		context.Background(), &deployapi.ResizeFsParams{DiskInfo: resizeDiskInput})
+		context.Background(), &deployapi.ResizeFsParams{
+			DiskInfo:  resizeDiskInput,
+			GuestDesc: guestDesc,
+		})
 	return err
 }
 

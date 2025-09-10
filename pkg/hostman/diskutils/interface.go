@@ -29,7 +29,7 @@ type IDisk interface {
 	Cleanup()
 
 	DeployGuestfs(req *apis.DeployParams) (res *apis.DeployGuestFsResponse, err error)
-	ResizeFs() (res *apis.Empty, err error)
+	ResizeFs(diskId string) (res *apis.Empty, err error)
 	FormatFs(req *apis.FormatFsParams) (*apis.Empty, error)
 	SaveToGlance(req *apis.SaveToGlanceParams) (*apis.SaveToGlanceResponse, error)
 	ProbeImageInfo(req *apis.ProbeImageInfoPramas) (*apis.ImageInfo, error)

@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/hostman/diskutils/fsutils/driver"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/hostman/diskutils/fsutils"
@@ -88,12 +88,12 @@ func (d *LocalDiskDriver) Zerofree() {
 	log.Infof("Zerofree %d partitions takes %f seconds", len(d.partitions), time.Now().Sub(startTime).Seconds())
 }
 
-func (d *LocalDiskDriver) ResizePartition() error {
-	if d.IsLVMPartition() {
-		// do not resize LVM partition
-		return nil
+func (d *LocalDiskDriver) ResizePartition(diskId string, rootPartDev string) error {
+	fsutilDriver := fsutils.NewFsutilDriver(driver.NewProcDriver())
+	if len(diskId) > 0 {
+		return fsutilDriver.ResizeDiskWithDiskId(diskId, rootPartDev)
 	}
-	return fsutils.ResizeDiskFs("/dev/sda", 0)
+	return fsutilDriver.ResizeDiskFs("/dev/sda", 0)
 }
 
 func (d *LocalDiskDriver) FormatPartition(fs, uuid string) error {
@@ -123,8 +123,8 @@ func (d *LocalDiskDriver) DeployGuestfs(req *apis.DeployParams) (res *apis.Deplo
 	return fsutils.DeployGuestfs(d, req)
 }
 
-func (d *LocalDiskDriver) ResizeFs() (*apis.Empty, error) {
-	return fsutils.ResizeFs(d)
+func (d *LocalDiskDriver) ResizeFs(diskId string) (*apis.Empty, error) {
+	return fsutils.ResizeFs(d, diskId)
 }
 
 func (d *LocalDiskDriver) SaveToGlance(req *apis.SaveToGlanceParams) (*apis.SaveToGlanceResponse, error) {
@@ -137,4 +137,36 @@ func (d *LocalDiskDriver) FormatFs(req *apis.FormatFsParams) (*apis.Empty, error
 
 func (d *LocalDiskDriver) ProbeImageInfo(req *apis.ProbeImageInfoPramas) (*apis.ImageInfo, error) {
 	return fsutils.ProbeImageInfo(d)
+}
+
+func (d *LocalDiskDriver) setupLVMS() {
+	fsutilDriver := fsutils.NewFsutilDriver(driver.NewProcDriver())
+	for _, part := range d.partitions {
+		vg, err := fsutils.FindVg(part.GetPartDev())
+		if err != nil {
+			log.Infof("failed find vg %s", err)
+			continue
+		}
+		if vg == nil {
+			continue
+		}
+
+		log.Infof("found vg %s from %s", vg.VgName, part.GetPartDev())
+		err = fsutils.VgActive(vg.VgName)
+		if err != nil {
+			log.Infof("failed active vg %s: %s", vg.VgName, err)
+			continue
+		}
+		lvs, err := fsutilDriver.GetVgLvs(vg.VgName)
+		if err != nil {
+			log.Infof("failed get vg lvs %s: %s", vg.VgName, err)
+			continue
+		}
+		log.Infof("found lvs %v from vg %s", lvs, vg.VgName)
+		for _, lv := range lvs {
+			lvmpart := kvmpart.NewKVMGuestDiskPartition(lv.LvPath, "", true)
+			d.lvmPartitions = append(d.lvmPartitions, lvmpart)
+			log.Infof("found lvm part dev %v", lvmpart.GetPartDev())
+		}
+	}
 }

@@ -131,6 +131,7 @@ message DiskInfo {
   string encrypt_password = 2;
   string encrypt_format = 3;
   string encrypt_alg = 4;
+  string disk_id = 5;
 }
 
 message DeployParams {

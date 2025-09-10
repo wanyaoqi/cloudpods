@@ -54,7 +54,7 @@ func (d *LocalDeploy) ResizeFs(req *deployapi.ResizeFsParams) (res *deployapi.Em
 		return nil, errors.Wrapf(err, "local disk connect")
 	}
 	defer localDisk.Disconnect()
-	return localDisk.ResizeFs()
+	return localDisk.ResizeFs(req.DiskInfo.DiskId)
 }
 
 func (d *LocalDeploy) FormatFs(req *deployapi.FormatFsParams) (*deployapi.Empty, error) {

@@ -52,7 +52,8 @@ func (sd *SAgentDisk) PrepareSaveToGlance(ctx context.Context, params interface{
 	return storage.PrepareSaveToGlance(ctx, p.TaskId, p.DiskInfo)
 }
 
-func (sd *SAgentDisk) Resize(ctx context.Context, body *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+func (sd *SAgentDisk) Resize(ctx context.Context, params *SDiskResizeInput) (jsonutils.JSONObject, error) {
+	body := params.DiskInfo
 	type sResize struct {
 		SizeMb   int64 `json:"size_mb"`
 		HostInfo vcenter.SVCenterAccessInfo

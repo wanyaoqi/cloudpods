@@ -252,7 +252,8 @@ func (d *SLVMDisk) PreResize(ctx context.Context, sizeMb int64) error {
 	return nil
 }
 
-func (d *SLVMDisk) Resize(ctx context.Context, diskInfo *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+func (d *SLVMDisk) Resize(ctx context.Context, params *SDiskResizeInput) (jsonutils.JSONObject, error) {
+	diskInfo := params.DiskInfo
 	sizeMb, _ := diskInfo.Int("size")
 	qemuImg, err := qemuimg.NewQemuImage(d.GetPath())
 	if err != nil {
@@ -290,7 +291,7 @@ func (d *SLVMDisk) Resize(ctx context.Context, diskInfo *jsonutils.JSONDict) (js
 		return nil, errors.Wrap(err, "qemuImg resize")
 	}
 
-	if err := d.ResizeFs(resizeFsInfo); err != nil {
+	if err := d.ResizeFs(resizeFsInfo, params.GuestDesc); err != nil {
 		log.Errorf("Resize fs %s fail %s", d.GetPath(), err)
 	}
 	return d.GetDiskDesc(), nil

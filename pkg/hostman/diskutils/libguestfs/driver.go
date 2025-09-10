@@ -209,7 +209,7 @@ func (d *SLibguestfsDriver) Zerofree() {
 		len(d.parts), time.Now().Sub(startTime).Seconds())
 }
 
-func (d *SLibguestfsDriver) ResizePartition() error {
+func (d *SLibguestfsDriver) ResizePartition(string, string) error {
 	if d.IsLVMPartition() {
 		// do not try to resize LVM partition
 		return nil
@@ -271,8 +271,8 @@ func (d *SLibguestfsDriver) DeployGuestfs(req *apis.DeployParams) (res *apis.Dep
 	return fsutils.DeployGuestfs(d, req)
 }
 
-func (d *SLibguestfsDriver) ResizeFs() (*apis.Empty, error) {
-	return fsutils.ResizeFs(d)
+func (d *SLibguestfsDriver) ResizeFs(string) (*apis.Empty, error) {
+	return fsutils.ResizeFs(d, "")
 }
 
 func (d *SLibguestfsDriver) SaveToGlance(req *apis.SaveToGlanceParams) (*apis.SaveToGlanceResponse, error) {

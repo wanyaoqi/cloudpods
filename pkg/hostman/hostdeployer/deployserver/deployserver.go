@@ -139,12 +139,12 @@ func (*DeployerServer) ResizeFs(ctx context.Context, req *deployapi.ResizeFsPara
 	}
 	defer disk.Cleanup()
 
-	if err := disk.Connect(nil); err != nil {
+	if err := disk.Connect(req.GuestDesc); err != nil {
 		return new(deployapi.Empty), errors.Wrap(err, "disk connect failed")
 	}
 	defer disk.Disconnect()
 
-	return disk.ResizeFs()
+	return disk.ResizeFs(req.DiskInfo.DiskId)
 }
 
 func (*DeployerServer) FormatFs(ctx context.Context, req *deployapi.FormatFsParams) (*deployapi.Empty, error) {
