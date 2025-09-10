@@ -91,7 +91,7 @@ func (d *LocalDiskDriver) Zerofree() {
 func (d *LocalDiskDriver) ResizePartition(diskId string, rootPartDev string) error {
 	fsutilDriver := fsutils.NewFsutilDriver(driver.NewProcDriver())
 	if len(diskId) > 0 {
-		return fsutilDriver.ResizeDiskWithDiskId(diskId, rootPartDev)
+		return fsutilDriver.ResizeDiskWithDiskId(diskId, rootPartDev, false)
 	}
 	return fsutilDriver.ResizeDiskFs("/dev/sda", 0)
 }

@@ -24,14 +24,14 @@ func (d *SFsutilDriver) ResizeDiskFs(diskPath string, sizeMb int) error {
 	if err != nil {
 		return err
 	}
-	err, _ = d.ResizePartitionFs(fPath, fs, false)
+	err, _ = d.ResizePartitionFs(fPath, fs, false, false)
 	if err != nil {
 		return errors.Wrapf(err, "resize fs %s", fs)
 	}
 	return nil
 }
 
-func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string) error {
+func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string, onlineResize bool) error {
 	// find partition need resize
 	resizeDev, err := d.GetResizeDevBySerial(diskId)
 	if err != nil {
@@ -88,13 +88,13 @@ func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string) 
 			return err
 		}
 		fsType = d.GetFsFormat(resizeLv)
-		err, _ = d.ResizePartitionFs(resizeLv, fsType, false)
+		err, _ = d.ResizePartitionFs(resizeLv, fsType, false, onlineResize)
 		if err != nil {
 			return err
 		}
 		return nil
 	} else {
-		err, _ = d.ResizePartitionFs(partDev, fsType, false)
+		err, _ = d.ResizePartitionFs(partDev, fsType, false, onlineResize)
 		if err != nil {
 			return err
 		}
@@ -192,7 +192,7 @@ func (d *SFsutilDriver) ResizeDiskPartition(diskPath string, sizeMb int) (string
 	return "", "", nil
 }
 
-func (d *SFsutilDriver) ResizePartitionFs(fpath, fs string, raiseError bool) (error, bool) {
+func (d *SFsutilDriver) ResizePartitionFs(fpath, fs string, raiseError, onlineResize bool) (error, bool) {
 	log.Errorf("ResizePartitionFs fstype %s", fs)
 	if len(fs) == 0 {
 		return nil, false
@@ -208,37 +208,43 @@ func (d *SFsutilDriver) ResizePartitionFs(fpath, fs string, raiseError bool) (er
 			cmds = [][]string{{"mkswap", fpath}}
 		}
 	} else if strings.HasPrefix(fs, "ext") {
-		if !d.FsckExtFs(fpath) {
-			if raiseError {
-				return fmt.Errorf("Failed to fsck ext fs %s", fpath), false
-			} else {
-				return nil, false
+		if !onlineResize {
+			if !d.FsckExtFs(fpath) {
+				if raiseError {
+					return fmt.Errorf("Failed to fsck ext fs %s", fpath), false
+				} else {
+					return nil, false
+				}
 			}
 		}
 		cmds = [][]string{{"resize2fs", fpath}}
 	} else if fs == "xfs" {
-		var tmpPoint = fmt.Sprintf("/tmp/%s", strings.Replace(fpath, "/", "_", -1))
-		if _, err := d.Exec("mountpoint", tmpPoint); err == nil {
-			output, err := d.Exec("umount", "-f", tmpPoint)
-			if err != nil {
-				log.Errorf("failed umount %s: %s, %s", tmpPoint, err, output)
-				return err, false
-			}
-		}
-		d.FsckXfsFs(fpath)
 		uuid := uuids["UUID"]
 		if len(uuid) > 0 {
 			xfsutils.LockXfsPartition(uuid)
 			defer xfsutils.UnlockXfsPartition(uuid)
 		}
-		cmds = [][]string{{"mkdir", "-p", tmpPoint},
-			{"mount", fpath, tmpPoint},
-			{"sleep", "2"},
-			{"xfs_growfs", tmpPoint},
-			{"sleep", "2"},
-			{"umount", tmpPoint},
-			{"sleep", "2"},
-			{"rm", "-fr", tmpPoint}}
+		if !onlineResize {
+			var tmpPoint = fmt.Sprintf("/tmp/%s", strings.Replace(fpath, "/", "_", -1))
+			if _, err := d.Exec("mountpoint", tmpPoint); err == nil {
+				output, err := d.Exec("umount", "-f", tmpPoint)
+				if err != nil {
+					log.Errorf("failed umount %s: %s, %s", tmpPoint, err, output)
+					return err, false
+				}
+			}
+			d.FsckXfsFs(fpath)
+			cmds = [][]string{{"mkdir", "-p", tmpPoint},
+				{"mount", fpath, tmpPoint},
+				{"sleep", "2"},
+				{"xfs_growfs", tmpPoint},
+				{"sleep", "2"},
+				{"umount", tmpPoint},
+				{"sleep", "2"},
+				{"rm", "-fr", tmpPoint}}
+		} else {
+			cmds = [][]string{{"xfs_growfs", fpath}}
+		}
 	} else if fs == "ntfs" {
 		// the following cmds may cause disk damage on Windows 10 with new version of NTFS
 		// comment out the following codes only impact Windows 2003

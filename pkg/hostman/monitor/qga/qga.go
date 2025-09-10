@@ -799,7 +799,7 @@ func (qga *QemuGuestAgent) QgaResizeLinuxDisk(diskId string) error {
 	}
 	rootPartDev := strings.TrimSpace(stdout)
 	log.Infof("disk %s resize root part dev %s", diskId, rootPartDev)
-	return fsutilDriver.ResizeDiskWithDiskId(diskId, rootPartDev)
+	return fsutilDriver.ResizeDiskWithDiskId(diskId, rootPartDev, true)
 }
 
 /*
