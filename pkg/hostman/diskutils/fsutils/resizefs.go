@@ -193,6 +193,7 @@ func (d *SFsutilDriver) ResizeDiskPartition(diskPath string, sizeMb int) (string
 }
 
 func (d *SFsutilDriver) ResizePartitionFs(fpath, fs string, raiseError bool) (error, bool) {
+	log.Errorf("ResizePartitionFs fstype %s", fs)
 	if len(fs) == 0 {
 		return nil, false
 	}
