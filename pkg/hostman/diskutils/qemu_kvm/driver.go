@@ -312,7 +312,7 @@ func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc) error {
 		diskIds = append(diskIds, "single-disk")
 	}
 
-	err := d.qemuArchDriver.StartGuest(sshport, ncpu, memSizeMB, manager.hugepage, manager.hugepageSizeKB, d.imageInfo, disks, nil)
+	err := d.qemuArchDriver.StartGuest(sshport, ncpu, memSizeMB, manager.hugepage, manager.hugepageSizeKB, d.imageInfo, disks, diskIds)
 	if err != nil {
 		return err
 	}
