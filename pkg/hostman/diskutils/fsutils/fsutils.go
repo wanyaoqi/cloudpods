@@ -315,6 +315,7 @@ func ResizeFs(d deploy_iface.IDeployer, diskId string) (*apis.Empty, error) {
 		return nil
 	}
 
+	log.Errorf("aaaaaaaaa")
 	var rootPartDev string
 	root, err := d.MountRootfs(false)
 	if err != nil && errors.Cause(err) != errors.ErrNotFound {
@@ -335,7 +336,7 @@ func ResizeFs(d deploy_iface.IDeployer, diskId string) (*apis.Empty, error) {
 			return new(apis.Empty), err
 		}
 	}
-
+	log.Errorf("aaaaaaaaa %s", rootPartDev)
 	err = d.ResizePartition(diskId, rootPartDev)
 	if err != nil {
 		return new(apis.Empty), errors.Wrap(err, "resize disk partition")
