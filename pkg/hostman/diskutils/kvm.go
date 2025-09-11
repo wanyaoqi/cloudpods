@@ -103,7 +103,11 @@ func (d *SKVMGuestDisk) IsLVMPartition() bool {
 }
 
 func (d *SKVMGuestDisk) Connect(guestDesc *apis.GuestDesc) error {
-	return d.deployer.Connect(guestDesc)
+	return d.deployer.Connect(guestDesc, "")
+}
+
+func (d *SKVMGuestDisk) ConnectWithDiskId(guestDesc *apis.GuestDesc, diskId string) error {
+	return d.deployer.Connect(guestDesc, diskId)
 }
 
 func (d *SKVMGuestDisk) Disconnect() error {

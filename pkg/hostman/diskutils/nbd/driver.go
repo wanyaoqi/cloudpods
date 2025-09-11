@@ -59,7 +59,7 @@ func init() {
 	lock = new(sync.Mutex)
 }
 
-func (d *NBDDriver) Connect(*apis.GuestDesc) error {
+func (d *NBDDriver) Connect(*apis.GuestDesc, string) error {
 	d.nbdDev = GetNBDManager().AcquireNbddev()
 	if len(d.nbdDev) == 0 {
 		return errors.Errorf("Cannot get nbd device")

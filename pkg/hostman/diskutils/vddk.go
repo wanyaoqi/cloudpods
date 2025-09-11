@@ -165,6 +165,10 @@ func (vd *VDDKDisk) Connect(*apis.GuestDesc) error {
 	return nil
 }
 
+func (vd *VDDKDisk) ConnectWithDiskId(desc *apis.GuestDesc, diskId string) error {
+	return vd.Connect(desc)
+}
+
 func (vd *VDDKDisk) Disconnect() error {
 	if vd.kvmDisk != nil {
 		if err := vd.kvmDisk.Disconnect(); err != nil {

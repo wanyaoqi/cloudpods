@@ -74,7 +74,7 @@ func NewLibguestfsDriver(imageInfo qemuimg.SImageInfo) *SLibguestfsDriver {
 	}
 }
 
-func (d *SLibguestfsDriver) Connect(*apis.GuestDesc) error {
+func (d *SLibguestfsDriver) Connect(*apis.GuestDesc, string) error {
 	fish, err := guestfsManager.AcquireFish()
 	if err != nil {
 		return err

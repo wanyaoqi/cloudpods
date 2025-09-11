@@ -23,6 +23,7 @@ import (
 
 type IDisk interface {
 	Connect(desc *apis.GuestDesc) error
+	ConnectWithDiskId(desc *apis.GuestDesc, diskId string) error
 	Disconnect() error
 	MountRootfs() (fsdriver.IRootFsDriver, error)
 	UmountRootfs(driver fsdriver.IRootFsDriver) error

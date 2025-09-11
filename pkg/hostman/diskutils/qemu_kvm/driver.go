@@ -271,6 +271,7 @@ type QemuKvmDriver struct {
 
 	partitions    []fsdriver.IDiskPartition
 	lvmPartitions []fsdriver.IDiskPartition
+	diskId        string
 }
 
 func NewQemuKvmDriver(imageInfo qemuimg.SImageInfo) *QemuKvmDriver {
@@ -279,10 +280,10 @@ func NewQemuKvmDriver(imageInfo qemuimg.SImageInfo) *QemuKvmDriver {
 	}
 }
 
-func (d *QemuKvmDriver) Connect(guestDesc *apis.GuestDesc) error {
+func (d *QemuKvmDriver) Connect(desc *apis.GuestDesc, diskId string) error {
 	manager.Acquire()
 	d.qemuArchDriver = NewCpuArchDriver(manager.cpuArch)
-	err := d.connect(guestDesc)
+	err := d.connect(desc, diskId)
 	if err != nil {
 		d.qemuArchDriver.CleanGuest()
 		return err
@@ -291,7 +292,7 @@ func (d *QemuKvmDriver) Connect(guestDesc *apis.GuestDesc) error {
 	return nil
 }
 
-func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc) error {
+func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc, diskId string) error {
 	var (
 		ncpu      = 2
 		memSizeMB = manager.getMemSizeMb()
@@ -308,8 +309,11 @@ func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc) error {
 			diskIds = append(diskIds, guestDesc.Disks[i].DiskId)
 		}
 	} else {
+		if diskId == "" {
+			diskId = "single-disk"
+		}
 		disks = append(disks, d.imageInfo.Path)
-		diskIds = append(diskIds, "single-disk")
+		diskIds = append(diskIds, diskId)
 	}
 
 	err := d.qemuArchDriver.StartGuest(sshport, ncpu, memSizeMB, manager.hugepage, manager.hugepageSizeKB, d.imageInfo, disks, diskIds)

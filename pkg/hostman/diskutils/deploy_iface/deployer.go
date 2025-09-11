@@ -20,7 +20,7 @@ import (
 )
 
 type IDeployer interface {
-	Connect(desc *apis.GuestDesc) error
+	Connect(desc *apis.GuestDesc, diskId string) error
 	Disconnect() error
 
 	GetPartitions() []fsdriver.IDiskPartition

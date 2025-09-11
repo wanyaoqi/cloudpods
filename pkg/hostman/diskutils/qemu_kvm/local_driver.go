@@ -42,7 +42,7 @@ func NewLocalDiskDriver() *LocalDiskDriver {
 	}
 }
 
-func (d *LocalDiskDriver) Connect(desc *apis.GuestDesc) error {
+func (d *LocalDiskDriver) Connect(desc *apis.GuestDesc, diskId string) error {
 	out, err := procutils.NewCommand("sh", "-c", "cat /proc/partitions | grep -v name | awk '{print $4}'").Output()
 	if err != nil {
 		return errors.Wrap(err, "cat proc partitions")
