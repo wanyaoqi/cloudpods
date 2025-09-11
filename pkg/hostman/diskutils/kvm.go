@@ -149,6 +149,7 @@ func (d *SKVMGuestDisk) DeployGuestfs(req *apis.DeployParams) (res *apis.DeployG
 }
 
 func (d *SKVMGuestDisk) ResizeFs(req *apis.ResizeFsParams) (*apis.Empty, error) {
+	log.Errorf("start resizefs")
 	return d.deployer.ResizeFs(req)
 }
 
