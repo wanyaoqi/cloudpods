@@ -758,7 +758,7 @@ func (qga *QemuGuestAgent) QgaResizeWindowsDisk(diskId string) error {
 		for j := range fsInfo.Disk {
 			if len(fsInfo.Disk[j].Serial) > 15 && strings.HasPrefix(diskSerial, fsInfo.Disk[j].Serial) {
 				mountPoint := fsInfo.Mountpoint
-				if strings.HasSuffix(mountPoint, ":/") {
+				if strings.HasSuffix(mountPoint, ":\\") {
 					driverLetter := mountPoint[0:1]
 					log.Infof("disk %s found driver letter %s", mountPoint)
 					retCode, stdout, stderr, err := qga.CommandWithTimeout("powershell.exe",
