@@ -127,7 +127,8 @@ func (d *SRBDDisk) Resize(ctx context.Context, params *SDiskResizeInput) (jsonut
 	}
 
 	resizeFsInfo := &deployapi.DiskInfo{
-		Path: d.GetPath(),
+		Path:   d.GetPath(),
+		DiskId: d.GetId(),
 	}
 	if err := d.ResizeFs(resizeFsInfo, params.GuestDesc); err != nil {
 		log.Errorf("Resize fs %s fail %s", d.GetPath(), err)

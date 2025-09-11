@@ -148,14 +148,17 @@ func resizeHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 		httperrors.GeneralServerError(ctx, w, err)
 		return
 	}
+	resizeDiskInfo := &storageman.SDiskResizeInput{
+		DiskInfo: diskInfo,
+	}
 	resizeFunc := func(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {
-		input, ok := params.(*jsonutils.JSONDict)
+		input, ok := params.(*storageman.SDiskResizeInput)
 		if !ok {
 			return nil, hostutils.ParamsError
 		}
 		return disk.Resize(ctx, input)
 	}
-	hostutils.DelayTask(ctx, resizeFunc, diskInfo)
+	hostutils.DelayTask(ctx, resizeFunc, resizeDiskInfo)
 	hostutils.ResponseOk(ctx, w)
 }
 

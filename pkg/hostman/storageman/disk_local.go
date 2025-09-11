@@ -162,7 +162,8 @@ func (d *SLocalDisk) Resize(ctx context.Context, params *SDiskResizeInput) (json
 		return nil, err
 	}
 	resizeFsInfo := &deployapi.DiskInfo{
-		Path: d.GetPath(),
+		Path:   d.GetPath(),
+		DiskId: d.GetId(),
 	}
 	if diskInfo.Contains("encrypt_info") {
 		var encryptInfo apis.SEncryptInfo
