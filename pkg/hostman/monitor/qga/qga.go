@@ -403,14 +403,14 @@ type GuestFsInfo struct {
 	Disk       []GuestFsDisk `json:"disk"`
 }
 
-func (qga *QemuGuestAgent) QgaGuestGetFsInfo() (*GuestFsInfo, error) {
+func (qga *QemuGuestAgent) QgaGuestGetFsInfo() ([]GuestFsInfo, error) {
 	//run guest-get-fsinfo
 	cmdFsInfo := &monitor.Command{
 		Execute: "guest-get-fsinfo",
 	}
 	rawResFsInfo, err := qga.execCmd(cmdFsInfo, true, -1)
-	resFsInfo := new(GuestFsInfo)
-	err = json.Unmarshal(*rawResFsInfo, resFsInfo)
+	resFsInfo := make([]GuestFsInfo, 0)
+	err = json.Unmarshal(*rawResFsInfo, &resFsInfo)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal raw response")
 	}
@@ -747,28 +747,32 @@ func (qga *QemuGuestAgent) QgaResizeDisk(diskId string) error {
 }
 
 func (qga *QemuGuestAgent) QgaResizeWindowsDisk(diskId string) error {
-	fsInfo, err := qga.QgaGuestGetFsInfo()
+	fsInfos, err := qga.QgaGuestGetFsInfo()
 	if err != nil {
 		return errors.Wrap(err, "QgaGuestGetFsInfo")
 	}
 	diskSerial := strings.ReplaceAll(diskId, "-", "")
-	for i := range fsInfo.Disk {
-		if len(fsInfo.Disk[i].Serial) > 15 && strings.HasPrefix(diskSerial, fsInfo.Disk[i].Serial) {
-			mountPoint := fsInfo.Mountpoint
-			if strings.HasSuffix(mountPoint, ":/") {
-				driverLetter := mountPoint[0:1]
-				log.Infof("disk %s found driver letter %s", mountPoint)
-				retCode, stdout, stderr, err := qga.CommandWithTimeout("powershell.exe",
-					[]string{"-Command", "Resize-Partition", "-DriveLetter", driverLetter, "-Size", fmt.Sprintf("(Get-PartitionSupportedSize -DriveLetter %s).SizeMax", driverLetter)},
-					nil, "", true, -1,
-				)
-				if err != nil {
-					return errors.Wrap(err, "qga exec resize")
+
+	for i := range fsInfos {
+		fsInfo := fsInfos[i]
+		for j := range fsInfo.Disk {
+			if len(fsInfo.Disk[j].Serial) > 15 && strings.HasPrefix(diskSerial, fsInfo.Disk[j].Serial) {
+				mountPoint := fsInfo.Mountpoint
+				if strings.HasSuffix(mountPoint, ":/") {
+					driverLetter := mountPoint[0:1]
+					log.Infof("disk %s found driver letter %s", mountPoint)
+					retCode, stdout, stderr, err := qga.CommandWithTimeout("powershell.exe",
+						[]string{"-Command", "Resize-Partition", "-DriveLetter", driverLetter, "-Size", fmt.Sprintf("(Get-PartitionSupportedSize -DriveLetter %s).SizeMax", driverLetter)},
+						nil, "", true, -1,
+					)
+					if err != nil {
+						return errors.Wrap(err, "qga exec resize")
+					}
+					if retCode != 0 {
+						return errors.Errorf("qga exec resize failed: %s %s, retcode %d", stdout, stderr, retCode)
+					}
+					return nil
 				}
-				if retCode != 0 {
-					return errors.Errorf("qga exec resize failed: %s %s, retcode %d", stdout, stderr, retCode)
-				}
-				return nil
 			}
 		}
 	}
