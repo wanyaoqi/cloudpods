@@ -35,7 +35,7 @@ type IDeployer interface {
 	DetectIsUEFISupport(rootfs fsdriver.IRootFsDriver) bool
 
 	DeployGuestfs(req *apis.DeployParams) (res *apis.DeployGuestFsResponse, err error)
-	ResizeFs(diskId string) (res *apis.Empty, err error)
+	ResizeFs(req *apis.ResizeFsParams) (res *apis.Empty, err error)
 	FormatFs(req *apis.FormatFsParams) (*apis.Empty, error)
 	SaveToGlance(req *apis.SaveToGlanceParams) (*apis.SaveToGlanceResponse, error)
 	ProbeImageInfo(req *apis.ProbeImageInfoPramas) (*apis.ImageInfo, error)

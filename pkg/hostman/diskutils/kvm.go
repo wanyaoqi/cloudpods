@@ -144,8 +144,8 @@ func (d *SKVMGuestDisk) DeployGuestfs(req *apis.DeployParams) (res *apis.DeployG
 	return d.deployer.DeployGuestfs(req)
 }
 
-func (d *SKVMGuestDisk) ResizeFs(diskId string) (*apis.Empty, error) {
-	return d.deployer.ResizeFs(diskId)
+func (d *SKVMGuestDisk) ResizeFs(req *apis.ResizeFsParams) (*apis.Empty, error) {
+	return d.deployer.ResizeFs(req)
 }
 
 func (d *SKVMGuestDisk) FormatFs(req *apis.FormatFsParams) (*apis.Empty, error) {

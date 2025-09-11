@@ -282,7 +282,7 @@ func (d *NBDDriver) DeployGuestfs(req *apis.DeployParams) (res *apis.DeployGuest
 	return fsutils.DeployGuestfs(d, req)
 }
 
-func (d *NBDDriver) ResizeFs(string) (*apis.Empty, error) {
+func (d *NBDDriver) ResizeFs(*apis.ResizeFsParams) (*apis.Empty, error) {
 	return fsutils.ResizeFs(d, "")
 }
 

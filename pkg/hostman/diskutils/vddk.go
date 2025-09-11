@@ -451,8 +451,8 @@ func (vd *VDDKDisk) DeployGuestfs(req *apis.DeployParams) (res *apis.DeployGuest
 	return vd.kvmDisk.DeployGuestfs(req)
 }
 
-func (d *VDDKDisk) ResizeFs(diskId string) (*apis.Empty, error) {
-	return d.kvmDisk.ResizeFs(diskId)
+func (d *VDDKDisk) ResizeFs(req *apis.ResizeFsParams) (*apis.Empty, error) {
+	return d.kvmDisk.ResizeFs(req)
 }
 
 func (d *VDDKDisk) FormatFs(req *apis.FormatFsParams) (*apis.Empty, error) {

@@ -123,7 +123,11 @@ func (d *LocalDiskDriver) DeployGuestfs(req *apis.DeployParams) (res *apis.Deplo
 	return fsutils.DeployGuestfs(d, req)
 }
 
-func (d *LocalDiskDriver) ResizeFs(diskId string) (*apis.Empty, error) {
+func (d *LocalDiskDriver) ResizeFs(req *apis.ResizeFsParams) (*apis.Empty, error) {
+	var diskId string
+	if req.DiskInfo != nil {
+		diskId = req.DiskInfo.DiskId
+	}
 	return fsutils.ResizeFs(d, diskId)
 }
 

@@ -271,7 +271,7 @@ func (d *SLibguestfsDriver) DeployGuestfs(req *apis.DeployParams) (res *apis.Dep
 	return fsutils.DeployGuestfs(d, req)
 }
 
-func (d *SLibguestfsDriver) ResizeFs(string) (*apis.Empty, error) {
+func (d *SLibguestfsDriver) ResizeFs(*apis.ResizeFsParams) (*apis.Empty, error) {
 	return fsutils.ResizeFs(d, "")
 }
 

@@ -446,13 +446,14 @@ func (d *QemuKvmDriver) DeployGuestfs(req *apis.DeployParams) (*apis.DeployGuest
 	return res, retErr
 }
 
-func (d *QemuKvmDriver) ResizeFs(string) (*apis.Empty, error) {
+func (d *QemuKvmDriver) ResizeFs(req *apis.ResizeFsParams) (*apis.Empty, error) {
 	defer func() {
 		logStr, _ := d.sshRun("test -f /log && cat /log")
 		log.Infof("ResizeFs log: %v", strings.Join(logStr, "\n"))
 	}()
 
-	cmd := fmt.Sprintf("%s --deploy-action resize_fs", DEPLOYER_BIN)
+	params, _ := json.Marshal(req)
+	cmd := fmt.Sprintf("%s --deploy-action resize_fs --deploy-params '%s'", DEPLOYER_BIN, params)
 	out, err := d.sshRun(cmd)
 	if err != nil {
 		return nil, errors.Wrapf(err, "run resize_fs failed %s", out)
