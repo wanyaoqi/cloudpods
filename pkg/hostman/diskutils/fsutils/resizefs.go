@@ -108,13 +108,28 @@ func (d *SFsutilDriver) GetResizeDevBySerial(diskId string) (string, error) {
 	resizeDev := ""
 	for i := range lines {
 		segs := strings.Fields(lines[i])
-		log.Errorf("segs %v", segs)
-		if len(segs) != 2 {
+		if len(segs) == 0 {
 			continue
+		}
+		log.Errorf("segs %v", segs)
+		if len(segs) == 1 {
+			// fetch vpd 80 serial id
+			ret, err := d.Exec("sg_inq", "-u", "-p", "0x80", path.Join("/dev/", segs[0]))
+			if err != nil {
+				log.Infof("failed exec sg_inq: %s %s", ret, err)
+				continue
+			}
+			serialStr := strings.TrimSpace(string(ret))
+			serialSegs := strings.Split(serialStr, "=")
+			log.Errorf("serial segs %v", serialSegs)
+			if len(serialSegs) == 2 && serialSegs[1] == diskSerial {
+				resizeDev = path.Join("/dev/", segs[0])
+				break
+			}
 		}
 		devName, serial := segs[0], segs[1]
 		log.Infof("lsblk segs: %s %s |", devName, serial)
-		if len(serial) > 0 && strings.HasPrefix(diskSerial, serial) {
+		if strings.HasPrefix(diskSerial, serial) {
 			resizeDev = path.Join("/dev/", devName)
 			break
 		}
