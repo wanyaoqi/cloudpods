@@ -147,7 +147,11 @@ func (d *SFsutilDriver) IsLvmPvDevice(device string) bool {
 }
 
 func (d *SFsutilDriver) Pvresize(device string) error {
-	out, err := d.Exec("pvscan")
+	out, err := d.Exec("partprobe")
+	if err != nil {
+		return errors.Wrapf(err, "failed resize pv partprobe %s", out)
+	}
+	out, err = d.Exec("pvscan")
 	if err != nil {
 		return errors.Wrapf(err, "failed resize pv pvscan %s", out)
 	}
