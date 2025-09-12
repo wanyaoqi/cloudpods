@@ -45,7 +45,12 @@ func (d *SFsutilDriver) ResizeDiskWithDiskId(diskId string, rootPartDev string, 
 	if err != nil {
 		return err
 	}
-	if partDev == "" {
+	if partDev == "" || fsType == "" {
+		if fsType == "" && partDev != "" {
+			// fsType empty and partDev not empty is lvm device
+			resizeDev = partDev
+		}
+
 		if !d.IsLvmPvDevice(resizeDev) {
 			fsType = d.GetFsFormat(resizeDev)
 			err, _ := d.ResizePartitionFs(resizeDev, fsType, false, onlineResize)
@@ -191,7 +196,7 @@ func (d *SFsutilDriver) ResizeDiskPartition(diskPath string, sizeMb int) (string
 	if len(parts) > 0 && (label == "gpt" ||
 		(label == "msdos" && parts[len(parts)-1][5] == "primary")) {
 		var part = parts[len(parts)-1]
-		if IsSupportResizeFs(part[6]) {
+		if part[5] == "lvm" || IsSupportResizeFs(part[6]) {
 			// growpart script replace parted resizepart
 			output, err := d.Exec("growpart", diskPath, part[0])
 			if err != nil {
