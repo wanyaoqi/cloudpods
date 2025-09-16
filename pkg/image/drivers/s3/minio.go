@@ -74,6 +74,13 @@ func Init(endpoint, accessKey, secretKey, bucket string, useSSL bool) error {
 	return nil
 }
 
+func SetBucketPolicy(bucket, policy string) error {
+	if client == nil {
+		return ErrClientNotInit
+	}
+	return client.osc.SetIBucketPolicy(bucket, policy)
+}
+
 func ensureBucket() error {
 	exists, err := client.osc.IBucketExist(client.bucket)
 	if err != nil {

@@ -15,8 +15,10 @@
 package hostman
 
 import (
+	"strings"
 	execlient "yunion.io/x/executor/client"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/image/drivers/s3"
 
 	"yunion.io/x/onecloud/pkg/appsrv"
 	app_common "yunion.io/x/onecloud/pkg/cloudcommon/app"
@@ -96,6 +98,8 @@ func (host *SHostService) RunService() {
 		log.Fatalf("Storage manager init error: %v", err)
 	}
 
+	initS3()
+
 	var guestChan chan struct{}
 
 	if err := guestman.Init(hostInstance, options.HostOptions.ServersPath, options.HostOptions.DeployConcurrent); err != nil {
@@ -158,6 +162,31 @@ func (host *SHostService) initHandlers(app *appsrv.Application) {
 	hosthandler.AddHostHandler("", app)
 
 	app_common.ExportOptionsHandler(app, &options.HostOptions)
+}
+
+func initS3() {
+	url := options.HostOptions.S3Endpoint
+	if len(url) == 0 {
+		return
+	}
+
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		prefix := "http://"
+		if options.HostOptions.S3UseSSL {
+			prefix = "https://"
+		}
+		url = prefix + url
+	}
+	err := s3.Init(
+		url,
+		options.HostOptions.S3AccessKey,
+		options.HostOptions.S3SecretKey,
+		options.HostOptions.S3BucketName,
+		options.HostOptions.S3UseSSL,
+	)
+	if err != nil {
+		log.Fatalf("failed init s3 client %s", err)
+	}
 }
 
 func StartService() {

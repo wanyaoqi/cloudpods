@@ -27,6 +27,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"yunion.io/x/onecloud/pkg/image/drivers/s3"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -532,6 +533,10 @@ func (s *SKVMGuestInstance) IsLoaded() bool {
 
 func (s *SKVMGuestInstance) HomeDir() string {
 	return path.Join(s.manager.ServersPath, s.Id)
+}
+
+func (s *SKVMGuestInstance) generateScreenDumpPath() string {
+	return path.Join(s.HomeDir(), fmt.Sprintf("%s.%d", s.GetId(), time.Now().Unix()))
 }
 
 func (s *SKVMGuestInstance) RecycleDir() string {
@@ -1224,6 +1229,32 @@ func (s *SKVMGuestInstance) eventGuestPaniced(event *monitor.Event) {
 	if info, ok := event.Data["info"]; ok {
 		params.Set("info", jsonutils.Marshal(info))
 	}
+
+	screenDumpPath := s.generateScreenDumpPath()
+	screenDumpName := filepath.Base(screenDumpPath)
+	s.Monitor.ScreenDump(screenDumpPath, func(res string) {
+		log.Infof("qmp screendump res %s", res)
+		if fileutils2.Exists(screenDumpPath) {
+			log.Infof("screendump success at %s", screenDumpPath)
+			_, err := s3.Put(context.Background(), screenDumpPath, screenDumpName)
+			if err != nil {
+				log.Errorf("faild put screenDumpPath %s to s3 %s", screenDumpPath, err)
+			} else {
+				screenDumpInfo := api.SGuestScreenDump{
+					S3AccessKey:  options.HostOptions.S3AccessKey,
+					S3SecretKey:  options.HostOptions.S3SecretKey,
+					S3Endpoint:   options.HostOptions.S3Endpoint,
+					S3UseSSL:     options.HostOptions.S3UseSSL,
+					S3BucketName: options.HostOptions.S3BucketName,
+					S3ObjectName: screenDumpName,
+				}
+				params.Set("screen_dump_info", jsonutils.Marshal(screenDumpInfo))
+				log.Infof("put screendump %s success", screenDumpName)
+				os.Remove(screenDumpPath)
+			}
+		}
+	})
+
 	params.Set("event", jsonutils.NewString(strings.Trim(event.Event, "\"")))
 	_, err := modules.Servers.PerformAction(
 		hostutils.GetComputeSession(context.Background()),
