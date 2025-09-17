@@ -75,6 +75,7 @@ func (self *SGuestScreenDump) Delete(ctx context.Context, userCred mcclient.Toke
 
 func (self *SGuest) SaveGuestScreenDump(ctx context.Context, userCred mcclient.TokenCredential, screenDumpInfo *api.SGuestScreenDump) (*SGuestScreenDump, error) {
 	sd := new(SGuestScreenDump)
+	sd.SetModelManager(GuestScreenDumpManager, sd)
 	sd.GuestId = self.GetId()
 	sd.S3SecretKey = screenDumpInfo.S3SecretKey
 	sd.S3Endpoint = screenDumpInfo.S3Endpoint
