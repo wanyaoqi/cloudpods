@@ -35,3 +35,17 @@ type SGuestScreenDump struct {
 	S3BucketName string
 	S3ObjectName string
 }
+
+type GuestScreenDumpListInput struct {
+	Server string
+}
+
+type GetDetailsGuestScreenDumpInput struct {
+	Name string
+}
+
+type GetDetailsGuestScreenDumpOutput struct {
+	GuestId    string
+	Name       string
+	ScreenDump string
+}

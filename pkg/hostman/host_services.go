@@ -15,6 +15,7 @@
 package hostman
 
 import (
+	"fmt"
 	"strings"
 	execlient "yunion.io/x/executor/client"
 	"yunion.io/x/log"
@@ -186,6 +187,15 @@ func initS3() {
 	)
 	if err != nil {
 		log.Fatalf("failed init s3 client %s", err)
+	}
+
+	lifecycle := fmt.Sprintf(
+		`<LifecycleConfiguration><Rule><ID>%s</ID><Prefix></Prefix><Status>Enabled</Status><Expiration><Days>%d</Days></Expiration></Rule></LifecycleConfiguration>`,
+		options.HostOptions.S3BucketName, options.HostOptions.S3BucketLifecycleKeepDay,
+	)
+	err = s3.SetBucketLifecycle(lifecycle)
+	if err != nil {
+		log.Fatalf("failed set bucket lifecycle %s", lifecycle)
 	}
 }
 

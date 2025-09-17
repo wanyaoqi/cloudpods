@@ -145,7 +145,12 @@ func (self *SGuest) PerformEvent(ctx context.Context, userCred mcclient.TokenCre
 		if data.Contains("screen_dump_info") {
 			screenDumpInfo := api.SGuestScreenDump{}
 			if err := data.Unmarshal(&screenDumpInfo, "screen_dump_info"); err != nil {
-
+				log.Errorf("failed unmarshal screen_dump_info %s", err)
+			} else {
+				kwargs.Set("screen_dump_name", jsonutils.NewString(screenDumpInfo.S3ObjectName))
+				if _, err := self.SaveGuestScreenDump(ctx, userCred, &screenDumpInfo); err != nil {
+					log.Errorf("SaveGuestScreenDump failed %s", err)
+				}
 			}
 		}
 

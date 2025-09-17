@@ -68,6 +68,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.GuestFloppyManager,
 		models.NetInterfaceManager,
 		models.NetworkAdditionalWireManager,
+		models.GuestScreenDumpManager,
 
 		models.QuotaManager,
 		models.QuotaUsageManager,

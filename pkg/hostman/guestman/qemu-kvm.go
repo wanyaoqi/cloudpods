@@ -1244,7 +1244,6 @@ func (s *SKVMGuestInstance) eventGuestPaniced(event *monitor.Event) {
 					S3AccessKey:  options.HostOptions.S3AccessKey,
 					S3SecretKey:  options.HostOptions.S3SecretKey,
 					S3Endpoint:   options.HostOptions.S3Endpoint,
-					S3UseSSL:     options.HostOptions.S3UseSSL,
 					S3BucketName: options.HostOptions.S3BucketName,
 					S3ObjectName: screenDumpName,
 				}
