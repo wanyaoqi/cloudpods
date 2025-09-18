@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"io"
+	"strings"
+	"yunion.io/x/onecloud/pkg/hostman/options"
 
 	"yunion.io/x/cloudmux/pkg/multicloud/objectstore"
 	"yunion.io/x/jsonutils"
@@ -51,6 +53,7 @@ type SGuestScreenDump struct {
 	S3SecretKey  string `width:"64" charset:"ascii" nullable:"true"`
 	S3Endpoint   string `width:"64" charset:"ascii" nullable:"true" list:"user"`
 	S3BucketName string `width:"64" charset:"ascii" nullable:"true" list:"user"`
+	S3UseSsl     bool   `default:"false" list:"user" create:"optional"`
 }
 
 func (manager *SGuestScreenDumpManager) ListItemFilter(
@@ -77,10 +80,10 @@ func (self *SGuest) SaveGuestScreenDump(ctx context.Context, userCred mcclient.T
 	sd := new(SGuestScreenDump)
 	sd.SetModelManager(GuestScreenDumpManager, sd)
 	sd.GuestId = self.GetId()
-	sd.S3SecretKey = screenDumpInfo.S3SecretKey
+	sd.S3SecretKey = base64.StdEncoding.EncodeToString([]byte(screenDumpInfo.S3SecretKey))
 	sd.S3Endpoint = screenDumpInfo.S3Endpoint
 	sd.S3BucketName = screenDumpInfo.S3BucketName
-	sd.S3AccessKey = screenDumpInfo.S3AccessKey
+	sd.S3AccessKey = base64.StdEncoding.EncodeToString([]byte(screenDumpInfo.S3AccessKey))
 	sd.Name = screenDumpInfo.S3ObjectName
 
 	lockman.LockClass(ctx, GuestScreenDumpManager, self.ProjectId)
@@ -109,8 +112,18 @@ func (self *SGuest) GetDetailsScreenDump(ctx context.Context, userCred mcclient.
 		return nil, errors.Wrap(err, "query screenDump")
 	}
 
-	log.Errorf("sget screendump %s", jsonutils.Marshal(screenDump))
-	cfg := objectstore.NewObjectStoreClientConfig(screenDump.S3Endpoint, screenDump.S3AccessKey, screenDump.S3SecretKey)
+	ak, _ := base64.StdEncoding.DecodeString(screenDump.S3AccessKey)
+	sk, _ := base64.StdEncoding.DecodeString(screenDump.S3SecretKey)
+
+	url := screenDump.S3Endpoint
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		prefix := "http://"
+		if options.HostOptions.S3UseSSL {
+			prefix = "https://"
+		}
+		url = prefix + url
+	}
+	cfg := objectstore.NewObjectStoreClientConfig(url, string(ak), string(sk))
 	s3Client, err := objectstore.NewObjectStoreClient(cfg)
 	if err != nil {
 		return nil, errors.Wrap(err, "new minio client")

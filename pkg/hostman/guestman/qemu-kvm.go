@@ -1246,6 +1246,7 @@ func (s *SKVMGuestInstance) eventGuestPaniced(event *monitor.Event) {
 					S3Endpoint:   options.HostOptions.S3Endpoint,
 					S3BucketName: options.HostOptions.S3BucketName,
 					S3ObjectName: screenDumpName,
+					S3UseSSL:     options.HostOptions.S3UseSSL,
 				}
 				params.Set("screen_dump_info", jsonutils.Marshal(screenDumpInfo))
 				log.Infof("put screendump %s success", screenDumpName)

@@ -1736,6 +1736,7 @@ func (m *SGuestManager) RequestGuestScreenDump(sid string) (jsonutils.JSONObject
 					S3Endpoint:   options.HostOptions.S3Endpoint,
 					S3BucketName: options.HostOptions.S3BucketName,
 					S3ObjectName: screenDumpName,
+					S3UseSSL:     options.HostOptions.S3UseSSL,
 				}
 				c <- jsonutils.Marshal(screenDumpInfo)
 				log.Infof("put screendump %s success", screenDumpName)

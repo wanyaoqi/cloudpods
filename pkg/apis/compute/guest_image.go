@@ -34,6 +34,7 @@ type SGuestScreenDump struct {
 	S3Endpoint   string
 	S3BucketName string
 	S3ObjectName string
+	S3UseSSL     bool
 }
 
 type GuestScreenDumpListInput struct {
