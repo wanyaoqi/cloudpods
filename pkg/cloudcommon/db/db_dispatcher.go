@@ -1085,6 +1085,7 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 
 	funcName := fmt.Sprintf("GetDetails%s", specCamel)
 	funcValue := modelValue.MethodByName(funcName)
+	log.Errorf("MethodByName %s", funcName)
 	if !funcValue.IsValid() || funcValue.IsNil() {
 		return nil, httperrors.NewSpecNotFoundError("%s %s %s not found", dispatcher.Keyword(), idStr, spec)
 	}

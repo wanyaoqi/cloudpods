@@ -68,7 +68,6 @@ func InitHandlers(app *appsrv.Application) {
 		models.GuestFloppyManager,
 		models.NetInterfaceManager,
 		models.NetworkAdditionalWireManager,
-		models.GuestScreenDumpManager,
 
 		models.QuotaManager,
 		models.QuotaUsageManager,
@@ -159,6 +158,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.RouteTableAssociationManager,
 		models.RouteTableRouteSetManager,
 		models.InterVpcNetworkRouteSetManager,
+		models.GuestScreenDumpManager,
 
 		models.SchedpolicyManager,
 		models.DynamicschedtagManager,
