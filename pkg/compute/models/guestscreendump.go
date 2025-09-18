@@ -98,7 +98,7 @@ func (self *SGuest) SaveGuestScreenDump(ctx context.Context, userCred mcclient.T
 	return sd, nil
 }
 
-func (self *SGuest) GetDetailsScreenDump(ctx context.Context, userCred mcclient.TokenCredential, input *api.GetDetailsGuestScreenDumpInput) (*api.GetDetailsGuestScreenDumpOutput, error) {
+func (self *SGuest) GetDetailsScreenDumpShow(ctx context.Context, userCred mcclient.TokenCredential, input *api.GetDetailsGuestScreenDumpInput) (*api.GetDetailsGuestScreenDumpOutput, error) {
 	if input.Name == "" {
 		return nil, httperrors.NewMissingParameterError("name")
 	}
@@ -169,7 +169,7 @@ func (self *SGuest) PerformScreenDump(ctx context.Context, userCred mcclient.Tok
 	input := &api.GetDetailsGuestScreenDumpInput{
 		Name: screenDumpInfo.S3ObjectName,
 	}
-	ret, err := self.GetDetailsScreenDump(ctx, userCred, input)
+	ret, err := self.GetDetailsScreenDumpShow(ctx, userCred, input)
 	if err != nil {
 		return nil, err
 	}
