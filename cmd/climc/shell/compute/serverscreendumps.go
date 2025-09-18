@@ -18,6 +18,6 @@ func (o *ServerScreenDumpListOptions) Params() (jsonutils.JSONObject, error) {
 }
 
 func init() {
-	cmd := shell.NewResourceCmd(&modules.Servers)
+	cmd := shell.NewResourceCmd(&modules.ServerScreenDumps)
 	cmd.List(new(ServerScreenDumpListOptions))
 }

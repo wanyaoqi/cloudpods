@@ -143,7 +143,7 @@ func init() {
 	cmd.Get("sshport", new(options.ServerIdOptions))
 	cmd.Get("qemu-info", new(options.ServerIdOptions))
 	cmd.Get("hardware-info", new(options.ServerIdOptions))
-	cmd.Get("screen-dump", new(options.ServerScreenDumpOptions))
+	cmd.Get("screen-dump-show", new(options.ServerScreenDumpOptions))
 	cmd.BatchPerform("screen-dump", new(options.ServerIdsOptions))
 
 	cmd.GetProperty(&options.ServerStatusStatisticsOptions{})

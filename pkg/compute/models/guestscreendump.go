@@ -109,6 +109,7 @@ func (self *SGuest) GetDetailsScreenDump(ctx context.Context, userCred mcclient.
 		return nil, errors.Wrap(err, "query screenDump")
 	}
 
+	log.Errorf("sget screendump %s", jsonutils.Marshal(screenDump))
 	cfg := objectstore.NewObjectStoreClientConfig(screenDump.S3Endpoint, screenDump.S3AccessKey, screenDump.S3SecretKey)
 	s3Client, err := objectstore.NewObjectStoreClient(cfg)
 	if err != nil {
