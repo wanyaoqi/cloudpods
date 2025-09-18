@@ -100,13 +100,13 @@ func (self *SGuest) SaveGuestScreenDump(ctx context.Context, userCred mcclient.T
 }
 
 func (self *SGuest) GetDetailsScreenDumpShow(ctx context.Context, userCred mcclient.TokenCredential, input *api.GetDetailsGuestScreenDumpInput) (*api.GetDetailsGuestScreenDumpOutput, error) {
-	if input.Name == "" {
-		return nil, httperrors.NewMissingParameterError("name")
+	if input.ObjectName == "" {
+		return nil, httperrors.NewMissingParameterError("object_name")
 	}
 	log.Errorf("GetDetailsScreenDumpShow 11111")
 	q := GuestScreenDumpManager.Query()
 	q = q.Equals("guest_id", self.Id)
-	q = q.Equals("name", input.Name)
+	q = q.Equals("name", input.ObjectName)
 
 	screenDump := new(SGuestScreenDump)
 	err := q.First(screenDump)

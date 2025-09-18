@@ -1499,7 +1499,7 @@ func (o *ServerVncOptions) Params() (jsonutils.JSONObject, error) {
 
 type ServerScreenDumpOptions struct {
 	ServerIdOptions
-	Name string
+	ObjectName string
 }
 
 func (o *ServerScreenDumpOptions) Params() (jsonutils.JSONObject, error) {

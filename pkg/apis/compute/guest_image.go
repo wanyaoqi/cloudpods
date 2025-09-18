@@ -42,7 +42,7 @@ type GuestScreenDumpListInput struct {
 }
 
 type GetDetailsGuestScreenDumpInput struct {
-	Name string
+	ObjectName string
 }
 
 type GetDetailsGuestScreenDumpOutput struct {
