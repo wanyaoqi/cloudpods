@@ -102,6 +102,7 @@ func (self *SGuest) GetDetailsScreenDumpShow(ctx context.Context, userCred mccli
 	if input.Name == "" {
 		return nil, httperrors.NewMissingParameterError("name")
 	}
+	log.Errorf("GetDetailsScreenDumpShow 11111")
 	q := GuestScreenDumpManager.Query()
 	q = q.Equals("guest_id", self.Id)
 	q = q.Equals("name", input.Name)
@@ -145,6 +146,7 @@ func (self *SGuest) GetDetailsScreenDumpShow(ctx context.Context, userCred mccli
 	ret.ScreenDump = base64.StdEncoding.EncodeToString(obj)
 	ret.GuestId = self.Id
 	ret.Name = screenDump.Name
+	log.Errorf("GetDetailsScreenDumpShow 222")
 	return ret, nil
 }
 
