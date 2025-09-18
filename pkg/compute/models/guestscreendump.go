@@ -170,7 +170,7 @@ func (self *SGuest) PerformScreenDump(ctx context.Context, userCred mcclient.Tok
 		return nil, errors.Wrap(err, "failed save ")
 	}
 	input := &api.GetDetailsGuestScreenDumpInput{
-		Name: screenDumpInfo.S3ObjectName,
+		ObjectName: screenDumpInfo.S3ObjectName,
 	}
 	ret, err := self.GetDetailsScreenDumpShow(ctx, userCred, input)
 	if err != nil {
