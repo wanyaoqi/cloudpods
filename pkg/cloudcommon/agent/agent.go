@@ -19,6 +19,7 @@ import (
 	"net"
 	"strings"
 	"time"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
@@ -295,7 +296,7 @@ func (agent *SBaseAgent) GetManagerUri() string {
 		proto = "https"
 	}
 	if accessIP.To4() == nil { // ipv6 addr
-		return fmt.Sprintf("%s://[%s:%d]", proto, accessIP, agent.IAgent().GetPort())
+		return fmt.Sprintf("%s://[%s]:%d", proto, accessIP, agent.IAgent().GetPort())
 	}
 	return fmt.Sprintf("%s://%s:%d", proto, accessIP, agent.IAgent().GetPort())
 }
