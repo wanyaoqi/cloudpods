@@ -287,6 +287,9 @@ func (agent *SBaseAgent) GetManagerUri() string {
 	if agent.IAgent().GetEnableSsl() {
 		proto = "https"
 	}
+	if accessIP.To4() == nil { // ipv6 addr
+		return fmt.Sprintf("%s://[%s:%d]", proto, accessIP, agent.IAgent().GetPort())
+	}
 	return fmt.Sprintf("%s://%s:%d", proto, accessIP, agent.IAgent().GetPort())
 }
 
