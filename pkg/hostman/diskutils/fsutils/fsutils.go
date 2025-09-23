@@ -219,7 +219,7 @@ func IsSupportResizeFs(fs string) bool {
 		return true
 	} else if strings.HasPrefix(fs, "ext") {
 		return true
-	} else if fs == "xfs" {
+	} else if fs == "xfs" || fs == "f2fs" {
 		return true
 	}
 	return false
