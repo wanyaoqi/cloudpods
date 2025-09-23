@@ -394,6 +394,11 @@ func (m *SBaremetalManager) checkNetworkFromIp(ip string) (string, error) {
 	params.Set("ip", jsonutils.NewString(ip))
 	params.Set("scope", jsonutils.NewString("system"))
 	params.Set("is_classic", jsonutils.JSONTrue)
+	params.Set("provider", jsonutils.NewString(api.CLOUD_PROVIDER_ONECLOUD))
+	params.Set("limit", jsonutils.NewInt(0))
+	// use default vpc
+	params.Set("vpc", jsonutils.NewString(api.DEFAULT_VPC_ID))
+
 	res, err := modules.Networks.List(m.GetClientSession(), params)
 	if err != nil {
 		return "", fmt.Errorf("Fetch network by ip %s failed: %s", ip, err)
