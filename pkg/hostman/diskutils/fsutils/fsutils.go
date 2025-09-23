@@ -208,12 +208,13 @@ func ResizeDiskFs(diskPath string, sizeMb int, mounted bool) error {
 			log.Infof("blkid get fstype %s", fsType)
 		}
 		if IsSupportResizeFs(fsType) {
+			log.Infof("growpart fstype %s", fsType)
 			// growpart script replace parted resizepart
 			output, err := procutils.NewCommand("growpart", diskPath, part[0]).Output()
 			if err != nil {
 				return errors.Wrapf(err, "growpart failed %s", output)
 			}
-			err, _ = ResizePartitionFs(part[7], part[6], false, mounted)
+			err, _ = ResizePartitionFs(part[7], fsType, false, mounted)
 			if err != nil {
 				return errors.Wrapf(err, "resize fs %s", part[6])
 			}
