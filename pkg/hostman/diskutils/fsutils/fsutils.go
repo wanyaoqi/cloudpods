@@ -290,7 +290,7 @@ func ResizePartitionFs(fpath, fs string, raiseError, mounted bool) (error, bool)
 		// cmds = [][]string{{"ntfsresize", "-c", fpath}, {"ntfsresize", "-P", "-f", fpath}}
 	} else if fs == "f2fs" {
 		if !mounted {
-			cmds = [][]string{{"resize.f2fs"}}
+			cmds = [][]string{{"resize.f2fs", fpath}}
 		}
 	}
 
