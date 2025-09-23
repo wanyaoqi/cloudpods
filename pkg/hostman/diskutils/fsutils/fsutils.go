@@ -199,6 +199,14 @@ func ResizeDiskFs(diskPath string, sizeMb int, mounted bool) error {
 	if len(parts) > 0 && (label == "gpt" ||
 		(label == "msdos" && parts[len(parts)-1][5] == "primary")) {
 		var part = parts[len(parts)-1]
+		fsType := part[6]
+		if len(fsType) == 0 {
+			partDev := fmt.Sprintf("%s%s", diskPath, part[0])
+			if fileutils2.Exists(partDev) {
+				fsType = fileutils2.GetFsFormat(partDev)
+			}
+			log.Infof("blkid get fstype %s", fsType)
+		}
 		if IsSupportResizeFs(part[6]) {
 			// growpart script replace parted resizepart
 			output, err := procutils.NewCommand("growpart", diskPath, part[0]).Output()
