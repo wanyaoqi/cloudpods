@@ -4913,8 +4913,8 @@ func fetchIpmiInfo(data api.HostIpmiAttributes, hostId string) (types.SIPMIInfo,
 			info.Password = data.IpmiPassword
 		}
 	}
-	if len(data.IpmiIpAddr) > 0 && !regutils.MatchIP4Addr(data.IpmiIpAddr) {
-		msg := fmt.Sprintf("ipmi_ip_addr: %v not valid ipv4 address", data.IpmiIpAddr)
+	if len(data.IpmiIpAddr) > 0 && !regutils.MatchIP4Addr(data.IpmiIpAddr) && !regutils.MatchIP6Addr(data.IpmiIpAddr) {
+		msg := fmt.Sprintf("ipmi_ip_addr: %v not valid address", data.IpmiIpAddr)
 		log.Errorf("%s", msg)
 		return info, errors.Wrap(httperrors.ErrInvalidFormat, msg)
 	}

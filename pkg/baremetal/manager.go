@@ -1834,8 +1834,11 @@ func (b *SBaremetalInstance) GetRedfishCli(ctx context.Context) redfish.IRedfish
 		return nil
 	}
 	conf := b.GetIPMIConfig()
-	return redfish.NewRedfishDriver(ctx, "https://"+conf.IpAddr,
-		conf.Username, conf.Password, false)
+	var endpoint = "https://" + conf.IpAddr
+	if strings.Contains(conf.IpAddr, ":") {
+		endpoint = fmt.Sprintf("https://[%s]", conf.IpAddr)
+	}
+	return redfish.NewRedfishDriver(ctx, endpoint, conf.Username, conf.Password, false)
 }
 
 func (b *SBaremetalInstance) GetIPMILanChannel() uint8 {
