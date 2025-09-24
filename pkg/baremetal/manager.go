@@ -321,7 +321,12 @@ func (m *SBaremetalManager) RegisterBaremetal(ctx context.Context, userCred mccl
 		return
 	}
 
-	input.IpAddr, err = m.fetchIpmiIp(sshCli)
+	isIpv6Addr := false
+	if strings.Contains(input.RemoteIp, ":") {
+		isIpv6Addr = true
+	}
+	input.IpAddr, err = m.fetchIpmiIp(sshCli, isIpv6Addr)
+	log.Infof("find ipmi addr %s", input.IpAddr)
 
 	if input.isTimeout() {
 		return
@@ -375,17 +380,48 @@ func (m *SBaremetalManager) RegisterBaremetal(ctx context.Context, userCred mccl
 	registerTask.DoPrepare(ctx, sshCli, registered)
 }
 
-func (m *SBaremetalManager) fetchIpmiIp(sshCli *ssh.Client) (string, error) {
-	res, err := sshCli.RawRun(`/usr/bin/ipmitool lan print | grep "IP Address  "`)
-	if err != nil {
-		return "", err
-	}
-	if len(res) == 1 {
-		segs := strings.Fields(res[0])
-		if len(segs) == 4 {
-			return strings.TrimSpace(segs[3]), nil
+func (m *SBaremetalManager) fetchIpmiIp(sshCli *ssh.Client, isIpv6Addr bool) (string, error) {
+	if !isIpv6Addr {
+		res, err := sshCli.RawRun(`/usr/bin/ipmitool lan print | grep "IP Address  "`)
+		if err != nil {
+			return "", err
+		}
+		if len(res) == 1 {
+			segs := strings.Fields(res[0])
+			if len(segs) == 4 {
+				return strings.TrimSpace(segs[3]), nil
+			}
+		}
+	} else {
+		res, err := sshCli.Run(`/usr/bin/ipmitool lan6 print`)
+		if err != nil {
+			return "", err
+		}
+		for i, line := range res {
+			if strings.HasPrefix(line, "IPv6 Static Address") || strings.HasPrefix(line, "IPv6 Dynamic Address") {
+				if len(res)-i > 3 {
+					enabledSegs := strings.Fields(res[i+1])
+					log.Infof("enabled segs %#v", enabledSegs)
+					if len(enabledSegs) != 2 || enabledSegs[0] != "Enabled:" || enabledSegs[1] != "yes" {
+						continue
+					}
+					statusSegs := strings.Fields(res[i+3])
+					log.Infof("status segs %#v", statusSegs)
+					if len(enabledSegs) != 2 || statusSegs[0] != "Status:" || statusSegs[1] != "active" {
+						continue
+					}
+					addrSegs := strings.Fields(res[i+2])
+					if len(addrSegs) != 2 || addrSegs[0] != "Address:" {
+						continue
+					}
+					ipv6Addr := strings.Split(addrSegs[1], "/")
+
+					return ipv6Addr[0], nil
+				}
+			}
 		}
 	}
+
 	return "", fmt.Errorf("Failed to find ipmi ip address")
 }
 
