@@ -5610,6 +5610,7 @@ func (hh *SHost) PerformInitialize(
 	guest.ProjectId = userCred.GetProjectId()
 	guest.DomainId = userCred.GetProjectDomainId()
 	guest.Status = api.VM_RUNNING
+	guest.PowerStates = api.VM_POWER_STATES_ON
 	guest.OsType = "Linux"
 	guest.SetModelManager(GuestManager, guest)
 	err = GuestManager.TableSpec().Insert(ctx, guest)
