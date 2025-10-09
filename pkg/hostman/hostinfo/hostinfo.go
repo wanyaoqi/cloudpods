@@ -1012,6 +1012,7 @@ func (h *SHostInfo) detectQemuCapabilities(version string) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed unmarshal machineinfo return %s", res.PrettyString())
 	}
+	log.Errorf("qemu machine info list %s", jsonutils.Marshal(machineInfoList))
 	h.qemuMachineInfoList = machineInfoList
 	qemuCaps := &QemuCaps{
 		QemuVersion:     version,
