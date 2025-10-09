@@ -986,6 +986,7 @@ func (h *SHostInfo) detectQemuCapabilities(version string) error {
 	capsPath := path.Join(options.HostOptions.ServersPath, "qemu_caps")
 	caps, err := h.loadQemuCaps(capsPath)
 	if err == nil && caps != nil && caps.QemuVersion == version {
+		log.Errorf("qemu machine info list %s", jsonutils.Marshal(caps))
 		h.qemuMachineInfoList = caps.MachineInfoList
 		return nil
 	}
