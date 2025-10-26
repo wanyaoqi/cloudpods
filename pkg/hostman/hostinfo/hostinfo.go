@@ -608,6 +608,9 @@ func (h *SHostInfo) detectHostInfo() error {
 	}
 
 	h.detectStorageSystem()
+	if options.HostOptions.EnableHostAgentNumaAllocate {
+		h.sysinfo.HostAgentCpuNumaAllocate = true
+	}
 
 	topoInfo, err := hardware.GetTopology()
 	if err != nil {
@@ -2745,7 +2748,7 @@ func (h *SHostInfo) GetReservedCpusInfo() (*cpuset.CPUSet, *cpuset.CPUSet) {
 	return &cpus, guestPinnedCpus
 }
 
-func (h *SHostInfo) IsNumaAllocateEnabled() bool {
+func (h *SHostInfo) IsSchedulerNumaAllocateEnabled() bool {
 	return h.enableNumaAllocate
 }
 
