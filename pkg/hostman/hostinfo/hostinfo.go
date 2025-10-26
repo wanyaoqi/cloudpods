@@ -2733,7 +2733,7 @@ func (h *SHostInfo) GetReservedCpusInfo() (*cpuset.CPUSet, *cpuset.CPUSet) {
 	return &cpus, guestPinnedCpus
 }
 
-func (h *SHostInfo) IsNumaAllocateEnabled() bool {
+func (h *SHostInfo) IsSchedulerNumaAllocateEnabled() bool {
 	return h.enableNumaAllocate
 }
 
