@@ -65,8 +65,7 @@ type SOpsLog struct {
 	Domain   string `width:"128" charset:"utf8" list:"user" create:"optional"`
 	Roles    string `width:"64" charset:"utf8" list:"user" create:"optional"`
 
-	OpsTime   time.Time `nullable:"false" list:"user" clickhouse_ttl:"6m"`
-	EventTime time.Time `nullable:"true" list:"user" create:"optional"`
+	OpsTime time.Time `nullable:"false" list:"user" clickhouse_ttl:"6m"`
 
 	OwnerDomainId  string `name:"owner_domain_id" default:"default" width:"128" charset:"ascii" list:"user" create:"optional"`
 	OwnerProjectId string `name:"owner_tenant_id" width:"128" charset:"ascii" list:"user" create:"optional"`
@@ -199,7 +198,7 @@ func (manager *SOpsLogManager) logEvent(model IModel, action string, notes inter
 		opslog.LogLevel = *logLevel
 	}
 	if eventTime != nil {
-		opslog.EventTime = *eventTime
+		opslog.OpsTime = eventTime.UTC()
 	}
 	opslog.SetModelManager(OpsLog, opslog)
 
@@ -347,7 +346,20 @@ func (manager *SOpsLogManager) ListItemFilter(
 		} else {
 			q = q.Filter(sqlchemy.In(q.Field("action"), input.Actions))
 		}
+	} else if input.ShowDmesgLog {
+		q = q.Filter(sqlchemy.Equals(q.Field("action"), ACT_HOST_DMESG))
+	} else {
+		q = q.Filter(sqlchemy.NotEquals(q.Field("action"), ACT_HOST_DMESG))
 	}
+
+	if len(input.LogLevels) > 0 {
+		if len(input.LogLevels) == 1 {
+			q = q.Filter(sqlchemy.Equals(q.Field("log_level"), input.LogLevels[0]))
+		} else {
+			q = q.Filter(sqlchemy.In(q.Field("log_level"), input.LogLevels))
+		}
+	}
+
 	//if !IsAdminAllowList(userCred, manager) {
 	// 	q = q.Filter(sqlchemy.OR(
 	//		sqlchemy.Equals(q.Field("owner_tenant_id"), manager.GetOwnerId(userCred)),
