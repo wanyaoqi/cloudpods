@@ -26,6 +26,7 @@ import (
 	psnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/process"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/httputils"
@@ -55,6 +56,7 @@ type SHostMetricsCollector struct {
 var hostMetricsCollector *SHostMetricsCollector
 
 type IHostInfo interface {
+	ReportHostDmesg(data jsonutils.JSONObject) error
 }
 
 var hostDmesgCollector *SHostDmesgCollector
