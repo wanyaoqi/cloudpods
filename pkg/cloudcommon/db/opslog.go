@@ -46,11 +46,12 @@ type SOpsLogManager struct {
 type SOpsLog struct {
 	SLogBase
 
-	ObjType string `width:"40" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
-	ObjId   string `width:"128" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
-	ObjName string `width:"128" charset:"utf8" nullable:"false" list:"user" create:"required"`
-	Action  string `width:"32" charset:"utf8" nullable:"false" list:"user" create:"required"`
-	Notes   string `charset:"utf8" list:"user" create:"optional"`
+	ObjType  string `width:"40" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+	ObjId    string `width:"128" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+	ObjName  string `width:"128" charset:"utf8" nullable:"false" list:"user" create:"required"`
+	Action   string `width:"32" charset:"utf8" nullable:"false" list:"user" create:"required"`
+	Notes    string `charset:"utf8" list:"user" create:"optional"`
+	LogLevel string `width:"8" charset:"ascii" nullable:"true" list:"user" create:"optional"`
 
 	ProjectId string `name:"tenant_id" width:"128" charset:"ascii" list:"user" create:"optional" index:"true"`
 	Project   string `name:"tenant" width:"128" charset:"utf8" list:"user" create:"optional"`
@@ -64,7 +65,8 @@ type SOpsLog struct {
 	Domain   string `width:"128" charset:"utf8" list:"user" create:"optional"`
 	Roles    string `width:"64" charset:"utf8" list:"user" create:"optional"`
 
-	OpsTime time.Time `nullable:"false" list:"user" clickhouse_ttl:"6m"`
+	OpsTime   time.Time `nullable:"false" list:"user" clickhouse_ttl:"6m"`
+	EventTime time.Time `nullable:"true" list:"user" create:"optional"`
 
 	OwnerDomainId  string `name:"owner_domain_id" default:"default" width:"128" charset:"ascii" list:"user" create:"optional"`
 	OwnerProjectId string `name:"owner_tenant_id" width:"128" charset:"ascii" list:"user" create:"optional"`
@@ -119,6 +121,14 @@ func (opslog *SOpsLog) GetModelManager() IModelManager {
 }
 
 func (manager *SOpsLogManager) LogEvent(model IModel, action string, notes interface{}, userCred mcclient.TokenCredential) {
+	manager.logEvent(model, action, notes, nil, nil, userCred)
+}
+
+func (manager *SOpsLogManager) LogEventDetails(model IModel, action string, notes interface{}, logLevel string, eventTime time.Time, userCred mcclient.TokenCredential) {
+	manager.logEvent(model, action, notes, &logLevel, &eventTime, userCred)
+}
+
+func (manager *SOpsLogManager) logEvent(model IModel, action string, notes interface{}, logLevel *string, eventTime *time.Time, userCred mcclient.TokenCredential) {
 	if !consts.OpsLogEnabled() {
 		return
 	}
@@ -184,6 +194,12 @@ func (manager *SOpsLogManager) LogEvent(model IModel, action string, notes inter
 		opslog.DomainId = userCred.GetDomainId()
 		opslog.Domain = userCred.GetDomainName()
 		opslog.Roles = strings.Join(userCred.GetRoles(), ",")
+	}
+	if logLevel != nil {
+		opslog.LogLevel = *logLevel
+	}
+	if eventTime != nil {
+		opslog.EventTime = *eventTime
 	}
 	opslog.SetModelManager(OpsLog, opslog)
 
