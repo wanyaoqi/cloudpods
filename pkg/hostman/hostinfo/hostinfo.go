@@ -2465,8 +2465,11 @@ func (h *SHostInfo) getNicsTelegrafConf() []map[string]interface{} {
 	return ret
 }
 
-func (h *SHostInfo) ReportHostDmesg(data jsonutils.JSONObject) error {
-	_, err := modules.Hosts.PerformAction(h.GetSession(), h.HostId, "report-dmesg", data)
+func (h *SHostInfo) ReportHostDmesg(entries []api.SKmsgEntry) error {
+	data := api.SHostReportDmesgInput{
+		Entries: entries,
+	}
+	_, err := modules.Hosts.PerformAction(h.GetSession(), h.HostId, "report-dmesg", jsonutils.Marshal(data))
 	return err
 }
 

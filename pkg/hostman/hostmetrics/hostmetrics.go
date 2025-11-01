@@ -56,7 +56,7 @@ type SHostMetricsCollector struct {
 var hostMetricsCollector *SHostMetricsCollector
 
 type IHostInfo interface {
-	ReportHostDmesg(data jsonutils.JSONObject) error
+	ReportHostDmesg(data []compute.SKmsgEntry) error
 }
 
 var hostDmesgCollector *SHostDmesgCollector

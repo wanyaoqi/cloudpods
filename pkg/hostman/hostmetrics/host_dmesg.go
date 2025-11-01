@@ -139,7 +139,7 @@ func (c *SHostDmesgCollector) flushBuffer() {
 	seq := c.buffer[len(c.buffer)-1].Seq
 
 	for {
-		err := c.host.ReportHostDmesg(jsonutils.Marshal(c.buffer))
+		err := c.host.ReportHostDmesg(c.buffer)
 		if err != nil {
 			log.Errorf("failed report host dmesg %s", err)
 			time.Sleep(time.Second * 30)
