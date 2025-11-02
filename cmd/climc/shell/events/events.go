@@ -142,6 +142,9 @@ func DoEventList(man modulebase.ResourceManager, s *mcclient.ClientSession, args
 	if len(args.Filter) > 0 {
 		params.Add(jsonutils.NewStringArray(args.Filter), "filter")
 	}
+	if args.ShowDmesgLog {
+		params.Add(jsonutils.JSONTrue, "show_dmesg_log")
+	}
 	logs, err := man.List(s, params)
 	if err != nil {
 		return err

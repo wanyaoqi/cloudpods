@@ -81,7 +81,6 @@ func (c *SHostDmesgCollector) Start() {
 		}
 	}
 
-	// 定时触发上报
 	go func() {
 		for range time.Tick(flushInterval) {
 			c.mu.Lock()
@@ -125,7 +124,7 @@ func (c *SHostDmesgCollector) Start() {
 }
 
 func (c *SHostDmesgCollector) isNoise(entry *compute.SKmsgEntry) bool {
-	if strings.HasPrefix(entry.Message, "IPVS") {
+	if strings.HasPrefix(entry.Message, "IPVS:") {
 		return true
 	}
 	return false
