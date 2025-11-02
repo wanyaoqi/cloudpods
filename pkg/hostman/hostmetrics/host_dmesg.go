@@ -80,6 +80,7 @@ func (c *SHostDmesgCollector) Start() {
 			lastSeq = readerState.LastSeq
 		}
 	}
+	log.Infof("Start dmesg reader from seq %d", lastSeq)
 
 	go func() {
 		for range time.Tick(flushInterval) {
