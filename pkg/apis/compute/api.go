@@ -407,6 +407,8 @@ type ServerConfigs struct {
 	// required: true
 	Disks []*DiskConfig `json:"disks"`
 
+	SoftRaidConfigs []*BaremetalDiskConfig
+
 	// 指定主机网络
 	// required: false
 	Networks []*NetworkConfig `json:"nets"`
