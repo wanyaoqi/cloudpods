@@ -36,7 +36,7 @@ const (
 	DISK_DRIVER_MARVELRAID  = "MarvelRaid"
 	DISK_DRIVER_ADAPTECRAID = "AdaptecRaid"
 	DISK_DRIVER_PCIE        = "PCIE"
-	DISK_DRIVER_SOFTRAID    = "SoftRaid"
+	DISK_DRIVER_MDADM       = "Mdadm" // soft raid
 
 	HDD_DISK_SPEC_TYPE = "HDD"
 	SSD_DISK_SPEC_TYPE = "SSD"

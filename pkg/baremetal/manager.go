@@ -2743,6 +2743,8 @@ func (s *SBaremetalServer) DoDiskConfig(term *ssh.Client) (*disktool.SSHPartitio
 		}
 	}
 
+	// build soft raid
+
 	matcher, err := s.GetRootDiskMatcher()
 	if errors.Cause(err) != errors.ErrNotFound {
 		log.Errorf("GetRootDiskMatcher: %v", err)
