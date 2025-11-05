@@ -56,6 +56,7 @@ import (
 	"yunion.io/x/onecloud/pkg/baremetal/utils/disktool"
 	"yunion.io/x/onecloud/pkg/baremetal/utils/grub"
 	"yunion.io/x/onecloud/pkg/baremetal/utils/ipmitool"
+	raid2 "yunion.io/x/onecloud/pkg/baremetal/utils/raid"
 	raiddrivers "yunion.io/x/onecloud/pkg/baremetal/utils/raid/drivers"
 	"yunion.io/x/onecloud/pkg/baremetal/utils/uefi"
 	"yunion.io/x/onecloud/pkg/cloudcommon/types"
@@ -2719,10 +2720,23 @@ func (s *SBaremetalServer) DoDiskConfig(term *ssh.Client) (*disktool.SSHPartitio
 	log.Errorf("%s layouts: %s, diskConfs: %s", s.GetName(), jsonutils.Marshal(layouts).PrettyString(), jsonutils.Marshal(diskConfs).PrettyString())
 	for _, dConf := range diskConfs {
 		driver := dConf.Driver
+		isSoftRaid := baremetal.DISK_DRIVERS_SOFT_RAID.Has(driver)
+
 		raidDrv := raiddrivers.GetDriver(driver, term)
 		if raidDrv != nil {
 			if err := raidDrv.ParsePhyDevs(); err != nil {
 				return nil, fmt.Errorf("RaidDriver %s parse physical devices: %v", raidDrv.GetName(), err)
+			}
+			if isSoftRaid {
+				devs := make([]*baremetal.BaremetalStorage, 0)
+				for _, layout := range layouts {
+					if len(layout.Disks) > 0 && layout.Disks[0].Driver == driver && layout.Disks[0].Adapter == dConf.Adapter {
+						devs = append(devs, layout.Disks...)
+					}
+				}
+				if mdadmDrver, ok := raidDrv.(raid2.IRaidDeviceSetter); ok {
+					mdadmDrver.SetDeviceForAdapter(dConf.Adapter, devs)
+				}
 			}
 			raidDrv.CleanRaid()
 		}
@@ -2736,14 +2750,13 @@ func (s *SBaremetalServer) DoDiskConfig(term *ssh.Client) (*disktool.SSHPartitio
 			if err := raidDrv.ParsePhyDevs(); err != nil {
 				return nil, fmt.Errorf("RaidDriver %s parse physical devices: %v", raidDrv.GetName(), err)
 			}
+
 			if err := raiddrivers.BuildRaid(raidDrv, dConf.Configs, adapter); err != nil {
 				return nil, fmt.Errorf("Build %s raid failed: %v", raidDrv.GetName(), err)
 			}
 			time.Sleep(10 * time.Second) // wait 10 seconds for raid status OK
 		}
 	}
-
-	// build soft raid
 
 	matcher, err := s.GetRootDiskMatcher()
 	if errors.Cause(err) != errors.ErrNotFound {

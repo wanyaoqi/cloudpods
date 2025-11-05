@@ -45,6 +45,10 @@ type IRaidAdapter interface {
 	PostBuildRaid() error
 }
 
+type IRaidDeviceSetter interface {
+	SetDeviceForAdapter(int, []*baremetal.BaremetalStorage)
+}
+
 type IExecTerm interface {
 	Run(cmds ...string) ([]string, error)
 	RunWithInput(input io.Reader, cmds ...string) ([]string, error)
