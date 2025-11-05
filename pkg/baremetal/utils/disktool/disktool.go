@@ -324,7 +324,7 @@ func (ps *DiskPartitions) IsReady() bool {
 
 func (ps *DiskPartitions) GetDevName() string {
 	devName := ps.devName
-	if !ps.IsRaidDriver() || ps.raidConfig == baremetal.DISK_CONF_NONE {
+	if ps.raidConfig == baremetal.DISK_CONF_NONE {
 		return devName
 	}
 	raidDrv, err := raiddrivers.GetDriverWithInit(ps.driver, ps.tool.runner.Term())
@@ -692,10 +692,11 @@ func (tool *PartitionTool) FetchDiskConfs(diskConfs []baremetal.DiskConfiguratio
 	for _, d := range diskConfs {
 		disk := newDiskPartitions(d.Driver, d.Adapter, d.RaidConfig, d.Size, d.Block, d.DiskType, tool)
 		tool.disks = append(tool.disks, disk)
+		isSoftRaid := d.RaidConfig != baremetal.DISK_CONF_NONE
 		var key string
-		if d.Driver == baremetal.DISK_DRIVER_LINUX {
+		if d.Driver == baremetal.DISK_DRIVER_LINUX && !isSoftRaid {
 			key = NONRAID_DRIVER
-		} else if d.Driver == baremetal.DISK_DRIVER_PCIE {
+		} else if d.Driver == baremetal.DISK_DRIVER_PCIE && !isSoftRaid {
 			key = PCIE_DRIVER
 		} else {
 			key = RAID_DRVIER

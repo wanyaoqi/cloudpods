@@ -70,7 +70,7 @@ func (self *SBaremetalServerCreateTask) DoDeploys(ctx context.Context, term *ssh
 	}
 	data := jsonutils.NewDict()
 
-	time.Sleep(2222 * time.Hour)
+	//time.Sleep(2222 * time.Hour)
 
 	disks, err := self.Baremetal.GetServer().SyncPartitionSize(term, rootDisk, parts)
 	if err != nil {

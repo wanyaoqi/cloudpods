@@ -16,6 +16,7 @@ package mdadm
 
 import (
 	"fmt"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -26,11 +27,11 @@ import (
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/baremetal/utils/raid"
 	"yunion.io/x/onecloud/pkg/compute/baremetal"
+	"yunion.io/x/onecloud/pkg/util/sysutils"
 )
 
 const (
-	MDADM_BIN         = "/usr/sbin/mdadm"
-	MDADM_DRIVER_NAME = "mdadm"
+	MDADM_BIN = "/usr/sbin/mdadm"
 )
 
 func init() {
@@ -101,19 +102,62 @@ func (r *MdadmRaid) PreBuildRaid(confs []*api.BaremetalDiskConfig, adapterIdx in
 	return nil
 }
 
+func (r *MdadmRaid) deviceHasRaid(devPath string) bool {
+	cmd := fmt.Sprintf("%s --examine %s 2>/dev/null || true", MDADM_BIN, devPath)
+	output, err := r.term.Run(cmd)
+	if err != nil {
+		log.Errorf("examine device %s: %s", devPath, err)
+		return false
+	}
+
+	for _, line := range output {
+		if strings.Contains(line, "mdadm") || strings.Contains(line, "ARRAY") {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *MdadmRaid) CleanRaid() error {
-	// 停止所有活动的md设备
+	// stop md devices
 	cmd := fmt.Sprintf("%s --stop --scan", MDADM_BIN)
 	_, err := r.term.Run(cmd)
 	if err != nil {
-		log.Warningf("Stop md devices: %v", err)
+		log.Warningf("Stop md devices: %s", err)
 	}
 
-	// 清除所有md设备的superblock
-	cmd = fmt.Sprintf("%s --zero-superblock --force /dev/md* 2>/dev/null || true", MDADM_BIN)
-	_, err = r.term.Run(cmd)
+	pcieRet, err := r.term.Run("/lib/mos/lsdisk --pcie")
 	if err != nil {
-		log.Warningf("Zero superblock: %v", err)
+		log.Warningf("Fail to retrieve PCIE DISK info %s", err)
+	} else {
+		pcieDiskInfo := sysutils.ParsePCIEDiskInfo(pcieRet)
+		for i := range pcieDiskInfo {
+			devPath := path.Join("/dev", pcieDiskInfo[i].Dev)
+			if r.deviceHasRaid(devPath) {
+				cmd := fmt.Sprintf("%s --zero-superblock --force %s", MDADM_BIN, devPath)
+				out, err := r.term.Run(cmd)
+				if err != nil {
+					return errors.Wrapf(err, "zero superblock on %s: %s", devPath, out)
+				}
+			}
+		}
+	}
+
+	nonraidRet, err := r.term.Run("/lib/mos/lsdisk --nonraid")
+	if err != nil {
+		log.Warningf("Fail to retrieve SCSI DISK info %s", err)
+	} else {
+		nonraidDiskInfo := sysutils.ParseSCSIDiskInfo(nonraidRet)
+		for i := range nonraidDiskInfo {
+			devPath := path.Join("/dev", nonraidDiskInfo[i].Dev)
+			if r.deviceHasRaid(devPath) {
+				cmd := fmt.Sprintf("%s --zero-superblock --force %s", MDADM_BIN, devPath)
+				out, err := r.term.Run(cmd)
+				if err != nil {
+					return errors.Wrapf(err, "zero superblock on %s: %s", devPath, out)
+				}
+			}
+		}
 	}
 
 	return nil
@@ -136,38 +180,28 @@ func (a *MdadmRaidAdapter) PreBuildRaid(confs []*api.BaremetalDiskConfig) error 
 
 func (a *MdadmRaidAdapter) GetLogicVolumes() ([]*raid.RaidLogicalVolume, error) {
 	lvs := make([]*raid.RaidLogicalVolume, 0)
-	cmd := fmt.Sprintf("%s --detail --scan 2>/dev/null || true", MDADM_BIN)
+	cmd := "ls -1 /dev/md* 2>/dev/null || true"
 	output, err := a.term.Run(cmd)
 	if err != nil {
-		// 如果没有md设备，返回空列表
 		return lvs, nil
 	}
 
-	// mdadm --detail --scan 输出格式: ARRAY /dev/md0 metadata=1.2 name=hostname:0 UUID=...
-	mdRe := regexp.MustCompile(`ARRAY\s+(/dev/md\d+)`)
-	usedMdNums := make(map[int]bool)
-
 	for _, line := range output {
-		matches := mdRe.FindStringSubmatch(line)
-		if len(matches) > 1 {
-			mdPath := matches[1]
-			// 从路径中提取数字，如 /dev/md0 -> 0
-			mdNumRe := regexp.MustCompile(`/dev/md(\d+)`)
-			if numMatches := mdNumRe.FindStringSubmatch(mdPath); len(numMatches) > 1 {
-				if num, err := strconv.Atoi(numMatches[1]); err == nil {
-					if !usedMdNums[num] {
-						lv := &raid.RaidLogicalVolume{
-							Index:    num,
-							Adapter:  a.index,
-							BlockDev: mdPath,
-						}
-						lvs = append(lvs, lv)
-						usedMdNums[num] = true
-					}
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "/dev/md") {
+			mdPath := line
+			numStr := strings.TrimPrefix(line, "/dev/md")
+			if num, err := strconv.Atoi(numStr); err == nil {
+				lv := &raid.RaidLogicalVolume{
+					Index:    num,
+					Adapter:  a.index,
+					BlockDev: mdPath,
 				}
+				lvs = append(lvs, lv)
 			}
 		}
 	}
+
 	return lvs, nil
 }
 
@@ -210,12 +244,6 @@ func (a *MdadmRaidAdapter) BuildNoneRaid(devs []*baremetal.BaremetalStorage) err
 }
 
 func (a *MdadmRaidAdapter) PostBuildRaid() error {
-	// 更新mdadm配置
-	cmd := fmt.Sprintf("%s --examine --scan > /etc/mdadm/mdadm.conf 2>/dev/null || %s --examine --scan > /etc/mdadm.conf 2>/dev/null || true", MDADM_BIN, MDADM_BIN)
-	_, err := a.term.Run(cmd)
-	if err != nil {
-		log.Warningf("Update mdadm.conf: %v", err)
-	}
 	return nil
 }
 
@@ -252,6 +280,8 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 		fmt.Sprintf("/dev/md%d", mdNum),
 		fmt.Sprintf("--level=%s", level),
 		fmt.Sprintf("--raid-devices=%d", len(devs)),
+		"--force",
+		"--run",
 	}
 
 	// 添加设备
