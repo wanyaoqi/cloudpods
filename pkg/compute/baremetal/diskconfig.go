@@ -199,9 +199,9 @@ func MeetConfig(
 		return fmt.Errorf("%v more than 1 storages drivers", storageDrvs)
 	}
 	driver := storageDrvs.List()[0]
-	if conf.Conf != DISK_CONF_NONE && !DISK_DRIVERS_RAID.Has(driver) {
-		return fmt.Errorf("BaremetalStorage driver %s not support RAID", driver)
-	}
+	//if conf.Conf != DISK_CONF_NONE && !DISK_DRIVERS_RAID.Has(driver) {
+	//	return fmt.Errorf("BaremetalStorage driver %s not support RAID", driver)
+	//}
 
 	minDisk := GetMinDiskRequirement(conf.Conf)
 	if len(storages) < minDisk {
