@@ -46,7 +46,7 @@ type IRaidAdapter interface {
 }
 
 type IRaidDeviceSetter interface {
-	SetDeviceForAdapter(int, []*baremetal.BaremetalStorage)
+	SetDevicesForAdapter(int, []*baremetal.BaremetalStorage)
 }
 
 type IExecTerm interface {

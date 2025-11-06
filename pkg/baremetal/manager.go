@@ -2735,7 +2735,7 @@ func (s *SBaremetalServer) DoDiskConfig(term *ssh.Client) (*disktool.SSHPartitio
 					}
 				}
 				if mdadmDrver, ok := raidDrv.(raid2.IRaidDeviceSetter); ok {
-					mdadmDrver.SetDeviceForAdapter(dConf.Adapter, devs)
+					mdadmDrver.SetDevicesForAdapter(dConf.Adapter, devs)
 				}
 			}
 			raidDrv.CleanRaid()
