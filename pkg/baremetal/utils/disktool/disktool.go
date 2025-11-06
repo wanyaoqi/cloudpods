@@ -17,6 +17,8 @@ package disktool
 import (
 	"fmt"
 	"math"
+	"path"
+	"strconv"
 	"strings"
 
 	"yunion.io/x/jsonutils"
@@ -770,6 +772,23 @@ func (tool *PartitionTool) IsAllDisksReady() bool {
 }
 
 func (tool *PartitionTool) RetrieveDiskInfo(rootMatcher *api.BaremetalRootDiskMatcher) error {
+	for _, disk := range tool.disks {
+		if baremetal.DISK_DRIVERS_SOFT_RAID.Has(disk.driver) && disk.raidConfig != baremetal.DISK_CONF_NONE {
+			devName := disk.GetDevName()
+			log.Errorf("set dev %s", devName)
+			disk.dev = path.Join("/dev", devName)
+			disk.devName = devName
+			cmd := fmt.Sprintf("blockdev --getsz %s 2>/dev/null || echo 0", disk.dev)
+			output, err := tool.Run(cmd)
+			if err == nil && len(output) > 0 {
+				if sectors, err := strconv.ParseInt(strings.TrimSpace(output[0]), 10, 64); err == nil {
+					disk.sectors = sectors
+					disk.blockSize = 512
+				}
+			}
+		}
+	}
+
 	for _, driver := range []string{RAID_DRVIER, NONRAID_DRIVER, PCIE_DRIVER} {
 		cmd := fmt.Sprintf("/lib/mos/lsdisk --%s", driver)
 		ret, err := tool.Run(cmd)
@@ -778,6 +797,7 @@ func (tool *PartitionTool) RetrieveDiskInfo(rootMatcher *api.BaremetalRootDiskMa
 		}
 		tool.parseLsDisk(ret, driver)
 	}
+	log.Errorf("tool.diskTable %v", jsonutils.Marshal(tool.diskTable))
 	// reorder tool.disks
 	if rootMatcher != nil {
 		tool.reorderRootDisk(rootMatcher)
@@ -870,6 +890,7 @@ func newSSHPartitionTool(term *ssh.Client) *SSHPartitionTool {
 func NewSSHPartitionTool(term *ssh.Client, layouts []baremetal.Layout, rootMatcher *api.BaremetalRootDiskMatcher) (*SSHPartitionTool, error) {
 	tool := newSSHPartitionTool(term)
 	tool.FetchDiskConfs(baremetal.GetDiskConfigurations(layouts))
+	log.Errorf("disk tables %s", jsonutils.Marshal(tool.diskTable))
 	if err := tool.RetrieveDiskInfo(rootMatcher); err != nil {
 		return nil, errors.Wrapf(err, "RetrieveDiskInfo")
 	}
