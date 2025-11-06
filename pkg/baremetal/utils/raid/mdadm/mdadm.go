@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 
@@ -249,7 +248,6 @@ func (a *MdadmRaidAdapter) PostBuildRaid() error {
 }
 
 func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalStorage, conf *api.BaremetalDiskConfig) error {
-	log.Infof("MdadmRaidAdapter start build %v devs: %v, conf %v", level, jsonutils.Marshal(devs), jsonutils.Marshal(conf))
 	if len(devs) == 0 {
 		return fmt.Errorf("no devices provided for RAID %s", level)
 	}

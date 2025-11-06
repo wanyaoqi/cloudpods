@@ -110,6 +110,7 @@ func buildRaid(driver raid.IRaidDriver, adapter raid.IRaidAdapter, confs []*api.
 		return fmt.Errorf("RemoveLogicVolumes: %v", err)
 	}
 	devs := adapter.GetDevices()
+	log.Infof("buildRaid start build devs: %v, conf %v", jsonutils.Marshal(devs), jsonutils.Marshal(confs))
 	if len(devs) == 0 {
 		// no disk to build
 		return nil
