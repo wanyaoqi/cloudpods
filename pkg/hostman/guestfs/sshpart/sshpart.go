@@ -59,7 +59,12 @@ func (p *SSHPartition) GetMountPath() string {
 }
 
 func (p *SSHPartition) GetFsFormat() (string, error) {
-	cmd := fmt.Sprintf("/lib/mos/partfs.sh %s", p.partDev)
+	var cmd string
+	if strings.HasPrefix(p.partDev, "/dev/md") {
+		cmd = fmt.Sprintf("blkid -o value -s TYPE %s", p.partDev)
+	} else {
+		cmd = fmt.Sprintf("/lib/mos/partfs.sh %s", p.partDev)
+	}
 	ret, err := p.term.Run(cmd)
 	if err != nil {
 		return "", err
