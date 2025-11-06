@@ -64,16 +64,13 @@ func (r *MdadmRaid) GetName() string {
 }
 
 func (r *MdadmRaid) ParsePhyDevs() error {
-	// 对于软RAID，我们不需要解析物理设备，因为设备列表在构建时提供
-	// 创建一个虚拟适配器，索引为0
 	if r.adapter == nil {
-		adapter := &MdadmRaidAdapter{
+		log.Errorf("ParsePhyDevs is nil")
+		r.adapter = &MdadmRaidAdapter{
 			raid:  r,
 			term:  r.term,
 			index: 0,
-			devs:  make([]*baremetal.BaremetalStorage, 0),
 		}
-		r.adapter = adapter
 	}
 	return nil
 }
