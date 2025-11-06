@@ -48,7 +48,6 @@ type MdadmRaid struct {
 func NewMdadmRaidLinux(term raid.IExecTerm) raid.IRaidDriver {
 	return &MdadmRaid{
 		term:       term,
-		adapter:    new(MdadmRaidAdapter),
 		driverName: baremetal.DISK_DRIVER_LINUX,
 	}
 }
@@ -56,7 +55,6 @@ func NewMdadmRaidLinux(term raid.IExecTerm) raid.IRaidDriver {
 func NewMdadmRaidPcie(term raid.IExecTerm) raid.IRaidDriver {
 	return &MdadmRaid{
 		term:       term,
-		adapter:    new(MdadmRaidAdapter),
 		driverName: baremetal.DISK_DRIVER_PCIE,
 	}
 }
