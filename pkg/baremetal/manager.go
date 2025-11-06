@@ -2858,6 +2858,7 @@ func (s *SBaremetalServer) DoPartitionDisk(tool *disktool.SSHPartitionTool, term
 	rootImageId := s.GetRootTemplateId()
 	diskOffset := 0
 	rootDisk := tool.GetRootDisk()
+	log.Errorf("root disk name %s", rootDisk.GetDevName())
 	if len(rootImageId) > 0 {
 		rootDiskObj := disks[0]
 		rootSize, _ := rootDiskObj.Int("size")
