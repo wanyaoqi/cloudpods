@@ -2751,6 +2751,7 @@ func (s *SBaremetalServer) DoDiskConfig(term *ssh.Client) (*disktool.SSHPartitio
 				return nil, fmt.Errorf("RaidDriver %s parse physical devices: %v", raidDrv.GetName(), err)
 			}
 
+			log.Infof("start build raid ...................")
 			if err := raiddrivers.BuildRaid(raidDrv, dConf.Configs, adapter); err != nil {
 				return nil, fmt.Errorf("Build %s raid failed: %v", raidDrv.GetName(), err)
 			}
