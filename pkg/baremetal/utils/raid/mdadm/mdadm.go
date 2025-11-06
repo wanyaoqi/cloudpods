@@ -254,7 +254,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 
 	// 确保设备没有被使用
 	for _, dev := range devPaths {
-		if err := a.ensureDeviceClean(dev); err != nil {
+		if err := a.ensureDeviceClean(path.Join("/dev", dev)); err != nil {
 			return errors.Wrapf(err, "clean device %s", dev)
 		}
 	}
@@ -271,7 +271,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 
 	// 添加设备
 	for _, dev := range devPaths {
-		args = append(args, dev)
+		args = append(args, path.Join("/dev", dev))
 	}
 
 	// 对于RAID1和RAID5，可以设置bitmap
