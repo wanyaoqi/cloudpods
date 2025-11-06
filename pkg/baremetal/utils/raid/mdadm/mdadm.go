@@ -192,11 +192,11 @@ func (a *MdadmRaidAdapter) GetLogicVolumes() ([]*raid.RaidLogicalVolume, error) 
 
 func (a *MdadmRaidAdapter) RemoveLogicVolumes() error {
 	// 停止所有md设备
-	cmd := fmt.Sprintf("%s --stop --scan", MDADM_BIN)
-	_, err := a.term.Run(cmd)
-	if err != nil {
-		log.Warningf("Stop md devices: %v", err)
-	}
+	//cmd := fmt.Sprintf("%s --stop --scan", MDADM_BIN)
+	//_, err := a.term.Run(cmd)
+	//if err != nil {
+	//	log.Warningf("Stop md devices: %v", err)
+	//}
 	return nil
 }
 
