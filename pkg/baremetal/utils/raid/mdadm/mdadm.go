@@ -41,14 +41,14 @@ func init() {
 
 type MdadmRaid struct {
 	term       raid.IExecTerm
-	adapters   []*MdadmRaidAdapter
+	adapter    *MdadmRaidAdapter
 	driverName string
 }
 
 func NewMdadmRaidLinux(term raid.IExecTerm) raid.IRaidDriver {
 	return &MdadmRaid{
 		term:       term,
-		adapters:   make([]*MdadmRaidAdapter, 0),
+		adapter:    new(MdadmRaidAdapter),
 		driverName: baremetal.DISK_DRIVER_LINUX,
 	}
 }
@@ -56,7 +56,7 @@ func NewMdadmRaidLinux(term raid.IExecTerm) raid.IRaidDriver {
 func NewMdadmRaidPcie(term raid.IExecTerm) raid.IRaidDriver {
 	return &MdadmRaid{
 		term:       term,
-		adapters:   make([]*MdadmRaidAdapter, 0),
+		adapter:    new(MdadmRaidAdapter),
 		driverName: baremetal.DISK_DRIVER_PCIE,
 	}
 }
@@ -68,34 +68,24 @@ func (r *MdadmRaid) GetName() string {
 func (r *MdadmRaid) ParsePhyDevs() error {
 	// 对于软RAID，我们不需要解析物理设备，因为设备列表在构建时提供
 	// 创建一个虚拟适配器，索引为0
-	if len(r.adapters) == 0 {
+	if r.adapter == nil {
 		adapter := &MdadmRaidAdapter{
 			raid:  r,
 			term:  r.term,
 			index: 0,
 			devs:  make([]*baremetal.BaremetalStorage, 0),
 		}
-		r.adapters = append(r.adapters, adapter)
+		r.adapter = adapter
 	}
 	return nil
 }
 
-// SetDevicesForAdapter 为指定适配器设置设备列表（用于软RAID）
 func (r *MdadmRaid) SetDevicesForAdapter(adapterIdx int, devs []*baremetal.BaremetalStorage) {
-	for _, adapter := range r.adapters {
-		if adapter.GetIndex() == adapterIdx {
-			adapter.setDevices(devs)
-			break
-		}
-	}
+	r.adapter.setDevices(devs)
 }
 
 func (r *MdadmRaid) GetAdapters() []raid.IRaidAdapter {
-	ret := make([]raid.IRaidAdapter, len(r.adapters))
-	for i := range r.adapters {
-		ret[i] = r.adapters[i]
-	}
-	return ret
+	return []raid.IRaidAdapter{r.adapter}
 }
 
 func (r *MdadmRaid) PreBuildRaid(confs []*api.BaremetalDiskConfig, adapterIdx int) error {
