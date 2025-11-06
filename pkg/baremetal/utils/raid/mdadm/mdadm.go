@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	MDADM_BIN = "/usr/sbin/mdadm"
+	MDADM_BIN = "/sbin/mdadm"
 )
 
 func init() {
