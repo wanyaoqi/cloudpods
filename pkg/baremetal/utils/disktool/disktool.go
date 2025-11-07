@@ -778,8 +778,20 @@ func (tool *PartitionTool) RetrieveDiskInfo(rootMatcher *api.BaremetalRootDiskMa
 			log.Errorf("set dev %s", devName)
 			disk.dev = path.Join("/dev", devName)
 			disk.devName = devName
-			cmd := fmt.Sprintf("blockdev --getsz %s 2>/dev/null || echo 0", disk.dev)
+
+			// get md uuid as pci path
+			cmd := fmt.Sprintf("/sbin/mdadm --detail %s | grep UUID", disk.dev)
 			output, err := tool.Run(cmd)
+			if err == nil && len(output) > 0 {
+				segs := strings.SplitN(strings.TrimSpace(output[0]), ":", 2)
+				if len(segs) == 2 {
+					disk.pciPath = strings.TrimSpace(segs[1])
+				}
+			}
+
+			// get block size
+			cmd = fmt.Sprintf("blockdev --getsz %s 2>/dev/null || echo 0", disk.dev)
+			output, err = tool.Run(cmd)
 			if err == nil && len(output) > 0 {
 				if sectors, err := strconv.ParseInt(strings.TrimSpace(output[0]), 10, 64); err == nil {
 					disk.sectors = sectors
