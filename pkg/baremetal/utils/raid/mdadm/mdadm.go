@@ -237,10 +237,16 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 		return fmt.Errorf("no devices provided for RAID %s", level)
 	}
 
-	// 获取下一个可用的md设备号
-	mdNum, err := a.getNextMdNum()
-	if err != nil {
-		return errors.Wrap(err, "get next md number")
+	var mdNum int
+	var err error
+	if conf.SoftRaidIdx != nil {
+		mdNum = *conf.SoftRaidIdx
+	} else {
+		// 获取下一个可用的md设备号
+		mdNum, err = a.getNextMdNum()
+		if err != nil {
+			return errors.Wrap(err, "get next md number")
+		}
 	}
 
 	// 构建设备列表
