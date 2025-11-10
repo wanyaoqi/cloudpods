@@ -265,10 +265,12 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 		}
 	}
 
+	mdDev := fmt.Sprintf("/dev/md%d", mdNum)
 	// 构建mdadm命令
 	args := []string{
 		"--create",
-		fmt.Sprintf("/dev/md%d", mdNum),
+		"--metadata=1.2",
+		mdDev,
 		fmt.Sprintf("--level=%s", level),
 		fmt.Sprintf("--raid-devices=%d", len(devs)),
 		"--force",
@@ -286,7 +288,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	}
 
 	// 自动装配
-	args = append(args, "--assume-clean")
+	//args = append(args, "--assume-clean")
 
 	cmd := fmt.Sprintf("%s %s", MDADM_BIN, strings.Join(args, " "))
 	log.Infof("Building software RAID %s: %s", level, cmd)
@@ -296,7 +298,21 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 		return errors.Wrapf(err, "mdadm create raid %s failed, output: %v", level, output)
 	}
 
-	log.Infof("Successfully created software RAID %s: /dev/md%d", level, mdNum)
+	cmd = fmt.Sprintf("%s --wait %s", MDADM_BIN, mdDev)
+	output, err = a.term.Run(cmd)
+	if err != nil {
+		return errors.Wrapf(err, "mdadm wait raid %s failed, output: %v", mdDev, output)
+	}
+
+	log.Infof("Successfully created software RAID %s: /dev/md%d, start sync block devs", level, mdNum)
+
+	for i := range devPaths {
+		flushCmd := fmt.Sprintf("blockdev --flushbufs /dev/%s", devPaths[i])
+		output, err = a.term.Run(flushCmd)
+		if err != nil {
+			return errors.Wrapf(err, "mdadm blockdev flushbufs %s failed, output: %v", devPaths[i], output)
+		}
+	}
 	return nil
 }
 
