@@ -108,7 +108,33 @@ func (r *MdadmRaid) CleanRaid() error {
 	return nil
 }
 
+func CleanMdadmPartitions(term *ssh.Client) {
+	out, err := term.Run("ls /sys/block/ | grep md")
+	if err != nil {
+		log.Errorf("failed get md devices %s, %s", out, err)
+		return
+	}
+	// destory mdadm soft raid
+	for _, line := range out {
+		dev := strings.TrimSpace(line)
+		out, err = term.Run(fmt.Sprintf("dd if=/dev/zero of=/dev/%s bs=512 count=34", dev))
+		if err != nil {
+			log.Errorf("faield clean mdadm partitions %s %s", out, err)
+		}
+		out, err = term.Run(fmt.Sprintf("dd if=/dev/zero of=/dev/%s bs=512 count=34 seek=$(( $(cat /sys/class/block/%s/size) - 34 ))", dev, dev))
+		if err != nil {
+			log.Errorf("faield clean mdadm partitions %s %s", out, err)
+		}
+		out, err = term.Run(fmt.Sprintf("hdparm -z /dev/%s", dev))
+		if err != nil {
+			log.Errorf("faield clean mdadm partitions %s %s", out, err)
+		}
+	}
+}
+
 func CleanRaid(term *ssh.Client) error {
+	CleanMdadmPartitions(term)
+
 	// stop md devices
 	cmd := fmt.Sprintf("%s --stop --scan", MDADM_BIN)
 	_, err := term.Run(cmd)
