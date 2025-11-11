@@ -27,6 +27,7 @@ import (
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/baremetal/utils/raid"
 	"yunion.io/x/onecloud/pkg/compute/baremetal"
+	"yunion.io/x/onecloud/pkg/util/ssh"
 	"yunion.io/x/onecloud/pkg/util/sysutils"
 )
 
@@ -87,9 +88,9 @@ func (r *MdadmRaid) PreBuildRaid(confs []*api.BaremetalDiskConfig, adapterIdx in
 	return nil
 }
 
-func (r *MdadmRaid) deviceHasRaid(devPath string) bool {
+func deviceHasRaid(devPath string, term *ssh.Client) bool {
 	cmd := fmt.Sprintf("%s --examine %s 2>/dev/null || true", MDADM_BIN, devPath)
-	output, err := r.term.Run(cmd)
+	output, err := term.Run(cmd)
 	if err != nil {
 		log.Errorf("examine device %s: %s", devPath, err)
 		return false
@@ -104,23 +105,27 @@ func (r *MdadmRaid) deviceHasRaid(devPath string) bool {
 }
 
 func (r *MdadmRaid) CleanRaid() error {
+	return nil
+}
+
+func CleanRaid(term *ssh.Client) error {
 	// stop md devices
 	cmd := fmt.Sprintf("%s --stop --scan", MDADM_BIN)
-	_, err := r.term.Run(cmd)
+	_, err := term.Run(cmd)
 	if err != nil {
 		log.Warningf("Stop md devices: %s", err)
 	}
 
-	pcieRet, err := r.term.Run("/lib/mos/lsdisk --pcie")
+	pcieRet, err := term.Run("/lib/mos/lsdisk --pcie")
 	if err != nil {
 		log.Warningf("Fail to retrieve PCIE DISK info %s", err)
 	} else {
 		pcieDiskInfo := sysutils.ParsePCIEDiskInfo(pcieRet)
 		for i := range pcieDiskInfo {
 			devPath := path.Join("/dev", pcieDiskInfo[i].Dev)
-			if r.deviceHasRaid(devPath) {
+			if deviceHasRaid(devPath, term) {
 				cmd := fmt.Sprintf("%s --zero-superblock --force %s", MDADM_BIN, devPath)
-				out, err := r.term.Run(cmd)
+				out, err := term.Run(cmd)
 				if err != nil {
 					return errors.Wrapf(err, "zero superblock on %s: %s", devPath, out)
 				}
@@ -128,16 +133,16 @@ func (r *MdadmRaid) CleanRaid() error {
 		}
 	}
 
-	nonraidRet, err := r.term.Run("/lib/mos/lsdisk --nonraid")
+	nonraidRet, err := term.Run("/lib/mos/lsdisk --nonraid")
 	if err != nil {
 		log.Warningf("Fail to retrieve SCSI DISK info %s", err)
 	} else {
 		nonraidDiskInfo := sysutils.ParseSCSIDiskInfo(nonraidRet)
 		for i := range nonraidDiskInfo {
 			devPath := path.Join("/dev", nonraidDiskInfo[i].Dev)
-			if r.deviceHasRaid(devPath) {
+			if deviceHasRaid(devPath, term) {
 				cmd := fmt.Sprintf("%s --zero-superblock --force %s", MDADM_BIN, devPath)
-				out, err := r.term.Run(cmd)
+				out, err := term.Run(cmd)
 				if err != nil {
 					return errors.Wrapf(err, "zero superblock on %s: %s", devPath, out)
 				}

@@ -58,6 +58,7 @@ import (
 	"yunion.io/x/onecloud/pkg/baremetal/utils/ipmitool"
 	raid2 "yunion.io/x/onecloud/pkg/baremetal/utils/raid"
 	raiddrivers "yunion.io/x/onecloud/pkg/baremetal/utils/raid/drivers"
+	"yunion.io/x/onecloud/pkg/baremetal/utils/raid/mdadm"
 	"yunion.io/x/onecloud/pkg/baremetal/utils/uefi"
 	"yunion.io/x/onecloud/pkg/cloudcommon/types"
 	"yunion.io/x/onecloud/pkg/compute/baremetal"
@@ -2798,6 +2799,11 @@ func (s *SBaremetalServer) DoDiskUnconfig(term *ssh.Client) error {
 }
 
 func (s *SBaremetalServer) DoEraseDisk(term *ssh.Client) error {
+	// soft raid should stop mdadm first
+	if err := mdadm.CleanRaid(term); err != nil {
+		return err
+	}
+
 	cmd := "/lib/mos/partdestroy.sh"
 	_, err := term.Run(cmd)
 	return err

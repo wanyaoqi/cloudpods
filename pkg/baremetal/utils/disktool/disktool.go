@@ -243,30 +243,18 @@ func newDiskPartitions(driver string, adapter int, raidConfig string, sizeMB int
 
 	// soft raid, mdadm
 	if softRaidIdx != nil {
-		ps.dev = fmt.Sprintf("/dev/md%d", *softRaidIdx)
-		ps.devName = ps.dev
-
-		// get md uuid as pci path
-		cmd := fmt.Sprintf("/sbin/mdadm --detail %s | grep UUID", ps.dev)
-		output, err := tool.Run(cmd)
-		if err == nil && len(output) > 0 {
-			segs := strings.SplitN(strings.TrimSpace(output[0]), ":", 2)
-			if len(segs) == 2 {
-				ps.pciPath = strings.TrimSpace(segs[1])
-			}
-		}
-
-		// get block size
-		cmd = fmt.Sprintf("blockdev --getsz %s 2>/dev/null || echo 0", ps.dev)
-		output, err = tool.Run(cmd)
-		if err == nil && len(output) > 0 {
-			if sectors, err := strconv.ParseInt(strings.TrimSpace(output[0]), 10, 64); err == nil {
-				ps.sectors = sectors
-				ps.blockSize = 512
-			}
-		}
+		ps.GetMdadmInfo(softRaidIdx)
 	}
 	return ps
+}
+
+func (ps *DiskPartitions) GetMdadmInfo(softRaidIdx *int) {
+	ps.dev = fmt.Sprintf("/dev/md%d", *softRaidIdx)
+	ps.devName = ps.dev
+	uuid, sectors := ps.tool.GetMdadmUuidAndSector(ps.dev)
+	ps.pciPath = uuid
+	ps.sectors = sectors
+	ps.blockSize = 512
 }
 
 func (p *DiskPartitions) IsRaidDriver() bool {
@@ -796,30 +784,38 @@ func (tool *PartitionTool) IsAllDisksReady() bool {
 	return true
 }
 
+func (tool *PartitionTool) GetMdadmUuidAndSector(devPath string) (string, int64) {
+	var uuid string
+	var sectorsRet int64
+	// get md uuid as pci path
+	cmd := fmt.Sprintf("/sbin/mdadm --detail %s | grep UUID", devPath)
+	output, err := tool.Run(cmd)
+	if err == nil && len(output) > 0 {
+		segs := strings.SplitN(strings.TrimSpace(output[0]), ":", 2)
+		if len(segs) == 2 {
+			uuid = strings.TrimSpace(segs[1])
+		}
+	}
+
+	// get block size
+	cmd = fmt.Sprintf("blockdev --getsz %s 2>/dev/null || echo 0", devPath)
+	output, err = tool.Run(cmd)
+	if err == nil && len(output) > 0 {
+		if sectors, err := strconv.ParseInt(strings.TrimSpace(output[0]), 10, 64); err == nil {
+			sectorsRet = sectors
+		}
+	}
+	return uuid, sectorsRet
+}
+
 func (tool *PartitionTool) RetrieveDiskInfo(rootMatcher *api.BaremetalRootDiskMatcher) error {
 	for _, disk := range tool.disks {
 		if baremetal.DISK_DRIVERS_SOFT_RAID.Has(disk.driver) && disk.raidConfig != baremetal.DISK_CONF_NONE {
 			log.Errorf("set dev %s", disk.dev)
-
-			// get md uuid as pci path
-			cmd := fmt.Sprintf("/sbin/mdadm --detail %s | grep UUID", disk.dev)
-			output, err := tool.Run(cmd)
-			if err == nil && len(output) > 0 {
-				segs := strings.SplitN(strings.TrimSpace(output[0]), ":", 2)
-				if len(segs) == 2 {
-					disk.pciPath = strings.TrimSpace(segs[1])
-				}
-			}
-
-			// get block size
-			cmd = fmt.Sprintf("blockdev --getsz %s 2>/dev/null || echo 0", disk.dev)
-			output, err = tool.Run(cmd)
-			if err == nil && len(output) > 0 {
-				if sectors, err := strconv.ParseInt(strings.TrimSpace(output[0]), 10, 64); err == nil {
-					disk.sectors = sectors
-					disk.blockSize = 512
-				}
-			}
+			uuid, sectors := tool.GetMdadmUuidAndSector(disk.dev)
+			disk.pciPath = uuid
+			disk.sectors = sectors
+			disk.blockSize = 512
 		}
 	}
 
