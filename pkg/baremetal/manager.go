@@ -2803,7 +2803,6 @@ func (s *SBaremetalServer) DoEraseDisk(term *ssh.Client) error {
 	if err := mdadm.CleanRaid(term); err != nil {
 		return err
 	}
-
 	cmd := "/lib/mos/partdestroy.sh"
 	_, err := term.Run(cmd)
 	return err
