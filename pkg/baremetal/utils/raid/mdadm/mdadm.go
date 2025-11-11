@@ -301,7 +301,8 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	cmd = fmt.Sprintf("%s --wait %s", MDADM_BIN, mdDev)
 	output, err = a.term.Run(cmd)
 	if err != nil {
-		return errors.Wrapf(err, "mdadm wait raid %s failed, output: %v", mdDev, output)
+		log.Errorf("mdadm wait raid %s failed: %s", mdDev, output)
+		//return errors.Wrapf(err, "mdadm wait raid %s failed, output: %v", mdDev, output)
 	}
 
 	log.Infof("Successfully created software RAID %s: /dev/md%d, start sync block devs", level, mdNum)
