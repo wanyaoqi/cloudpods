@@ -293,7 +293,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	}
 
 	// 自动装配
-	//args = append(args, "--assume-clean")
+	args = append(args, "--assume-clean")
 
 	cmd := fmt.Sprintf("%s %s", MDADM_BIN, strings.Join(args, " "))
 	log.Infof("Building software RAID %s: %s", level, cmd)
