@@ -313,6 +313,12 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 			return errors.Wrapf(err, "mdadm blockdev flushbufs %s failed, output: %v", devPaths[i], output)
 		}
 	}
+
+	output, err = a.term.Run("sync")
+	if err != nil {
+		return errors.Wrapf(err, "mdadm %s sync failed, output: %v", mdDev, output)
+	}
+
 	return nil
 }
 
