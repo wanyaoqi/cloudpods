@@ -380,7 +380,7 @@ func (p *SSHPartition) ListDir(sPath string, caseInsensitive bool) []string {
 }
 
 func (p *SSHPartition) osChown(sPath string, uid, gid int) error {
-	cmd := fmt.Sprintf("chown %d.%d %s", uid, gid, sPath)
+	cmd := fmt.Sprintf("chown %d:%d %s", uid, gid, sPath)
 	_, err := p.term.Run(cmd)
 	return err
 }
