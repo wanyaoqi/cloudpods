@@ -117,6 +117,9 @@ func CleanMdadmPartitions(term *ssh.Client) {
 	// destory mdadm soft raid
 	for _, line := range out {
 		dev := strings.TrimSpace(line)
+		if len(dev) == 0 {
+			continue
+		}
 		out, err = term.Run(fmt.Sprintf("dd if=/dev/zero of=/dev/%s bs=512 count=34", dev))
 		if err != nil {
 			log.Errorf("faield clean mdadm partitions %s %s", out, err)
