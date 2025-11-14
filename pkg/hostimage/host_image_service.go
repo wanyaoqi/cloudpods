@@ -55,10 +55,10 @@ func StartService() {
 	common_options.ParseOptions(&HostImageOptions, os.Args, "host.conf", "host-image")
 	if len(HostImageOptions.CommonConfigFile) > 0 {
 		baseOpt := HostImageOptions.BaseOptions.BaseOptions
-		commonCfg := new(common_options.CommonOptions)
+		commonCfg := new(common_options.HostCommonOptions)
 		commonCfg.Config = HostImageOptions.CommonConfigFile
 		common_options.ParseOptions(commonCfg, []string{"host"}, "common.conf", "host")
-		HostImageOptions.CommonOptions = *commonCfg
+		HostImageOptions.HostCommonOptions = *commonCfg
 		HostImageOptions.BaseOptions.BaseOptions = baseOpt
 	}
 	log.Infof("exec socket path: %s", HostImageOptions.ExecutorSocketPath)
