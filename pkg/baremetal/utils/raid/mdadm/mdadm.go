@@ -297,7 +297,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	mdDev := fmt.Sprintf("/dev/md%d", mdNum)
 
 	imsmDev := fmt.Sprintf("/dev/md/imsm%d", mdNum)
-	cmdImsm := fmt.Sprintf("%s --create %s --metadata=imsm --raid-devices=%d %s", MDADM_BIN, imsmDev, len(devs), strings.Join(devPaths, " "))
+	cmdImsm := fmt.Sprintf("%s --create %s --metadata=imsm --raid-devices=%d --run --force %s", MDADM_BIN, imsmDev, len(devs), strings.Join(devPaths, " "))
 	output, err := a.term.Run(cmdImsm)
 	if err != nil {
 		return errors.Wrapf(err, "mdadm create imsm raid %s failed, output: %v", level, output)
@@ -319,11 +319,11 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	}
 
 	// 对于RAID1和RAID5，可以设置bitmap
-	if level == "1" || level == "5" {
-		args = append(args, "--bitmap=internal")
-	}
+	//if level == "1" || level == "5" {
+	//	args = append(args, "--bitmap=internal")
+	//}
 
-	args = append(args, "--assume-clean")
+	//args = append(args, "--assume-clean")
 
 	cmd := fmt.Sprintf("%s %s", MDADM_BIN, strings.Join(args, " "))
 	log.Infof("Building software RAID %s: %s", level, cmd)
