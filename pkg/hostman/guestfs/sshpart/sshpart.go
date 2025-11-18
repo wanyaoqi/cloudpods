@@ -60,7 +60,7 @@ func (p *SSHPartition) GetMountPath() string {
 
 func (p *SSHPartition) GetFsFormat() (string, error) {
 	var cmd string
-	if strings.HasPrefix(p.partDev, "/dev/md/md") {
+	if strings.HasPrefix(p.partDev, "/dev/md") {
 		cmd = fmt.Sprintf("blkid -o value -s TYPE %s", p.partDev)
 	} else {
 		cmd = fmt.Sprintf("/lib/mos/partfs.sh %s", p.partDev)
