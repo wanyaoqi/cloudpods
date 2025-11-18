@@ -297,7 +297,8 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	mdDev := fmt.Sprintf("/dev/md%d", mdNum)
 	args := []string{
 		"--create",
-		"--metadata=1.2",
+		// "--metadata=1.2",
+		"--metadata=imsm",
 		mdDev,
 		fmt.Sprintf("--level=%s", level),
 		fmt.Sprintf("--raid-devices=%d", len(devs)),
