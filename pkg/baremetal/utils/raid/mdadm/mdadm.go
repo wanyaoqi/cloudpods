@@ -119,15 +119,15 @@ func CleanMdadmPartitions(term *ssh.Client) {
 		if !strings.HasPrefix(dev, "md") {
 			continue
 		}
-		out, err = term.Run(fmt.Sprintf("dd if=/dev/zero of=/dev/%s bs=512 count=34", dev))
+		out, err = term.Run(fmt.Sprintf("dd if=/dev/zero of=/dev/md/%s bs=512 count=34", dev))
 		if err != nil {
 			log.Errorf("failed clean mdadm partitions %s %s", out, err)
 		}
-		out, err = term.Run(fmt.Sprintf("dd if=/dev/zero of=/dev/%s bs=512 count=34 seek=$(( $(cat /sys/class/block/%s/size) - 34 ))", dev, dev))
+		out, err = term.Run(fmt.Sprintf("dd if=/dev/zero of=/dev/md/%s bs=512 count=34 seek=$(( $(blockdev --getsz /dev/md/%s) - 34 ))", dev, dev))
 		if err != nil {
 			log.Errorf("failed clean mdadm partitions %s %s", out, err)
 		}
-		out, err = term.Run(fmt.Sprintf("hdparm -z /dev/%s", dev))
+		out, err = term.Run(fmt.Sprintf("hdparm -z /dev/md/%s", dev))
 		if err != nil {
 			log.Errorf("failed clean mdadm partitions %s %s", out, err)
 		}
@@ -176,6 +176,11 @@ func CleanRaid(term *ssh.Client) error {
 				}
 			}
 		}
+	}
+
+	out, err := term.Run("rm /dev/md/*")
+	if err != nil {
+		log.Warningf("failed soft link at /dev/md %s", out)
 	}
 
 	return nil
