@@ -249,7 +249,7 @@ func newDiskPartitions(driver string, adapter int, raidConfig string, sizeMB int
 }
 
 func (ps *DiskPartitions) GetMdadmInfo(softRaidIdx *int) {
-	ps.dev = fmt.Sprintf("/dev/md%d", *softRaidIdx)
+	ps.dev = fmt.Sprintf("/dev/md/md%d", *softRaidIdx)
 	ps.devName = ps.dev
 	uuid, sectors := ps.tool.GetMdadmUuidAndSector(ps.dev)
 	ps.pciPath = uuid
