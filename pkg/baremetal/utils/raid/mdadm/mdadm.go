@@ -285,20 +285,28 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 		if dev.Dev == "" {
 			return fmt.Errorf("device path is empty for storage")
 		}
-		devPaths = append(devPaths, dev.Dev)
+		devPaths = append(devPaths, path.Join("/dev", dev.Dev))
 	}
 
 	for _, dev := range devPaths {
-		if err := a.ensureDeviceClean(path.Join("/dev", dev)); err != nil {
+		if err := a.ensureDeviceClean(dev); err != nil {
 			return errors.Wrapf(err, "clean device %s", dev)
 		}
 	}
 
 	mdDev := fmt.Sprintf("/dev/md%d", mdNum)
+
+	imsmDev := fmt.Sprintf("/dev/md/imsm%d", mdNum)
+	cmdImsm := fmt.Sprintf("%s --create %s --metadata=imsm --raid-devices=%d %s", MDADM_BIN, imsmDev, len(devs), strings.Join(devPaths, " "))
+	output, err := a.term.Run(cmdImsm)
+	if err != nil {
+		return errors.Wrapf(err, "mdadm create imsm raid %s failed, output: %v", level, output)
+	}
+
 	args := []string{
 		"--create",
 		// "--metadata=1.2",
-		"--metadata=imsm",
+		//"--metadata=imsm",
 		mdDev,
 		fmt.Sprintf("--level=%s", level),
 		fmt.Sprintf("--raid-devices=%d", len(devs)),
@@ -307,7 +315,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	}
 
 	for _, dev := range devPaths {
-		args = append(args, path.Join("/dev", dev))
+		args = append(args, dev)
 	}
 
 	// 对于RAID1和RAID5，可以设置bitmap
@@ -320,7 +328,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	cmd := fmt.Sprintf("%s %s", MDADM_BIN, strings.Join(args, " "))
 	log.Infof("Building software RAID %s: %s", level, cmd)
 
-	output, err := a.term.Run(cmd)
+	output, err = a.term.Run(cmd)
 	if err != nil {
 		return errors.Wrapf(err, "mdadm create raid %s failed, output: %v", level, output)
 	}
@@ -335,7 +343,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	log.Infof("Successfully created software RAID %s: /dev/md%d, start sync block devs", level, mdNum)
 
 	for i := range devPaths {
-		flushCmd := fmt.Sprintf("blockdev --flushbufs /dev/%s", devPaths[i])
+		flushCmd := fmt.Sprintf("blockdev --flushbufs %s", devPaths[i])
 		output, err = a.term.Run(flushCmd)
 		if err != nil {
 			return errors.Wrapf(err, "mdadm blockdev flushbufs %s failed, output: %v", devPaths[i], output)
