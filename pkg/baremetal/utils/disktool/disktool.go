@@ -261,6 +261,7 @@ func (ps *DiskPartitions) GetMdadmInfo(softRaidIdx *int) {
 	ps.dev = strings.TrimSpace(out[0])
 	ps.devName = ps.dev
 	uuid, sectors := ps.tool.GetMdadmUuidAndSector(ps.dev)
+	log.Errorf("mdadm dev %s uuid %s", ps.dev, uuid)
 	ps.pciPath = uuid
 	ps.sectors = sectors
 	ps.blockSize = 512
