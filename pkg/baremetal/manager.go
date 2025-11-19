@@ -2674,7 +2674,6 @@ func (s *SBaremetalServer) NewConfigedSSHPartitionTool(term *ssh.Client) (*diskt
 	}
 
 	log.Errorf("NewConfigedSSHPartitionTool layouts: %s", jsonutils.Marshal(layouts))
-	term.Run("sleep 222d")
 	diskConfs := baremetal.GroupLayoutResultsByDriverAdapter(layouts)
 	for _, dConf := range diskConfs {
 		driver := dConf.Driver
