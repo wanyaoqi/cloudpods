@@ -77,6 +77,24 @@ func (r *MdadmRaid) ParsePhyDevs() error {
 
 func (r *MdadmRaid) SetDevicesForAdapter(adapterIdx int, devs []*baremetal.BaremetalStorage) {
 	r.adapter.setDevices(devs)
+	for i := range devs {
+		devPath := path.Join("/dev", devs[i].Dev)
+		cmd := fmt.Sprintf("%s --detail %s | grep UUID", MDADM_BIN, devPath)
+		output, err := r.term.Run(cmd)
+		if err == nil && len(output) > 0 {
+			for _, line := range output {
+				segs := strings.SplitN(strings.TrimSpace(line), ":", 2)
+				if len(segs) == 2 {
+					uuid := strings.TrimSpace(segs[1])
+					cmd = fmt.Sprintf("%s --assemble --scan --uuid=%s", MDADM_BIN, uuid)
+					output, err := r.term.Run(cmd)
+					if err != nil {
+						log.Errorf("faield assemble mdadm %s: %s", uuid, output)
+					}
+				}
+			}
+		}
+	}
 }
 
 func (r *MdadmRaid) GetAdapters() []raid.IRaidAdapter {
@@ -214,6 +232,9 @@ func (a *MdadmRaidAdapter) GetLogicVolumes() ([]*raid.RaidLogicalVolume, error) 
 		if strings.HasPrefix(line, "/dev/md/md") {
 			mdPath := line
 			numStr := strings.TrimPrefix(line, "/dev/md/md")
+			if strings.HasSuffix(numStr, "_0") {
+				numStr = strings.TrimSuffix(numStr, "_0")
+			}
 			if num, err := strconv.Atoi(numStr); err == nil {
 				res, err := a.term.Run(fmt.Sprintf("readlink -f %s", line))
 				if err == nil && len(res) > 0 {
@@ -270,7 +291,6 @@ func (a *MdadmRaidAdapter) BuildNoneRaid(devs []*baremetal.BaremetalStorage) err
 }
 
 func (a *MdadmRaidAdapter) PostBuildRaid() error {
-	a.term.Run(fmt.Sprintf("%s --assemble --scan", MDADM_BIN))
 	return nil
 }
 

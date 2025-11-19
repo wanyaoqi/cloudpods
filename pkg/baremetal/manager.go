@@ -2765,8 +2765,8 @@ func (s *SBaremetalServer) DoDiskConfig(term *ssh.Client) (*disktool.SSHPartitio
 				}
 
 				log.Infof("SetDevicesForAdapter %v", jsonutils.Marshal(devs))
-				if mdadmDrver, ok := raidDrv.(raid2.IRaidDeviceSetter); ok {
-					mdadmDrver.SetDevicesForAdapter(dConf.Adapter, devs)
+				if mdadmDriver, ok := raidDrv.(raid2.IRaidDeviceSetter); ok {
+					mdadmDriver.SetDevicesForAdapter(dConf.Adapter, devs)
 				}
 			}
 
