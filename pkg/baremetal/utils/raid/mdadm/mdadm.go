@@ -333,6 +333,7 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	if err != nil {
 		return errors.Wrapf(err, "mdadm create imsm raid %s failed, output: %v", level, output)
 	} else {
+		a.term.Run("%s --wait %s", MDADM_BIN, imsmDev)
 		time.Sleep(time.Second * 3)
 	}
 
