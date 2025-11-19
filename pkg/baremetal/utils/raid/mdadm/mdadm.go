@@ -270,6 +270,7 @@ func (a *MdadmRaidAdapter) BuildNoneRaid(devs []*baremetal.BaremetalStorage) err
 }
 
 func (a *MdadmRaidAdapter) PostBuildRaid() error {
+	a.term.Run(fmt.Sprintf("%s --assemble --scan", MDADM_BIN))
 	return nil
 }
 
