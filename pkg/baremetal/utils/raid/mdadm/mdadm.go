@@ -80,7 +80,7 @@ func (r *MdadmRaid) SetDevicesForAdapter(adapterIdx int, devs []*baremetal.Barem
 	r.adapter.setDevices(devs)
 	for i := range devs {
 		devPath := path.Join("/dev", devs[i].Dev)
-		cmd := fmt.Sprintf("%s --detail %s | grep UUID", MDADM_BIN, devPath)
+		cmd := fmt.Sprintf("%s --examine %s | grep UUID", MDADM_BIN, devPath)
 		output, err := r.term.Run(cmd)
 		if err == nil && len(output) > 0 {
 			for _, line := range output {
