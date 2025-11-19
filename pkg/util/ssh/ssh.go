@@ -207,7 +207,7 @@ func (s *Client) run(parseOutput bool, cmds []string, input io.Reader, withPty b
 			ret = append(ret, stdOut.String())
 		}
 	}
-
+	log.Errorf("Run ret %v", ret)
 	return ret, nil
 }
 
