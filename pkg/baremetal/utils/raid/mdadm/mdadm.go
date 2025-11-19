@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
@@ -331,6 +332,8 @@ func (a *MdadmRaidAdapter) buildRaid(level string, devs []*baremetal.BaremetalSt
 	output, err := a.term.Run(cmdImsm)
 	if err != nil {
 		return errors.Wrapf(err, "mdadm create imsm raid %s failed, output: %v", level, output)
+	} else {
+		time.Sleep(time.Second * 3)
 	}
 
 	args := []string{
