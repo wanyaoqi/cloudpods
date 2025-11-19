@@ -249,7 +249,14 @@ func newDiskPartitions(driver string, adapter int, raidConfig string, sizeMB int
 }
 
 func (ps *DiskPartitions) GetMdadmInfo(softRaidIdx *int) {
-	ps.dev = fmt.Sprintf("/dev/md/md%d", *softRaidIdx)
+	devLinkName := fmt.Sprintf("/dev/md/md%d", *softRaidIdx)
+	out, err := ps.tool.Run(fmt.Sprintf("readlink -f %s", devLinkName))
+	if err != nil || len(out) == 0 {
+		log.Errorf("failed readlink of %s: %s", devLinkName, err)
+		return
+	}
+
+	ps.dev = strings.TrimSpace(out[0])
 	ps.devName = ps.dev
 	uuid, sectors := ps.tool.GetMdadmUuidAndSector(ps.dev)
 	ps.pciPath = uuid

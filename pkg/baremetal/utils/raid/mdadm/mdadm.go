@@ -217,7 +217,7 @@ func (a *MdadmRaidAdapter) GetLogicVolumes() ([]*raid.RaidLogicalVolume, error) 
 			if num, err := strconv.Atoi(numStr); err == nil {
 				res, err := a.term.Run(fmt.Sprintf("readlink -f %s", line))
 				if err == nil && len(res) > 0 {
-					mdPath = res[0]
+					mdPath = strings.TrimSpace(res[0])
 					lv := &raid.RaidLogicalVolume{
 						Index:    num,
 						Adapter:  a.index,
