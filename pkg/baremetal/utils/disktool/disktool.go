@@ -801,8 +801,12 @@ func (tool *PartitionTool) GetMdadmUuidAndSector(devPath string) (string, int64)
 	cmd := fmt.Sprintf("/sbin/mdadm --detail %s | grep UUID", devPath)
 	output, err := tool.Run(cmd)
 	if err == nil && len(output) > 0 {
-		uuidSeg := output[len(output)-1]
+		log.Errorf("output: %#v", output)
+		uuidSeg := output[0]
+
+		log.Errorf("uuid: %#v", uuidSeg)
 		segs := strings.SplitN(strings.TrimSpace(uuidSeg), ":", 2)
+		log.Errorf("segs: %#v", segs)
 		if len(segs) == 2 {
 			uuid = strings.TrimSpace(segs[1])
 		}
