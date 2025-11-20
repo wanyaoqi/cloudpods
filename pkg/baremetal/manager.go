@@ -3013,6 +3013,7 @@ func (s *SBaremetalServer) SyncPartitionSize(term *ssh.Client, rootDisk *disktoo
 	size := (rootParts[len(rootParts)-1].GetEnd() + 1) * 512 / 1024 / 1024
 	rootDiskObj := disks[idx].(*jsonutils.JSONDict)
 	rootDiskObj.Set("size", jsonutils.NewInt(int64(size)))
+	log.Errorf("get pci_path %s", rootDisk.GetPCIPath())
 	rootDiskObj.Set("pci_path", jsonutils.NewString(rootDisk.GetPCIPath()))
 
 	idx += 1
