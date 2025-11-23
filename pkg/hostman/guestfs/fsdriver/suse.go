@@ -27,6 +27,8 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/types"
 	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 	"yunion.io/x/onecloud/pkg/util/netutils2"
+	"yunion.io/x/onecloud/pkg/util/pwquality"
+	"yunion.io/x/onecloud/pkg/util/seclib2"
 )
 
 type sSuseLikeRootFs struct {
@@ -37,6 +39,51 @@ func newSuseLikeRootFs(part IDiskPartition) *sSuseLikeRootFs {
 	return &sSuseLikeRootFs{
 		sLinuxRootFs: newLinuxRootFs(part),
 	}
+}
+
+func (r *sSuseLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string) (string, error) {
+	// 提前校验密码强度，避免在 chroot 环境中执行 passwd 时因密码强度不足而失败
+	// SUSE: /etc/security/pam_pwcheck.conf 或 PAM 配置
+	var config *pwquality.Config
+	content, err := rootFs.FileGetContents("/etc/security/pam_pwcheck.conf", false)
+	if err == nil {
+		config = pwquality.ParsePAMConfigSUSE(content)
+	} else {
+		// 尝试读取 PAM 配置
+		pamPaths := []string{"/etc/pam.d/common-password", "/etc/pam.d/passwd"}
+		for _, pamPath := range pamPaths {
+			if rootFs.Exists(pamPath, false) {
+				content, err := rootFs.FileGetContents(pamPath, false)
+				if err == nil {
+					config = pwquality.ParsePAMConfig(content)
+					if config.HasAnyPolicy() {
+						break
+					}
+				}
+			}
+		}
+	}
+	if config != nil {
+		err = config.Validate(password)
+		if err != nil {
+			// 如果是密码强度不符合要求，自动生成符合要求的密码
+			if errors.Cause(err) == pwquality.ErrPasswordTooWeak {
+				log.Debugf("Password does not meet strength requirements, generating a new password: %v", err)
+				password = config.GeneratePassword(seclib2.RandomPassword2)
+				if len(password) == 0 {
+					return "", fmt.Errorf("failed to generate password that meets strength requirements")
+				}
+				log.Debugf("Generated new password that meets strength requirements")
+			} else {
+				return "", fmt.Errorf("password strength validation failed: %v", err)
+			}
+		}
+	} else {
+		log.Debugf("Failed to read password strength config for SUSE system, skip check")
+	}
+
+	// 调用父类的通用方法进行密码修改
+	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password)
 }
 
 func (r *sSuseLikeRootFs) PrepareFsForTemplate(rootFs IDiskPartition) error {

@@ -42,6 +42,7 @@ import (
 	"yunion.io/x/onecloud/pkg/util/fstabutils"
 	"yunion.io/x/onecloud/pkg/util/netutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
+	"yunion.io/x/onecloud/pkg/util/pwquality"
 	"yunion.io/x/onecloud/pkg/util/seclib2"
 	"yunion.io/x/onecloud/pkg/util/sysutils"
 )
@@ -232,9 +233,12 @@ func (l *sLinuxRootFs) GetLoginAccount(rootFs IDiskPartition, sUser string, defa
 	return selUsr, nil
 }
 
+// ChangeUserPasswd 通用的密码修改方法，包含密码修改、加密、autorelabel 等通用逻辑
+// 各个发行版类型应该先进行密码强度校验，然后调用此方法
 func (l *sLinuxRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string) (string, error) {
 	var secret string
 	var err error
+
 	err = rootFs.Passwd(account, password, false)
 	if err == nil {
 		if len(publicKey) > 0 {
@@ -884,6 +888,52 @@ func newDebianLikeRootFs(part IDiskPartition) *sDebianLikeRootFs {
 	}
 }
 
+func (d *sDebianLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string) (string, error) {
+	// 提前校验密码强度，避免在 chroot 环境中执行 passwd 时因密码强度不足而失败
+	// Debian like: 先尝试 /etc/security/pwquality.conf (如果安装了 libpam-pwquality)
+	// 否则使用 /etc/pam.d/common-password 或 /etc/pam.d/passwd
+	var config *pwquality.Config
+	content, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
+	if err == nil {
+		config = pwquality.ParseConfig(content)
+	} else {
+		// 尝试读取 PAM 配置
+		pamPaths := []string{"/etc/pam.d/common-password", "/etc/pam.d/passwd"}
+		for _, pamPath := range pamPaths {
+			if rootFs.Exists(pamPath, false) {
+				content, err := rootFs.FileGetContents(pamPath, false)
+				if err == nil {
+					config = pwquality.ParsePAMConfig(content)
+					if config.HasAnyPolicy() {
+						break
+					}
+				}
+			}
+		}
+	}
+	if config != nil {
+		err = config.Validate(password)
+		if err != nil {
+			// 如果是密码强度不符合要求，自动生成符合要求的密码
+			if errors.Cause(err) == pwquality.ErrPasswordTooWeak {
+				log.Debugf("Password does not meet strength requirements, generating a new password: %v", err)
+				password = config.GeneratePassword(seclib2.RandomPassword2)
+				if len(password) == 0 {
+					return "", fmt.Errorf("failed to generate password that meets strength requirements")
+				}
+				log.Debugf("Generated new password that meets strength requirements")
+			} else {
+				return "", fmt.Errorf("password strength validation failed: %v", err)
+			}
+		}
+	} else {
+		log.Debugf("Failed to read password strength config for Debian like system, skip check")
+	}
+
+	// 调用父类的通用方法进行密码修改
+	return d.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password)
+}
+
 func (d *sDebianLikeRootFs) PrepareFsForTemplate(rootFs IDiskPartition) error {
 	if err := d.sLinuxRootFs.PrepareFsForTemplate(rootFs); err != nil {
 		return err
@@ -1311,6 +1361,34 @@ func newRedhatLikeRootFs(part IDiskPartition) *sRedhatLikeRootFs {
 	return &sRedhatLikeRootFs{
 		sLinuxRootFs: newLinuxRootFs(part),
 	}
+}
+
+func (r *sRedhatLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string) (string, error) {
+	// 提前校验密码强度，避免在 chroot 环境中执行 passwd 时因密码强度不足而失败
+	// Red Hat like: /etc/security/pwquality.conf
+	content, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
+	if err == nil {
+		config := pwquality.ParseConfig(content)
+		err = config.Validate(password)
+		if err != nil {
+			// 如果是密码强度不符合要求，自动生成符合要求的密码
+			if errors.Cause(err) == pwquality.ErrPasswordTooWeak {
+				log.Debugf("Password does not meet strength requirements, generating a new password: %v", err)
+				password = config.GeneratePassword(seclib2.RandomPassword2)
+				if len(password) == 0 {
+					return "", fmt.Errorf("failed to generate password that meets strength requirements")
+				}
+				log.Debugf("Generated new password that meets strength requirements")
+			} else {
+				return "", fmt.Errorf("password strength validation failed: %v", err)
+			}
+		}
+	} else {
+		log.Debugf("Failed to read /etc/security/pwquality.conf: %v, skip password strength check", err)
+	}
+
+	// 调用父类的通用方法进行密码修改
+	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password)
 }
 
 func (r *sRedhatLikeRootFs) PrepareFsForTemplate(rootFs IDiskPartition) error {
