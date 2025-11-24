@@ -102,6 +102,92 @@ lcredit = 1`,
 				Minclass: 0,
 			},
 		},
+		{
+			name: "config with maxrepeat",
+			content: `minlen = 8
+maxrepeat = 3`,
+			expected: &Config{
+				Minlen:   8,
+				Maxrepeat: 3,
+			},
+		},
+		{
+			name: "config with maxclassrepeat",
+			content: `minlen = 8
+maxclassrepeat = 2`,
+			expected: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 2,
+			},
+		},
+		{
+			name: "config with maxsequence",
+			content: `minlen = 8
+maxsequence = 3`,
+			expected: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+		},
+		{
+			name: "config with all new options",
+			content: `minlen = 8
+maxrepeat = 3
+maxclassrepeat = 2
+maxsequence = 3`,
+			expected: &Config{
+				Minlen:         8,
+				Maxrepeat:      3,
+				Maxclassrepeat: 2,
+				Maxsequence:    3,
+			},
+		},
+		{
+			name: "invalid value - non-numeric",
+			content: `minlen = abc
+dcredit = -1`,
+			expected: &Config{
+				Minlen:   0, // 无效值应该被忽略
+				Dcredit:  -1,
+			},
+		},
+		{
+			name: "line without equals sign",
+			content: `minlen 8
+dcredit = -1`,
+			expected: &Config{
+				Minlen:   0, // 没有等号的行应该被忽略
+				Dcredit:  -1,
+			},
+		},
+		{
+			name: "multiple equals signs",
+			content: `minlen = 8 = 10
+dcredit = -1`,
+			expected: &Config{
+				Minlen:  0, // " 8 = 10" 不是有效数字，会被忽略
+				Dcredit: -1,
+			},
+		},
+		{
+			name: "unknown config key",
+			content: `minlen = 8
+unknown_key = 10
+dcredit = -1`,
+			expected: &Config{
+				Minlen:  8,
+				Dcredit: -1,
+			},
+		},
+		{
+			name: "empty value",
+			content: `minlen = 
+dcredit = -1`,
+			expected: &Config{
+				Minlen:   0, // 空值应该被忽略
+				Dcredit:  -1,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -124,6 +210,60 @@ lcredit = 1`,
 			}
 			if config.Minclass != tt.expected.Minclass {
 				t.Errorf("Minclass = %d, want %d", config.Minclass, tt.expected.Minclass)
+			}
+			if config.Maxrepeat != tt.expected.Maxrepeat {
+				t.Errorf("Maxrepeat = %d, want %d", config.Maxrepeat, tt.expected.Maxrepeat)
+			}
+			if config.Maxclassrepeat != tt.expected.Maxclassrepeat {
+				t.Errorf("Maxclassrepeat = %d, want %d", config.Maxclassrepeat, tt.expected.Maxclassrepeat)
+			}
+			if config.Maxsequence != tt.expected.Maxsequence {
+				t.Errorf("Maxsequence = %d, want %d", config.Maxsequence, tt.expected.Maxsequence)
+			}
+		})
+	}
+}
+
+func TestParseConfig_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected *Config
+	}{
+		{
+			name:     "empty content",
+			content:  "",
+			expected: &Config{},
+		},
+		{
+			name: "only newlines",
+			content: `
+
+
+`,
+			expected: &Config{},
+		},
+		{
+			name: "mixed valid and invalid",
+			content: `minlen = 8
+invalid_line
+dcredit = -1
+another_invalid = line`,
+			expected: &Config{
+				Minlen:  8,
+				Dcredit: -1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := ParseConfig([]byte(tt.content))
+			if config.Minlen != tt.expected.Minlen {
+				t.Errorf("Minlen = %d, want %d", config.Minlen, tt.expected.Minlen)
+			}
+			if config.Dcredit != tt.expected.Dcredit {
+				t.Errorf("Dcredit = %d, want %d", config.Dcredit, tt.expected.Dcredit)
 			}
 		})
 	}
@@ -368,6 +508,430 @@ func TestConfig_Validate(t *testing.T) {
 			password: "password",
 			wantError: true,
 		},
+		{
+			name: "maxrepeat - too many repeated characters",
+			config: &Config{
+				Minlen:    8,
+				Maxrepeat: 2,
+			},
+			password:  "Passaaa1",
+			wantError: true,
+			errorMsg:  "more than 2 consecutive repeated characters",
+		},
+		{
+			name: "maxrepeat - pass with repeated characters within limit",
+			config: &Config{
+				Minlen:    8,
+				Maxrepeat: 3,
+			},
+			password:  "Passaa12",
+			wantError: false,
+		},
+		{
+			name: "maxclassrepeat - too many consecutive digits",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 2,
+			},
+			password:  "Pass1111",
+			wantError: true,
+			errorMsg:  "more than 2 consecutive characters of the same class",
+		},
+		{
+			name: "maxclassrepeat - pass with consecutive digits within limit",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 3,
+			},
+			password:  "Pass111@",
+			wantError: false,
+		},
+		{
+			name: "maxsequence - ascending sequence too long",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "Pass1234",
+			wantError: true,
+			errorMsg:  "sequence of more than 3 consecutive characters",
+		},
+		{
+			name: "maxsequence - descending sequence too long",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "Pass4321",
+			wantError: true,
+			errorMsg:  "sequence of more than 3 consecutive characters",
+		},
+		{
+			name: "maxsequence - pass with sequence within limit",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "Pass123@",
+			wantError: false,
+		},
+		{
+			name: "maxsequence - pass with no sequence",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "Pass1@word",
+			wantError: false,
+		},
+		{
+			name: "complex config with all new options",
+			config: &Config{
+				Minlen:         8,
+				Dcredit:        -1,
+				Ucredit:        -1,
+				Lcredit:        -1,
+				Ocredit:        -1,
+				Maxrepeat:      2,
+				Maxclassrepeat: 2,
+				Maxsequence:    3,
+			},
+			password:  "P1@w0rD2",
+			wantError: false,
+		},
+		{
+			name: "complex config - fails maxrepeat",
+			config: &Config{
+				Minlen:    8,
+				Maxrepeat: 2,
+			},
+			password:  "Passaaa1",
+			wantError: true,
+			errorMsg:  "more than 2 consecutive repeated characters",
+		},
+		{
+			name: "empty password",
+			config: &Config{
+				Minlen: 8,
+			},
+			password:  "",
+			wantError: true,
+			errorMsg:  "effective length",
+		},
+		{
+			name: "maxrepeat boundary - exactly at limit",
+			config: &Config{
+				Minlen:    8,
+				Maxrepeat: 3,
+			},
+			password:  "Passaaa1",
+			wantError: false, // 3个重复字符，正好在限制内
+		},
+		{
+			name: "maxrepeat boundary - one over limit",
+			config: &Config{
+				Minlen:    8,
+				Maxrepeat: 2,
+			},
+			password:  "Passaaa1",
+			wantError: true,
+			errorMsg:  "more than 2 consecutive repeated characters",
+		},
+		{
+			name: "maxclassrepeat boundary - exactly at limit",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 3,
+			},
+			password:  "Pass111@",
+			wantError: false, // 3个连续数字，正好在限制内
+		},
+		{
+			name: "maxsequence boundary - exactly at limit",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "Pass123@",
+			wantError: false, // 3个连续字符，正好在限制内
+		},
+		{
+			name: "maxsequence boundary - one over limit",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 2,
+			},
+			password:  "Pass123@",
+			wantError: true,
+			errorMsg:  "sequence of more than 2 consecutive characters",
+		},
+		{
+			name: "positive credit - effective length calculation",
+			config: &Config{
+				Minlen:  10,
+				Dcredit: 2, // 每个数字可以减少2个长度要求
+			},
+			password:  "Pass123", // 7个字符 + 3个数字*2 = 13，应该通过
+			wantError: false,
+		},
+		{
+			name: "positive credit - effective length too short",
+			config: &Config{
+				Minlen:  10,
+				Dcredit: 1, // 每个数字可以减少1个长度要求
+			},
+			password:  "Pass12", // 6个字符 + 2个数字*1 = 8，小于10，应该失败
+			wantError: true,
+			errorMsg:  "effective length",
+		},
+		{
+			name: "maxsequence - ascending at start",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "123Pass@",
+			wantError: false, // 3个连续字符在开头，正好在限制内
+		},
+		{
+			name: "maxsequence - descending at end",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "Pass@321",
+			wantError: false, // 3个连续字符在结尾，正好在限制内
+		},
+		{
+			name: "positive credit - ucredit",
+			config: &Config{
+				Minlen:  8,
+				Ucredit: 1,
+			},
+			password:  "password",
+			wantError: true,
+			errorMsg:  "password should contain at least one uppercase letter",
+		},
+		{
+			name: "positive credit - ucredit pass",
+			config: &Config{
+				Minlen:  8,
+				Ucredit: 1,
+			},
+			password:  "passWord",
+			wantError: false,
+		},
+		{
+			name: "positive credit - lcredit",
+			config: &Config{
+				Minlen:  8,
+				Lcredit: 1,
+			},
+			password:  "PASSWORD",
+			wantError: true,
+			errorMsg:  "password should contain at least one lowercase letter",
+		},
+		{
+			name: "positive credit - lcredit pass",
+			config: &Config{
+				Minlen:  8,
+				Lcredit: 1,
+			},
+			password:  "PASSWORDw",
+			wantError: false,
+		},
+		{
+			name: "positive credit - ocredit",
+			config: &Config{
+				Minlen:  8,
+				Ocredit: 1,
+			},
+			password:  "password",
+			wantError: true,
+			errorMsg:  "password should contain at least one special character",
+		},
+		{
+			name: "positive credit - ocredit pass",
+			config: &Config{
+				Minlen:  8,
+				Ocredit: 1,
+			},
+			password:  "password@",
+			wantError: false,
+		},
+		{
+			name: "positive credit - multiple credits effective length",
+			config: &Config{
+				Minlen:  10,
+				Dcredit: 2,
+				Ucredit: 1,
+				Lcredit: 1,
+				Ocredit: 1,
+			},
+			password:  "Pass123@", // 8 + 3*2 + 1*1 + 3*1 + 1*1 = 8+6+1+3+1 = 19，应该通过
+			wantError: false,
+		},
+		{
+			name: "maxrepeat - single character password",
+			config: &Config{
+				Minlen:    1,
+				Maxrepeat: 2,
+			},
+			password:  "a",
+			wantError: false, // 单个字符，没有重复
+		},
+		{
+			name: "maxrepeat - no repeated characters",
+			config: &Config{
+				Minlen:    8,
+				Maxrepeat: 2,
+			},
+			password:  "Passw0rd",
+			wantError: false, // 没有重复字符
+		},
+		{
+			name: "maxclassrepeat - single character",
+			config: &Config{
+				Minlen:         1,
+				Maxclassrepeat: 2,
+			},
+			password:  "1",
+			wantError: false, // 单个字符，没有同类重复
+		},
+		{
+			name: "maxclassrepeat - no consecutive same class",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 2,
+			},
+			password:  "P1a2s3w4",
+			wantError: false, // 没有连续同类字符
+		},
+		{
+			name: "maxsequence - short password less than maxsequence",
+			config: &Config{
+				Minlen:     2,
+				Maxsequence: 3,
+			},
+			password:  "12", // 长度小于 maxsequence+1，不会触发检查
+			wantError: false,
+		},
+		{
+			name: "maxsequence - exactly maxsequence+1 length with sequence",
+			config: &Config{
+				Minlen:     4,
+				Maxsequence: 3,
+			},
+			password:  "1234", // 正好4个字符，包含4个连续字符序列
+			wantError: true,
+			errorMsg:  "sequence of more than 3 consecutive characters",
+		},
+		{
+			name: "maxsequence - ascending sequence in middle",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 2,
+			},
+			password:  "Pa123ss@",
+			wantError: true,
+			errorMsg:  "sequence of more than 2 consecutive characters",
+		},
+		{
+			name: "maxsequence - descending sequence in middle",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 2,
+			},
+			password:  "Pa321ss@",
+			wantError: true,
+			errorMsg:  "sequence of more than 2 consecutive characters",
+		},
+		{
+			name: "maxsequence - mixed ascending and descending",
+			config: &Config{
+				Minlen:     8,
+				Maxsequence: 3,
+			},
+			password:  "Pass1234@", // 包含4个连续字符序列
+			wantError: true,
+			errorMsg:  "sequence of more than 3 consecutive characters",
+		},
+		{
+			name: "minclass - exactly required classes",
+			config: &Config{
+				Minlen:   8,
+				Minclass: 2,
+			},
+			password:  "Password", // 只有大写和小写，2个类
+			wantError: false,
+		},
+		{
+			name: "minclass - one class short",
+			config: &Config{
+				Minlen:   8,
+				Minclass: 2,
+			},
+			password:  "password", // 只有小写，1个类
+			wantError: true,
+			errorMsg:  "requires at least 2 character class(es)",
+		},
+		{
+			name: "maxrepeat - exactly at limit with multiple repeats",
+			config: &Config{
+				Minlen:    7,
+				Maxrepeat: 2,
+			},
+			password:  "Passaa1", // 2个a重复，正好在限制内
+			wantError: false,
+		},
+		{
+			name: "maxclassrepeat - exactly at limit",
+			config: &Config{
+				Minlen:         7,
+				Maxclassrepeat: 3, // 允许3个连续同类字符
+			},
+			password:  "Pass111@", // 3个连续数字，正好在限制内
+			wantError: false,
+		},
+		{
+			name: "maxclassrepeat - different classes",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 3, // 允许3个连续同类字符
+			},
+			password:  "PassAA11", // AA和11都是2个连续同类字符，都在限制内
+			wantError: false,
+		},
+		{
+			name: "maxclassrepeat - uppercase consecutive",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 2,
+			},
+			password:  "PassAAA1",
+			wantError: true,
+			errorMsg:  "more than 2 consecutive characters of the same class",
+		},
+		{
+			name: "maxclassrepeat - lowercase consecutive",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 2,
+			},
+			password:  "Paaass1@",
+			wantError: true,
+			errorMsg:  "more than 2 consecutive characters of the same class",
+		},
+		{
+			name: "maxclassrepeat - special consecutive",
+			config: &Config{
+				Minlen:         8,
+				Maxclassrepeat: 2,
+			},
+			password:  "Pass1@@@",
+			wantError: true,
+			errorMsg:  "more than 2 consecutive characters of the same class",
+		},
 	}
 
 	for _, tt := range tests {
@@ -497,6 +1061,62 @@ password optional pam_gnome_keyring.so`,
 				Minclass: 0,
 			},
 		},
+		{
+			name: "PAM config with new options",
+			content: `password requisite pam_pwquality.so minlen=8 maxrepeat=3 maxclassrepeat=2 maxsequence=3`,
+			expected: &Config{
+				Minlen:         8,
+				Maxrepeat:      3,
+				Maxclassrepeat: 2,
+				Maxsequence:    3,
+			},
+		},
+		{
+			name: "PAM config with invalid value",
+			content: `password requisite pam_pwquality.so minlen=abc dcredit=-1`,
+			expected: &Config{
+				Minlen:  0, // 无效值应该被忽略
+				Dcredit: -1,
+			},
+		},
+		{
+			name: "PAM config - password line without pam module",
+			content: `password required pam_unix.so
+auth required pam_unix.so`,
+			expected: &Config{
+				Minlen:   0,
+				Dcredit:  0,
+				Ucredit:  0,
+				Lcredit:  0,
+				Ocredit:  0,
+				Minclass: 0,
+			},
+		},
+		{
+			name: "PAM config - pam module without password",
+			content: `auth required pam_pwquality.so minlen=8
+account required pam_unix.so`,
+			expected: &Config{
+				Minlen:   0, // 不是 password 行，应该被忽略
+				Dcredit:  0,
+			},
+		},
+		{
+			name: "PAM config - parameter without equals",
+			content: `password requisite pam_pwquality.so minlen dcredit=-1`,
+			expected: &Config{
+				Minlen:  0, // 没有等号的参数应该被忽略
+				Dcredit: -1,
+			},
+		},
+		{
+			name: "PAM config - multiple equals in parameter",
+			content: `password requisite pam_pwquality.so minlen=8=10 dcredit=-1`,
+			expected: &Config{
+				Minlen:  0, // "8=10" 不是有效数字，会被忽略
+				Dcredit: -1,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -519,6 +1139,15 @@ password optional pam_gnome_keyring.so`,
 			}
 			if config.Minclass != tt.expected.Minclass {
 				t.Errorf("Minclass = %d, want %d", config.Minclass, tt.expected.Minclass)
+			}
+			if config.Maxrepeat != tt.expected.Maxrepeat {
+				t.Errorf("Maxrepeat = %d, want %d", config.Maxrepeat, tt.expected.Maxrepeat)
+			}
+			if config.Maxclassrepeat != tt.expected.Maxclassrepeat {
+				t.Errorf("Maxclassrepeat = %d, want %d", config.Maxclassrepeat, tt.expected.Maxclassrepeat)
+			}
+			if config.Maxsequence != tt.expected.Maxsequence {
+				t.Errorf("Maxsequence = %d, want %d", config.Maxsequence, tt.expected.Maxsequence)
 			}
 		})
 	}
@@ -558,6 +1187,15 @@ ocredit = -1`,
 				Minclass: 0,
 			},
 		},
+		{
+			name: "SUSE - fallback to PAM when config format fails",
+			content: `# This is not a valid config format
+password requisite pam_pwquality.so minlen=12 dcredit=-2`,
+			expected: &Config{
+				Minlen:  12,
+				Dcredit: -2,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -568,6 +1206,27 @@ ocredit = -1`,
 			}
 			if config.Dcredit != tt.expected.Dcredit {
 				t.Errorf("Dcredit = %d, want %d", config.Dcredit, tt.expected.Dcredit)
+			}
+			if config.Ucredit != tt.expected.Ucredit {
+				t.Errorf("Ucredit = %d, want %d", config.Ucredit, tt.expected.Ucredit)
+			}
+			if config.Lcredit != tt.expected.Lcredit {
+				t.Errorf("Lcredit = %d, want %d", config.Lcredit, tt.expected.Lcredit)
+			}
+			if config.Ocredit != tt.expected.Ocredit {
+				t.Errorf("Ocredit = %d, want %d", config.Ocredit, tt.expected.Ocredit)
+			}
+			if config.Minclass != tt.expected.Minclass {
+				t.Errorf("Minclass = %d, want %d", config.Minclass, tt.expected.Minclass)
+			}
+			if config.Maxrepeat != tt.expected.Maxrepeat {
+				t.Errorf("Maxrepeat = %d, want %d", config.Maxrepeat, tt.expected.Maxrepeat)
+			}
+			if config.Maxclassrepeat != tt.expected.Maxclassrepeat {
+				t.Errorf("Maxclassrepeat = %d, want %d", config.Maxclassrepeat, tt.expected.Maxclassrepeat)
+			}
+			if config.Maxsequence != tt.expected.Maxsequence {
+				t.Errorf("Maxsequence = %d, want %d", config.Maxsequence, tt.expected.Maxsequence)
 			}
 		})
 	}
@@ -630,8 +1289,23 @@ func TestConfig_HasAnyPolicy(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "only minclass",
-			config:   &Config{Minclass: 4},
+			name:     "only maxrepeat",
+			config:   &Config{Maxrepeat: 3},
+			expected: true,
+		},
+		{
+			name:     "only maxclassrepeat",
+			config:   &Config{Maxclassrepeat: 2},
+			expected: true,
+		},
+		{
+			name:     "only maxsequence",
+			config:   &Config{Maxsequence: 3},
+			expected: true,
+		},
+		{
+			name:     "all new options",
+			config:   &Config{Maxrepeat: 3, Maxclassrepeat: 2, Maxsequence: 3},
 			expected: true,
 		},
 	}
@@ -936,6 +1610,167 @@ func TestConfig_GeneratePassword_LengthCalculation(t *testing.T) {
 				t.Errorf("Generated password failed validation: %v", err)
 			}
 		})
+	}
+}
+
+func TestConfig_GeneratePassword_EdgeCases(t *testing.T) {
+	// 测试 GeneratePassword 的边界情况
+	tests := []struct {
+		name              string
+		config            *Config
+		passwordGenerator func(int) string
+		description       string
+	}{
+		{
+			name: "minclass = 1 should not add buffer",
+			config: &Config{
+				Minlen:   8,
+				Minclass: 1, // minclass = 1，不应该添加缓冲
+				Dcredit:  -1,
+			},
+			passwordGenerator: func(length int) string {
+				return "Pass1word"
+			},
+			description: "minclass = 1 时不应该添加额外的长度缓冲",
+		},
+		{
+			name: "requiredChars > minLength",
+			config: &Config{
+				Minlen:  5,
+				Dcredit: -3, // 需要3个数字
+				Ucredit: -2, // 需要2个大写字母
+			},
+			passwordGenerator: func(length int) string {
+				// requiredChars = 5，应该使用5而不是minLength
+				if length < 5 {
+					t.Errorf("Expected length >= 5, got %d", length)
+				}
+				return "PASS123"
+			},
+			description: "当 requiredChars > minLength 时，应该使用 requiredChars",
+		},
+		{
+			name: "minLength = 0 with credit requirements",
+			config: &Config{
+				Minlen:  0, // 没有设置最小长度
+				Dcredit: -2, // 需要2个数字
+			},
+			passwordGenerator: func(length int) string {
+				// 应该使用默认的8，或者 requiredChars 的较大值
+				if length < 2 {
+					t.Errorf("Expected length >= 2, got %d", length)
+				}
+				return "Pass12"
+			},
+			description: "minLength = 0 时应该使用默认值8",
+		},
+		{
+			name: "maxAttempts reached - should return longer password",
+			config: &Config{
+				Minlen:    8,
+				Maxrepeat: 1, // 非常严格的限制
+			},
+			passwordGenerator: func(length int) string {
+				// 总是返回不符合要求的密码（包含重复字符）
+				return strings.Repeat("a", length) // 全部是重复字符
+			},
+			description: "当达到最大尝试次数时，应该返回一个较长的密码",
+		},
+		{
+			name: "minclass > 1 should add buffer",
+			config: &Config{
+				Minlen:   8,
+				Minclass: 3, // minclass > 1，应该添加缓冲
+				Dcredit:  -1,
+			},
+			passwordGenerator: func(length int) string {
+				// 应该包含 minclass 的缓冲
+				if length < 8+3 {
+					t.Errorf("Expected length >= 11 (8 + 3), got %d", length)
+				}
+				return "Pass1@word"
+			},
+			description: "minclass > 1 时应该添加额外的长度缓冲",
+		},
+		{
+			name: "requiredChars = 0",
+			config: &Config{
+				Minlen: 8,
+				// 没有 credit 要求
+			},
+			passwordGenerator: func(length int) string {
+				if length != 8 {
+					t.Errorf("Expected length = 8, got %d", length)
+				}
+				return "password"
+			},
+			description: "没有 credit 要求时，应该使用 minLength",
+		},
+		{
+			name: "all positive credits",
+			config: &Config{
+				Minlen:  8,
+				Dcredit: 1,
+				Ucredit: 1,
+				Lcredit: 1,
+				Ocredit: 1,
+			},
+			passwordGenerator: func(length int) string {
+				return "Pass1@word"
+			},
+			description: "所有 credit 都是正数时，应该正常生成密码",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			password := tt.config.GeneratePassword(tt.passwordGenerator)
+			if password == "" && tt.passwordGenerator != nil {
+				t.Errorf("GeneratePassword() returned empty string")
+			}
+			// 验证生成的密码（如果可能）
+			if password != "" && tt.config.HasAnyPolicy() {
+				err := tt.config.Validate(password)
+				// 对于 maxAttempts 测试，密码可能不符合要求
+				if tt.name != "maxAttempts reached - should return longer password" {
+					if err != nil {
+						t.Errorf("Generated password failed validation: %v", err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestConfig_GeneratePassword_MaxAttempts(t *testing.T) {
+	// 专门测试达到最大尝试次数的情况
+	attemptCount := 0
+	config := &Config{
+		Minlen:    8,
+		Maxrepeat: 1, // 非常严格的限制，几乎不可能满足
+	}
+
+	passwordGenerator := func(length int) string {
+		attemptCount++
+		// 总是返回不符合要求的密码（全部是重复字符）
+		return strings.Repeat("a", length)
+	}
+
+	password := config.GeneratePassword(passwordGenerator)
+
+	// 应该返回一个密码（即使不符合要求）
+	if password == "" {
+		t.Error("GeneratePassword() should return a password even after max attempts")
+	}
+
+	// 应该进行了多次尝试
+	if attemptCount < 10 {
+		t.Errorf("Expected at least 10 attempts, got %d", attemptCount)
+	}
+
+	// 密码长度应该增加了
+	if len(password) < 8 {
+		t.Errorf("Expected password length >= 8 after retries, got %d", len(password))
 	}
 }
 

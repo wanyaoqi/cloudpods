@@ -238,7 +238,6 @@ func (l *sLinuxRootFs) GetLoginAccount(rootFs IDiskPartition, sUser string, defa
 func (l *sLinuxRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string) (string, error) {
 	var secret string
 	var err error
-
 	err = rootFs.Passwd(account, password, false)
 	if err == nil {
 		if len(publicKey) > 0 {
@@ -1387,7 +1386,6 @@ func (r *sRedhatLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid
 		log.Debugf("Failed to read /etc/security/pwquality.conf: %v, skip password strength check", err)
 	}
 
-	// 调用父类的通用方法进行密码修改
 	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password)
 }
 

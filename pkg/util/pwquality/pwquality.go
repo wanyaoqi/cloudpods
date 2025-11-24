@@ -27,12 +27,21 @@ var ErrPasswordTooWeak = errors.Error("password too weak")
 
 // Config 存储 pwquality 配置
 type Config struct {
-	Minlen   int // 最小长度
-	Dcredit  int // 数字字符信用值（负数表示至少需要多少个字符，正数表示每个字符可减少的长度要求）
-	Ucredit  int // 大写字母信用值
-	Lcredit  int // 小写字母信用值
-	Ocredit  int // 特殊字符信用值
-	Minclass int // 最小字符类数量（数字、大写、小写、特殊）
+	Minlen        int // 最小长度
+	Dcredit       int // 数字字符信用值（负数表示至少需要多少个字符，正数表示每个字符可减少的长度要求）
+	Ucredit       int // 大写字母信用值
+	Lcredit       int // 小写字母信用值
+	Ocredit       int // 特殊字符信用值
+	Minclass      int // 最小字符类数量（数字、大写、小写、特殊）
+	Maxrepeat     int // 最大重复字符数（0 表示不限制）
+	Maxclassrepeat int // 最大同类字符重复数（0 表示不限制）
+	Maxsequence   int // 最大连续字符序列长度（0 表示不限制）
+	// 以下配置项在 chroot 环境中可能不适用，暂不实现
+	// Gecoscheck int // 是否检查密码中包含用户的 GECOS 信息
+	// Dictcheck  int // 是否检查密码是否包含字典中的单词（需要字典文件）
+	// Usercheck  int // 是否检查密码中包含用户名（需要用户名信息）
+	// Enforcing  int // 是否强制执行密码策略
+	// Dictpath   string // 字典文件路径
 }
 
 // HasAnyPolicy 检查配置是否有任何非默认的密码策略设置
@@ -42,18 +51,22 @@ func (c *Config) HasAnyPolicy() bool {
 		return false
 	}
 	return c.Minlen > 0 || c.Dcredit != 0 || c.Ucredit != 0 || 
-		c.Lcredit != 0 || c.Ocredit != 0 || c.Minclass > 0
+		c.Lcredit != 0 || c.Ocredit != 0 || c.Minclass > 0 ||
+		c.Maxrepeat > 0 || c.Maxclassrepeat > 0 || c.Maxsequence > 0
 }
 
 // ParseConfig 解析 /etc/security/pwquality.conf 配置文件内容
 func ParseConfig(content []byte) *Config {
 	config := &Config{
-		Minlen:   0, // 默认值
-		Dcredit:  0, // 默认值
-		Ucredit:  0, // 默认值
-		Lcredit:  0, // 默认值
-		Ocredit:  0, // 默认值
-		Minclass: 0, // 默认值
+		Minlen:        0, // 默认值
+		Dcredit:       0, // 默认值
+		Ucredit:       0, // 默认值
+		Lcredit:       0, // 默认值
+		Ocredit:       0, // 默认值
+		Minclass:      0, // 默认值
+		Maxrepeat:     0, // 默认值（0 表示不限制）
+		Maxclassrepeat: 0, // 默认值（0 表示不限制）
+		Maxsequence:   0, // 默认值（0 表示不限制）
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -97,6 +110,18 @@ func ParseConfig(content []byte) *Config {
 		case "minclass":
 			if v, err := strconv.Atoi(value); err == nil {
 				config.Minclass = v
+			}
+		case "maxrepeat":
+			if v, err := strconv.Atoi(value); err == nil {
+				config.Maxrepeat = v
+			}
+		case "maxclassrepeat":
+			if v, err := strconv.Atoi(value); err == nil {
+				config.Maxclassrepeat = v
+			}
+		case "maxsequence":
+			if v, err := strconv.Atoi(value); err == nil {
+				config.Maxsequence = v
 			}
 		}
 	}
@@ -218,6 +243,85 @@ func (c *Config) Validate(password string) error {
 		}
 	}
 
+	// 检查最大重复字符数
+	if c.Maxrepeat > 0 {
+		maxRepeat := 0
+		currentRepeat := 1
+		prevChar := rune(0)
+		for _, r := range password {
+			if r == prevChar {
+				currentRepeat++
+				if currentRepeat > maxRepeat {
+					maxRepeat = currentRepeat
+				}
+			} else {
+				currentRepeat = 1
+			}
+			prevChar = r
+		}
+		if maxRepeat > c.Maxrepeat {
+			return errors.Wrapf(ErrPasswordTooWeak, "password contains more than %d consecutive repeated characters", c.Maxrepeat)
+		}
+	}
+
+	// 检查最大同类字符重复数
+	if c.Maxclassrepeat > 0 {
+		maxClassRepeat := 0
+		currentClassRepeat := 1
+		prevClass := -1 // -1: 未设置, 0: 数字, 1: 大写, 2: 小写, 3: 特殊
+		for _, r := range password {
+			var currentClass int
+			if unicode.IsDigit(r) {
+				currentClass = 0
+			} else if unicode.IsUpper(r) {
+				currentClass = 1
+			} else if unicode.IsLower(r) {
+				currentClass = 2
+			} else {
+				currentClass = 3
+			}
+			if currentClass == prevClass {
+				currentClassRepeat++
+				if currentClassRepeat > maxClassRepeat {
+					maxClassRepeat = currentClassRepeat
+				}
+			} else {
+				currentClassRepeat = 1
+			}
+			prevClass = currentClass
+		}
+		if maxClassRepeat > c.Maxclassrepeat {
+			return errors.Wrapf(ErrPasswordTooWeak, "password contains more than %d consecutive characters of the same class", c.Maxclassrepeat)
+		}
+	}
+
+	// 检查最大连续字符序列长度
+	// maxsequence 检查密码中是否存在超过指定长度的连续字符序列（如 "1234" 或 "abcd"）
+	if c.Maxsequence > 0 {
+		runes := []rune(password)
+		for i := 0; i <= len(runes)-c.Maxsequence-1; i++ {
+			// 检查升序序列（如 "1234", "abcd"）
+			isAscending := true
+			for j := 1; j <= c.Maxsequence; j++ {
+				if i+j >= len(runes) || runes[i+j] != runes[i+j-1]+1 {
+					isAscending = false
+					break
+				}
+			}
+			// 检查降序序列（如 "4321", "dcba"）
+			isDescending := true
+			for j := 1; j <= c.Maxsequence; j++ {
+				if i+j >= len(runes) || runes[i+j] != runes[i+j-1]-1 {
+					isDescending = false
+					break
+				}
+			}
+			if isAscending || isDescending {
+				return errors.Wrapf(ErrPasswordTooWeak, "password contains a sequence of more than %d consecutive characters", c.Maxsequence)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -225,12 +329,15 @@ func (c *Config) Validate(password string) error {
 // 支持 pam_pwquality 和 pam_cracklib 模块
 func ParsePAMConfig(content []byte) *Config {
 	config := &Config{
-		Minlen:   0,
-		Dcredit:  0,
-		Ucredit:  0,
-		Lcredit:  0,
-		Ocredit:  0,
-		Minclass: 0,
+		Minlen:         0,
+		Dcredit:        0,
+		Ucredit:        0,
+		Lcredit:        0,
+		Ocredit:        0,
+		Minclass:       0,
+		Maxrepeat:      0,
+		Maxclassrepeat: 0,
+		Maxsequence:    0,
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -293,6 +400,18 @@ func ParsePAMConfig(content []byte) *Config {
 			case "minclass":
 				if v, err := strconv.Atoi(value); err == nil {
 					config.Minclass = v
+				}
+			case "maxrepeat":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Maxrepeat = v
+				}
+			case "maxclassrepeat":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Maxclassrepeat = v
+				}
+			case "maxsequence":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Maxsequence = v
 				}
 			case "difok": // pam_cracklib 特有：至少需要多少个字符与旧密码不同
 				// 这个参数不影响密码强度校验，可以忽略
