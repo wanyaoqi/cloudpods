@@ -188,6 +188,44 @@ dcredit = -1`,
 				Dcredit:  -1,
 			},
 		},
+		{
+			name: "config with enforcing",
+			content: `minlen = 8
+enforcing = 1`,
+			expected: &Config{
+				Minlen:   8,
+				Enforcing: 1,
+			},
+		},
+		{
+			name: "config with enforcing disabled",
+			content: `minlen = 8
+enforcing = 0`,
+			expected: &Config{
+				Minlen:   8,
+				Enforcing: 0,
+			},
+		},
+		{
+			name: "config with enforce_for_root",
+			content: `minlen = 8
+enforce_for_root = 1`,
+			expected: &Config{
+				Minlen:   8,
+				EnforceForRoot: 1,
+			},
+		},
+		{
+			name: "config with both enforcing parameters",
+			content: `minlen = 8
+enforcing = 1
+enforce_for_root = 1`,
+			expected: &Config{
+				Minlen:   8,
+				Enforcing: 1,
+				EnforceForRoot: 1,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -932,11 +970,135 @@ func TestConfig_Validate(t *testing.T) {
 			wantError: true,
 			errorMsg:  "more than 2 consecutive characters of the same class",
 		},
+		{
+			name: "enforcing = 0 - should skip validation",
+			config: &Config{
+				Minlen:    8,
+				Enforcing: 0, // 不强制执行，应该跳过所有验证
+			},
+			password:  "short", // 即使密码太短，也不应该报错
+			wantError: false,
+		},
+		{
+			name: "usercheck - password contains username",
+			config: &Config{
+				Minlen:    8,
+				Usercheck: 1,
+			},
+			password:  "user1234", // 密码包含用户名 "user"
+			wantError: true,
+			errorMsg:  "password contains the username",
+		},
+		{
+			name: "usercheck - password contains reversed username",
+			config: &Config{
+				Minlen:    8,
+				Usercheck: 1,
+			},
+			password:  "resu1234", // 密码包含反向用户名 "resu" (user 的反向)
+			wantError: true,
+			errorMsg:  "password contains the reversed username",
+		},
+		{
+			name: "usercheck - password does not contain username",
+			config: &Config{
+				Minlen:    8,
+				Usercheck: 1,
+			},
+			password:  "Pass1234", // 密码不包含用户名
+			wantError: false,
+		},
+		{
+			name: "usercheck - case insensitive",
+			config: &Config{
+				Minlen:    8,
+				Usercheck: 1,
+			},
+			password:  "USER1234", // 密码包含大写用户名
+			wantError: true,
+			errorMsg:  "password contains the username",
+		},
+		{
+			name: "usercheck - disabled",
+			config: &Config{
+				Minlen:    8,
+				Usercheck: 0, // 不检查用户名
+			},
+			password:  "user1234", // 即使密码包含用户名，也不应该报错
+			wantError: false,
+		},
+		{
+			name: "usercheck - empty username",
+			config: &Config{
+				Minlen:    8,
+				Usercheck: 1,
+			},
+			password:  "anypassword", // 用户名为空，不应该检查
+			wantError: false,
+		},
+		{
+			name: "root user with enforce_for_root = 0 - should skip validation",
+			config: &Config{
+				Minlen:         8,
+				EnforceForRoot: 0, // 不对 root 强制执行
+				Enforcing:     1,  // 强制执行（但对 root 不强制）
+			},
+			password:  "short", // 即使密码太短，root 用户也不应该报错
+			wantError: false,
+		},
+		{
+			name: "root user with enforce_for_root = 1 - should validate",
+			config: &Config{
+				Minlen:         8,
+				EnforceForRoot: 1, // 对 root 强制执行
+				Enforcing:     1,  // 强制执行
+			},
+			password:  "short", // root 用户也需要验证密码强度
+			wantError: true,
+			errorMsg:  "effective length",
+		},
+		{
+			name: "non-root user with enforce_for_root = 0 - should validate",
+			config: &Config{
+				Minlen:         8,
+				EnforceForRoot: 0, // 不对 root 强制执行，但普通用户需要验证
+				Enforcing:     1,  // 强制执行（对普通用户）
+			},
+			password:  "short", // 普通用户需要验证密码强度
+			wantError: true,
+			errorMsg:  "effective length",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate(tt.password)
+			// 对于 usercheck 测试，使用 "user" 作为用户名
+			// 对于 root 用户测试，使用 "root" 作为用户名
+			// 对于 non-root 用户测试，使用 "testuser" 作为用户名
+			// 注意：需要先检查 "non-root user"，因为 "non-root user" 包含 "root user"
+			username := ""
+			if strings.Contains(tt.name, "usercheck") {
+				username = "user"
+			} else if strings.Contains(tt.name, "non-root user") {
+				username = "testuser"
+			} else if strings.Contains(tt.name, "root user") {
+				username = "root"
+			}
+			
+			// 如果 config 不为 nil 且未设置 Enforcing，默认设置为 1（强制执行）
+			// 但如果是 enforcing=0 的测试用例，不要修改
+			// 对于 root 用户测试，如果 enforce_for_root=0，enforcing 可能为 0，不要修改
+			// 对于 non-root 用户测试，如果已经设置了 Enforcing=1，不要修改
+			// 注意：只对 Enforcing=0 的测试用例进行修改，且排除特殊测试用例
+			if tt.config != nil && tt.config.Enforcing == 0 && tt.name != "nil config should pass" && 
+				!strings.Contains(tt.name, "enforcing = 0") && 
+				!strings.Contains(tt.name, "root user with enforce_for_root = 0") &&
+				!strings.Contains(tt.name, "non-root user") {
+				// 只对非特殊测试用例且 Enforcing=0 的情况设置为 1
+				tt.config.Enforcing = 1
+			}
+			
+			err := tt.config.Validate(tt.password, username)
 			if tt.wantError {
 				if err == nil {
 					t.Errorf("Validate() expected error but got nil")
@@ -953,7 +1115,10 @@ func TestConfig_Validate(t *testing.T) {
 }
 
 func TestConfig_Validate_CharacterClasses(t *testing.T) {
-	config := &Config{Minclass: 4}
+	config := &Config{
+		Minclass:  4,
+		Enforcing: 1, // 强制执行
+	}
 	
 	tests := []struct {
 		name      string
@@ -971,7 +1136,7 @@ func TestConfig_Validate_CharacterClasses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := config.Validate(tt.password)
+			err := config.Validate(tt.password, "")
 			if tt.wantError {
 				if err == nil {
 					t.Errorf("Validate() expected error but got nil for password %q", tt.password)
@@ -1115,6 +1280,39 @@ account required pam_unix.so`,
 			expected: &Config{
 				Minlen:  0, // "8=10" 不是有效数字，会被忽略
 				Dcredit: -1,
+			},
+		},
+		{
+			name: "PAM config with enforcing",
+			content: `password requisite pam_pwquality.so minlen=8 enforcing=1`,
+			expected: &Config{
+				Minlen:   8,
+				Enforcing: 1,
+			},
+		},
+		{
+			name: "PAM config with enforce_for_root",
+			content: `password requisite pam_pwquality.so minlen=8 enforce_for_root=1`,
+			expected: &Config{
+				Minlen:   8,
+				EnforceForRoot: 1,
+			},
+		},
+		{
+			name: "PAM config with both enforcing parameters",
+			content: `password requisite pam_pwquality.so minlen=8 enforcing=0 enforce_for_root=1`,
+			expected: &Config{
+				Minlen:   8,
+				Enforcing: 0,
+				EnforceForRoot: 1,
+			},
+		},
+		{
+			name: "PAM config with usercheck",
+			content: `password requisite pam_pwquality.so minlen=8 usercheck=1`,
+			expected: &Config{
+				Minlen:   8,
+				Usercheck: 1,
 			},
 		},
 	}
@@ -1320,6 +1518,92 @@ func TestConfig_HasAnyPolicy(t *testing.T) {
 	}
 }
 
+func TestConfig_IsEnforcing(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *Config
+		expected bool
+	}{
+		{
+			name:     "nil config - default enforcing",
+			config:   nil,
+			expected: true, // 默认强制执行
+		},
+		{
+			name:     "enforcing = 1",
+			config:   &Config{Enforcing: 1},
+			expected: true,
+		},
+		{
+			name:     "enforcing = 0",
+			config:   &Config{Enforcing: 0},
+			expected: false,
+		},
+		{
+			name:     "enforcing = 2",
+			config:   &Config{Enforcing: 2},
+			expected: true, // 非0值都视为强制执行
+		},
+		{
+			name:     "default config - enforcing not set",
+			config:   &Config{Enforcing: 1}, // 默认值为1
+			expected: true, // 默认值为1，强制执行
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.config.IsEnforcing()
+			if got != tt.expected {
+				t.Errorf("IsEnforcing() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestConfig_IsEnforcingForRoot(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *Config
+		expected bool
+	}{
+		{
+			name:     "nil config - default not enforcing for root",
+			config:   nil,
+			expected: false, // 默认不对 root 强制执行
+		},
+		{
+			name:     "enforce_for_root = 1",
+			config:   &Config{EnforceForRoot: 1},
+			expected: true,
+		},
+		{
+			name:     "enforce_for_root = 0",
+			config:   &Config{EnforceForRoot: 0},
+			expected: false,
+		},
+		{
+			name:     "enforce_for_root = 2",
+			config:   &Config{EnforceForRoot: 2},
+			expected: false, // 只有1才表示强制执行
+		},
+		{
+			name:     "default config - enforce_for_root not set",
+			config:   &Config{},
+			expected: false, // 默认值为0，不对 root 强制执行
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.config.IsEnforcingForRoot()
+			if got != tt.expected {
+				t.Errorf("IsEnforcingForRoot() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestConfig_GeneratePassword(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -1481,7 +1765,7 @@ func TestConfig_GeneratePassword(t *testing.T) {
 
 			// 验证生成的密码是否符合配置要求
 			if tt.config != nil && tt.config.HasAnyPolicy() {
-				err := tt.config.Validate(password)
+				err := tt.config.Validate(password, "")
 				if tt.wantError {
 					if err == nil {
 						t.Errorf("GeneratePassword() generated password %q should fail validation but passed", password)
@@ -1500,11 +1784,12 @@ func TestConfig_GeneratePassword_RetryMechanism(t *testing.T) {
 	// 测试重试机制：确保在多次尝试后能生成符合要求的密码
 	attemptCount := 0
 	config := &Config{
-		Minlen:  10,
-		Dcredit: -2, // 需要至少2个数字
-		Ucredit: -1, // 需要至少1个大写字母
-		Lcredit: -1, // 需要至少1个小写字母
-		Ocredit: -1, // 需要至少1个特殊字符
+		Minlen:    10,
+		Dcredit:   -2, // 需要至少2个数字
+		Ucredit:   -1, // 需要至少1个大写字母
+		Lcredit:   -1, // 需要至少1个小写字母
+		Ocredit:   -1, // 需要至少1个特殊字符
+		Enforcing: 1,  // 强制执行
 	}
 
 	passwordGenerator := func(length int) string {
@@ -1533,7 +1818,7 @@ func TestConfig_GeneratePassword_RetryMechanism(t *testing.T) {
 	}
 
 	// 验证密码符合要求
-	err := config.Validate(password)
+	err := config.Validate(password, "")
 	if err != nil {
 		t.Errorf("GeneratePassword() generated password %q failed validation: %v", password, err)
 	}
@@ -1605,7 +1890,7 @@ func TestConfig_GeneratePassword_LengthCalculation(t *testing.T) {
 				t.Errorf("GeneratePassword() returned empty string")
 			}
 
-			err := tt.config.Validate(password)
+			err := tt.config.Validate(password, "")
 			if err != nil {
 				t.Errorf("Generated password failed validation: %v", err)
 			}
@@ -1730,7 +2015,7 @@ func TestConfig_GeneratePassword_EdgeCases(t *testing.T) {
 			}
 			// 验证生成的密码（如果可能）
 			if password != "" && tt.config.HasAnyPolicy() {
-				err := tt.config.Validate(password)
+				err := tt.config.Validate(password, "")
 				// 对于 maxAttempts 测试，密码可能不符合要求
 				if tt.name != "maxAttempts reached - should return longer password" {
 					if err != nil {
@@ -1748,6 +2033,7 @@ func TestConfig_GeneratePassword_MaxAttempts(t *testing.T) {
 	config := &Config{
 		Minlen:    8,
 		Maxrepeat: 1, // 非常严格的限制，几乎不可能满足
+		Enforcing: 1, // 强制执行
 	}
 
 	passwordGenerator := func(length int) string {

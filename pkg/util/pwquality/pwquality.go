@@ -36,11 +36,12 @@ type Config struct {
 	Maxrepeat     int // 最大重复字符数（0 表示不限制）
 	Maxclassrepeat int // 最大同类字符重复数（0 表示不限制）
 	Maxsequence   int // 最大连续字符序列长度（0 表示不限制）
+	Enforcing     int // 是否强制执行密码策略（1=强制执行，0=仅警告，默认1）
+	EnforceForRoot int // 是否对 root 用户强制执行密码策略（1=强制执行，0=不强制，默认0）
+	Usercheck     int // 是否检查密码中包含用户名（1=检查，0=不检查，默认0）
 	// 以下配置项在 chroot 环境中可能不适用，暂不实现
 	// Gecoscheck int // 是否检查密码中包含用户的 GECOS 信息
 	// Dictcheck  int // 是否检查密码是否包含字典中的单词（需要字典文件）
-	// Usercheck  int // 是否检查密码中包含用户名（需要用户名信息）
-	// Enforcing  int // 是否强制执行密码策略
 	// Dictpath   string // 字典文件路径
 }
 
@@ -55,6 +56,26 @@ func (c *Config) HasAnyPolicy() bool {
 		c.Maxrepeat > 0 || c.Maxclassrepeat > 0 || c.Maxsequence > 0
 }
 
+// IsEnforcing 检查密码策略是否强制执行
+// 如果 enforcing=0，密码策略不会强制执行（只是警告）
+func (c *Config) IsEnforcing() bool {
+	if c == nil {
+		return true // 默认强制执行
+	}
+	// enforcing=1 表示强制执行，enforcing=0 表示仅警告
+	// 默认值为 1（强制执行）
+	return c.Enforcing != 0
+}
+
+// IsEnforcingForRoot 检查是否对 root 用户强制执行密码策略
+func (c *Config) IsEnforcingForRoot() bool {
+	if c == nil {
+		return false // 默认不对 root 强制执行
+	}
+	// enforce_for_root=1 表示对 root 强制执行，enforce_for_root=0 表示不强制
+	return c.EnforceForRoot == 1
+}
+
 // ParseConfig 解析 /etc/security/pwquality.conf 配置文件内容
 func ParseConfig(content []byte) *Config {
 	config := &Config{
@@ -67,6 +88,9 @@ func ParseConfig(content []byte) *Config {
 		Maxrepeat:     0, // 默认值（0 表示不限制）
 		Maxclassrepeat: 0, // 默认值（0 表示不限制）
 		Maxsequence:   0, // 默认值（0 表示不限制）
+		Enforcing:     1, // 默认值（1 表示强制执行）
+		EnforceForRoot: 0, // 默认值（0 表示不对 root 强制执行）
+		Usercheck:     0, // 默认值（0 表示不检查用户名）
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -123,6 +147,18 @@ func ParseConfig(content []byte) *Config {
 			if v, err := strconv.Atoi(value); err == nil {
 				config.Maxsequence = v
 			}
+		case "enforcing":
+			if v, err := strconv.Atoi(value); err == nil {
+				config.Enforcing = v
+			}
+		case "enforce_for_root":
+			if v, err := strconv.Atoi(value); err == nil {
+				config.EnforceForRoot = v
+			}
+		case "usercheck":
+			if v, err := strconv.Atoi(value); err == nil {
+				config.Usercheck = v
+			}
 		}
 	}
 
@@ -130,10 +166,21 @@ func ParseConfig(content []byte) *Config {
 }
 
 // Validate 根据 pwquality 配置校验密码强度
+// username 为用户名，用于检查密码中是否包含用户名（如果启用了 usercheck）
 // 参考 libpwquality 的实现逻辑
-func (c *Config) Validate(password string) error {
+func (c *Config) Validate(password string, username string) error {
 	if c == nil {
 		// 如果没有配置，不进行校验
+		return nil
+	}
+
+	// 如果 enforcing=0，密码策略不会强制执行（只是警告），直接返回
+	if !c.IsEnforcing() {
+		return nil
+	}
+
+	// 如果用户是 root 且 enforce_for_root=0，不对 root 强制执行密码策略
+	if username == "root" && !c.IsEnforcingForRoot() {
 		return nil
 	}
 
@@ -322,7 +369,36 @@ func (c *Config) Validate(password string) error {
 		}
 	}
 
+	// 检查密码中是否包含用户名
+	if c.Usercheck > 0 && username != "" {
+		// 将用户名和密码都转换为小写进行比较（不区分大小写）
+		lowerUsername := strings.ToLower(username)
+		lowerPassword := strings.ToLower(password)
+		
+		// 检查密码中是否包含用户名（包括反向）
+		if strings.Contains(lowerPassword, lowerUsername) {
+			return errors.Wrapf(ErrPasswordTooWeak, "password contains the username")
+		}
+		
+		// 检查密码中是否包含用户名的反向（用户名长度至少为3才检查反向）
+		if len(lowerUsername) >= 3 {
+			reversedUsername := reverseString(lowerUsername)
+			if strings.Contains(lowerPassword, reversedUsername) {
+				return errors.Wrapf(ErrPasswordTooWeak, "password contains the reversed username")
+			}
+		}
+	}
+
 	return nil
+}
+
+// reverseString 反转字符串
+func reverseString(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
 }
 
 // ParsePAMConfig 解析 PAM 配置文件中的密码强度策略
@@ -338,6 +414,9 @@ func ParsePAMConfig(content []byte) *Config {
 		Maxrepeat:      0,
 		Maxclassrepeat: 0,
 		Maxsequence:    0,
+		Enforcing:      1, // 默认值（1 表示强制执行）
+		EnforceForRoot: 0, // 默认值（0 表示不对 root 强制执行）
+		Usercheck:      0, // 默认值（0 表示不检查用户名）
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -412,6 +491,18 @@ func ParsePAMConfig(content []byte) *Config {
 			case "maxsequence":
 				if v, err := strconv.Atoi(value); err == nil {
 					config.Maxsequence = v
+				}
+			case "enforcing":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Enforcing = v
+				}
+			case "enforce_for_root":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.EnforceForRoot = v
+				}
+			case "usercheck":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Usercheck = v
 				}
 			case "difok": // pam_cracklib 特有：至少需要多少个字符与旧密码不同
 				// 这个参数不影响密码强度校验，可以忽略
@@ -492,7 +583,8 @@ func (c *Config) GeneratePassword(passwordGenerator func(int) string) string {
 	maxAttempts := 100
 	for i := 0; i < maxAttempts; i++ {
 		password := passwordGenerator(passwordLength)
-		if c.Validate(password) == nil {
+		// GeneratePassword 不提供用户名，所以传空字符串
+		if c.Validate(password, "") == nil {
 			return password
 		}
 		// 如果不符合要求，增加长度重试

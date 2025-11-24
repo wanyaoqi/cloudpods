@@ -64,7 +64,7 @@ func (r *sSuseLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, 
 		}
 	}
 	if config != nil {
-		err = config.Validate(password)
+		err = config.Validate(password, account)
 		if err != nil {
 			// 如果是密码强度不符合要求，自动生成符合要求的密码
 			if errors.Cause(err) == pwquality.ErrPasswordTooWeak {
