@@ -36,8 +36,17 @@ type Config struct {
 	Maxrepeat     int // 最大重复字符数（0 表示不限制）
 	Maxclassrepeat int // 最大同类字符重复数（0 表示不限制）
 	Maxsequence   int // 最大连续字符序列长度（0 表示不限制）
-	Enforcing     int // 是否强制执行密码策略（1=强制执行，0=仅警告，默认1）
-	EnforceForRoot int // 是否对 root 用户强制执行密码策略（1=强制执行，0=不强制，默认0）
+	// Enforcing 是否强制执行密码策略（1=强制执行，0=仅警告，默认1）
+	// 注意：此参数在 libpwquality 1.2.0+ 版本中支持，较老的系统可能不支持
+	// 如果系统不支持，配置文件中不会出现此参数，将使用默认值 1（强制执行）
+	Enforcing     int
+	// EnforceForRoot 是否对 root 用户强制执行密码策略（1=强制执行，0=不强制，默认0）
+	// 注意：此参数在 libpwquality 1.2.0+ 版本中支持，较老的系统可能不支持
+	// 在配置文件中，可能以两种形式出现：
+	//   1. enforce_for_root = 1（key=value 形式）
+	//   2. enforce_for_root（独立标志形式，无等号，表示启用）
+	// 如果系统不支持，配置文件中不会出现此参数，将使用默认值 0（不对 root 强制执行）
+	EnforceForRoot int
 	Usercheck     int // 是否检查密码中包含用户名（1=检查，0=不检查，默认0）
 	// 以下配置项在 chroot 环境中可能不适用，暂不实现
 	// Gecoscheck int // 是否检查密码中包含用户的 GECOS 信息
@@ -77,6 +86,16 @@ func (c *Config) IsEnforcingForRoot() bool {
 }
 
 // ParseConfig 解析 /etc/security/pwquality.conf 配置文件内容
+//
+// 兼容性说明：
+// - enforcing 和 enforce_for_root 参数在 libpwquality 1.2.0+ 版本中支持
+// - 较老的系统（如 RHEL 6 之前）可能不支持这些参数
+// - enforce_for_root 可能以两种形式出现：
+//   1. enforce_for_root = 1（key=value 形式）
+//   2. enforce_for_root（独立标志形式，无等号，表示启用）
+// - 如果配置文件中不存在这些参数，将使用默认值：
+//   - Enforcing: 1（默认强制执行）
+//   - EnforceForRoot: 0（默认不对 root 强制执行）
 func ParseConfig(content []byte) *Config {
 	config := &Config{
 		Minlen:        0, // 默认值
@@ -101,63 +120,75 @@ func ParseConfig(content []byte) *Config {
 			continue
 		}
 
-		// 解析 key = value 格式
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
+		// 检查是否是 key = value 格式
+		if strings.Contains(line, "=") {
+			// 解析 key = value 格式
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
 
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
 
-		switch key {
-		case "minlen":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Minlen = v
+			switch key {
+			case "minlen":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Minlen = v
+				}
+			case "dcredit":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Dcredit = v
+				}
+			case "ucredit":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Ucredit = v
+				}
+			case "lcredit":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Lcredit = v
+				}
+			case "ocredit":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Ocredit = v
+				}
+			case "minclass":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Minclass = v
+				}
+			case "maxrepeat":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Maxrepeat = v
+				}
+			case "maxclassrepeat":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Maxclassrepeat = v
+				}
+			case "maxsequence":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Maxsequence = v
+				}
+			case "enforcing":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Enforcing = v
+				}
+			case "enforce_for_root":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.EnforceForRoot = v
+				}
+			case "usercheck":
+				if v, err := strconv.Atoi(value); err == nil {
+					config.Usercheck = v
+				}
 			}
-		case "dcredit":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Dcredit = v
-			}
-		case "ucredit":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Ucredit = v
-			}
-		case "lcredit":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Lcredit = v
-			}
-		case "ocredit":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Ocredit = v
-			}
-		case "minclass":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Minclass = v
-			}
-		case "maxrepeat":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Maxrepeat = v
-			}
-		case "maxclassrepeat":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Maxclassrepeat = v
-			}
-		case "maxsequence":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Maxsequence = v
-			}
-		case "enforcing":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Enforcing = v
-			}
-		case "enforce_for_root":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.EnforceForRoot = v
-			}
-		case "usercheck":
-			if v, err := strconv.Atoi(value); err == nil {
-				config.Usercheck = v
+		} else {
+			// 处理独立标志（无值的参数）
+			// 例如：enforce_for_root（表示对 root 强制执行密码策略）
+			key := strings.TrimSpace(line)
+			switch key {
+			case "enforce_for_root":
+				// 如果以独立标志形式出现，设置为 1（强制执行）
+				config.EnforceForRoot = 1
 			}
 		}
 	}
@@ -403,6 +434,14 @@ func reverseString(s string) string {
 
 // ParsePAMConfig 解析 PAM 配置文件中的密码强度策略
 // 支持 pam_pwquality 和 pam_cracklib 模块
+//
+// 兼容性说明：
+// - enforcing 和 enforce_for_root 参数在 libpwquality 1.2.0+ 版本中支持
+// - 较老的系统（如 RHEL 6 之前）可能不支持这些参数
+// - 在 PAM 配置中，enforce_for_root 可能以独立标志形式出现（无值），如：
+//   password requisite pam_pwquality.so minlen=8 enforce_for_root
+//   这种情况下，如果解析到 enforce_for_root 标志（无值），将设置为 1
+// - 如果系统不支持这些参数，配置文件中不会出现，将使用默认值
 func ParsePAMConfig(content []byte) *Config {
 	config := &Config{
 		Minlen:         0,
@@ -439,74 +478,86 @@ func ParsePAMConfig(content []byte) *Config {
 			continue
 		}
 
-		// 解析参数，格式为 key=value
+		// 解析参数，格式为 key=value 或独立标志（如 enforce_for_root）
 		// 先找到 .so 后面的参数部分
 		parts := strings.Fields(line)
 		for _, part := range parts {
-			if !strings.Contains(part, "=") {
+			part = strings.TrimSpace(part)
+			if len(part) == 0 {
 				continue
 			}
 
-			kv := strings.SplitN(part, "=", 2)
-			if len(kv) != 2 {
-				continue
-			}
+			// 检查是否是 key=value 格式
+			if strings.Contains(part, "=") {
+				kv := strings.SplitN(part, "=", 2)
+				if len(kv) != 2 {
+					continue
+				}
 
-			key := strings.TrimSpace(kv[0])
-			value := strings.TrimSpace(kv[1])
+				key := strings.TrimSpace(kv[0])
+				value := strings.TrimSpace(kv[1])
 
-			switch key {
-			case "minlen":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Minlen = v
+				switch key {
+				case "minlen":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Minlen = v
+					}
+				case "dcredit":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Dcredit = v
+					}
+				case "ucredit":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Ucredit = v
+					}
+				case "lcredit":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Lcredit = v
+					}
+				case "ocredit":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Ocredit = v
+					}
+				case "minclass":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Minclass = v
+					}
+				case "maxrepeat":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Maxrepeat = v
+					}
+				case "maxclassrepeat":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Maxclassrepeat = v
+					}
+				case "maxsequence":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Maxsequence = v
+					}
+				case "enforcing":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Enforcing = v
+					}
+				case "enforce_for_root":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.EnforceForRoot = v
+					}
+				case "usercheck":
+					if v, err := strconv.Atoi(value); err == nil {
+						config.Usercheck = v
+					}
+				case "difok": // pam_cracklib 特有：至少需要多少个字符与旧密码不同
+					// 这个参数不影响密码强度校验，可以忽略
+				case "retry": // 重试次数，不影响密码强度校验
 				}
-			case "dcredit":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Dcredit = v
+			} else {
+				// 处理独立标志（无值的参数）
+				// 例如：enforce_for_root（表示对 root 强制执行密码策略）
+				switch part {
+				case "enforce_for_root":
+					// 如果以独立标志形式出现，设置为 1（强制执行）
+					config.EnforceForRoot = 1
 				}
-			case "ucredit":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Ucredit = v
-				}
-			case "lcredit":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Lcredit = v
-				}
-			case "ocredit":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Ocredit = v
-				}
-			case "minclass":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Minclass = v
-				}
-			case "maxrepeat":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Maxrepeat = v
-				}
-			case "maxclassrepeat":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Maxclassrepeat = v
-				}
-			case "maxsequence":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Maxsequence = v
-				}
-			case "enforcing":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Enforcing = v
-				}
-			case "enforce_for_root":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.EnforceForRoot = v
-				}
-			case "usercheck":
-				if v, err := strconv.Atoi(value); err == nil {
-					config.Usercheck = v
-				}
-			case "difok": // pam_cracklib 特有：至少需要多少个字符与旧密码不同
-				// 这个参数不影响密码强度校验，可以忽略
-			case "retry": // 重试次数，不影响密码强度校验
 			}
 		}
 	}

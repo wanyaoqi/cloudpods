@@ -226,6 +226,15 @@ enforce_for_root = 1`,
 				EnforceForRoot: 1,
 			},
 		},
+		{
+			name: "config with enforce_for_root as flag (no equals sign)",
+			content: `minlen = 8
+enforce_for_root`,
+			expected: &Config{
+				Minlen:   8,
+				EnforceForRoot: 1, // 独立标志形式，应设置为 1
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1305,6 +1314,14 @@ account required pam_unix.so`,
 				Minlen:   8,
 				Enforcing: 0,
 				EnforceForRoot: 1,
+			},
+		},
+		{
+			name: "PAM config with enforce_for_root as flag (no value)",
+			content: `password requisite pam_pwquality.so minlen=8 enforce_for_root`,
+			expected: &Config{
+				Minlen:   8,
+				EnforceForRoot: 1, // 独立标志形式，应设置为 1
 			},
 		},
 		{
