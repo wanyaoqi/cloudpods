@@ -28,24 +28,12 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/guestman/desc"
 )
 
-func NewDeployInfo(
-	publicKey *SSHKeys,
-	deploys []*DeployContent,
-	password string,
-	isInit bool,
-	enableTty bool,
-	defaultRootUser bool,
-	windowsDefaultAdminUser bool,
-	enableCloudInit bool,
-	loginAccount string,
-	enableTelegraf bool,
-	telegrafConf string,
-	userData string,
-) *DeployInfo {
+func NewDeployInfo(publicKey *SSHKeys, deploys []*DeployContent, password string, isRandomPassword bool, enableTty bool, defaultRootUser bool, windowsDefaultAdminUser bool, enableCloudInit bool, loginAccount string, enableTelegraf bool, telegrafConf string, userData string, isInit bool) *DeployInfo {
 	depInfo := &DeployInfo{
 		PublicKey:               publicKey,
 		Deploys:                 deploys,
 		Password:                password,
+		IsRandomPassword:        isRandomPassword,
 		IsInit:                  isInit,
 		EnableTty:               enableTty,
 		DefaultRootUser:         defaultRootUser,

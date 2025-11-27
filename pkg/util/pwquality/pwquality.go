@@ -27,19 +27,19 @@ var ErrPasswordTooWeak = errors.Error("password too weak")
 
 // Config 存储 pwquality 配置
 type Config struct {
-	Minlen        int // 最小长度
-	Dcredit       int // 数字字符信用值（负数表示至少需要多少个字符，正数表示每个字符可减少的长度要求）
-	Ucredit       int // 大写字母信用值
-	Lcredit       int // 小写字母信用值
-	Ocredit       int // 特殊字符信用值
-	Minclass      int // 最小字符类数量（数字、大写、小写、特殊）
-	Maxrepeat     int // 最大重复字符数（0 表示不限制）
+	Minlen         int // 最小长度
+	Dcredit        int // 数字字符信用值（负数表示至少需要多少个字符，正数表示每个字符可减少的长度要求）
+	Ucredit        int // 大写字母信用值
+	Lcredit        int // 小写字母信用值
+	Ocredit        int // 特殊字符信用值
+	Minclass       int // 最小字符类数量（数字、大写、小写、特殊）
+	Maxrepeat      int // 最大重复字符数（0 表示不限制）
 	Maxclassrepeat int // 最大同类字符重复数（0 表示不限制）
-	Maxsequence   int // 最大连续字符序列长度（0 表示不限制）
+	Maxsequence    int // 最大连续字符序列长度（0 表示不限制）
 	// Enforcing 是否强制执行密码策略（1=强制执行，0=仅警告，默认1）
 	// 注意：此参数在 libpwquality 1.2.0+ 版本中支持，较老的系统可能不支持
 	// 如果系统不支持，配置文件中不会出现此参数，将使用默认值 1（强制执行）
-	Enforcing     int
+	Enforcing int
 	// EnforceForRoot 是否对 root 用户强制执行密码策略（1=强制执行，0=不强制，默认0）
 	// 注意：此参数在 libpwquality 1.2.0+ 版本中支持，较老的系统可能不支持
 	// 在配置文件中，可能以两种形式出现：
@@ -47,7 +47,7 @@ type Config struct {
 	//   2. enforce_for_root（独立标志形式，无等号，表示启用）
 	// 如果系统不支持，配置文件中不会出现此参数，将使用默认值 0（不对 root 强制执行）
 	EnforceForRoot int
-	Usercheck     int // 是否检查密码中包含用户名（1=检查，0=不检查，默认0）
+	Usercheck      int // 是否检查密码中包含用户名（1=检查，0=不检查，默认0）
 	// 以下配置项在 chroot 环境中可能不适用，暂不实现
 	// Gecoscheck int // 是否检查密码中包含用户的 GECOS 信息
 	// Dictcheck  int // 是否检查密码是否包含字典中的单词（需要字典文件）
@@ -60,7 +60,7 @@ func (c *Config) HasAnyPolicy() bool {
 	if c == nil {
 		return false
 	}
-	return c.Minlen > 0 || c.Dcredit != 0 || c.Ucredit != 0 || 
+	return c.Minlen > 0 || c.Dcredit != 0 || c.Ucredit != 0 ||
 		c.Lcredit != 0 || c.Ocredit != 0 || c.Minclass > 0 ||
 		c.Maxrepeat > 0 || c.Maxclassrepeat > 0 || c.Maxsequence > 0
 }
@@ -98,18 +98,18 @@ func (c *Config) IsEnforcingForRoot() bool {
 //   - EnforceForRoot: 0（默认不对 root 强制执行）
 func ParseConfig(content []byte) *Config {
 	config := &Config{
-		Minlen:        0, // 默认值
-		Dcredit:       0, // 默认值
-		Ucredit:       0, // 默认值
-		Lcredit:       0, // 默认值
-		Ocredit:       0, // 默认值
-		Minclass:      0, // 默认值
-		Maxrepeat:     0, // 默认值（0 表示不限制）
+		Minlen:         0, // 默认值
+		Dcredit:        0, // 默认值
+		Ucredit:        0, // 默认值
+		Lcredit:        0, // 默认值
+		Ocredit:        0, // 默认值
+		Minclass:       0, // 默认值
+		Maxrepeat:      0, // 默认值（0 表示不限制）
 		Maxclassrepeat: 0, // 默认值（0 表示不限制）
-		Maxsequence:   0, // 默认值（0 表示不限制）
-		Enforcing:     1, // 默认值（1 表示强制执行）
+		Maxsequence:    0, // 默认值（0 表示不限制）
+		Enforcing:      1, // 默认值（1 表示强制执行）
 		EnforceForRoot: 0, // 默认值（0 表示不对 root 强制执行）
-		Usercheck:     0, // 默认值（0 表示不检查用户名）
+		Usercheck:      0, // 默认值（0 表示不检查用户名）
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -405,12 +405,12 @@ func (c *Config) Validate(password string, username string) error {
 		// 将用户名和密码都转换为小写进行比较（不区分大小写）
 		lowerUsername := strings.ToLower(username)
 		lowerPassword := strings.ToLower(password)
-		
+
 		// 检查密码中是否包含用户名（包括反向）
 		if strings.Contains(lowerPassword, lowerUsername) {
 			return errors.Wrapf(ErrPasswordTooWeak, "password contains the username")
 		}
-		
+
 		// 检查密码中是否包含用户名的反向（用户名长度至少为3才检查反向）
 		if len(lowerUsername) >= 3 {
 			reversedUsername := reverseString(lowerUsername)
@@ -565,21 +565,6 @@ func ParsePAMConfig(content []byte) *Config {
 	return config
 }
 
-// ParsePAMConfigSUSE 解析 SUSE 系统的 PAM 配置
-// SUSE 可能使用 /etc/security/pam_pwcheck.conf 或 PAM 配置
-func ParsePAMConfigSUSE(content []byte) *Config {
-	// SUSE 的 pam_pwcheck.conf 格式类似 pwquality.conf
-	// 但也可能使用 PAM 配置，先尝试按 pwquality.conf 格式解析
-	config := ParseConfig(content)
-	
-	// 如果解析失败（没有任何策略设置），尝试 PAM 格式
-	if !config.HasAnyPolicy() {
-		config = ParsePAMConfig(content)
-	}
-	
-	return config
-}
-
 // GeneratePassword 根据配置生成符合强度要求的密码
 // passwordGenerator 是一个函数，接受长度参数并返回密码
 // 如果 passwordGenerator 为 nil，将使用默认的最小长度 12
@@ -645,4 +630,3 @@ func (c *Config) GeneratePassword(passwordGenerator func(int) string) string {
 	// 如果多次尝试都失败，返回一个较长的密码（应该能满足大部分要求）
 	return passwordGenerator(passwordLength)
 }
-

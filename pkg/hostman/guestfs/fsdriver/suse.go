@@ -41,7 +41,7 @@ func newSuseLikeRootFs(part IDiskPartition) *sSuseLikeRootFs {
 	}
 }
 
-func (r *sSuseLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string) (string, error) {
+func (r *sSuseLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
 	// 提前校验密码强度，避免在 chroot 环境中执行 passwd 时因密码强度不足而失败
 	// SUSE: /etc/security/pam_pwcheck.conf 或 PAM 配置
 	var config *pwquality.Config

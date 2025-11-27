@@ -336,10 +336,12 @@ func (as *SAgentStorage) AgentDeployGuest(ctx context.Context, data interface{})
 			}
 		}
 
+		isRandomPassword := false
 		passwd, _ := dataDict.GetString("password")
 		resetPassword := jsonutils.QueryBoolean(dataDict, "reset_password", false)
 		if resetPassword && len(passwd) == 0 {
 			passwd = seclib.RandomPassword(12)
+			isRandomPassword = true
 		}
 
 		enableCloudInit := jsonutils.QueryBoolean(dataDict, "enable_cloud_init", false)
@@ -350,11 +352,7 @@ func (as *SAgentStorage) AgentDeployGuest(ctx context.Context, data interface{})
 			return nil, errors.Errorf("missing telegraf_conf")
 		}
 
-		deployInfo := deployapi.NewDeployInfo(&key, deployArray, passwd, init, false,
-			options.HostOptions.LinuxDefaultRootUser, options.HostOptions.WindowsDefaultAdminUser,
-			enableCloudInit, loginAccount, deployTelegraf, telegrafConfig,
-			desc.UserData,
-		)
+		deployInfo := deployapi.NewDeployInfo(&key, deployArray, passwd, isRandomPassword, false, options.HostOptions.LinuxDefaultRootUser, options.HostOptions.WindowsDefaultAdminUser, enableCloudInit, loginAccount, deployTelegraf, telegrafConfig, desc.UserData, init)
 		log.Debugf("deployInfo: %s", jsonutils.Marshal(deployInfo))
 		deploy, err = deployclient.GetDeployClient().DeployGuestFs(ctx, &deployapi.DeployParams{
 			DiskInfo: &deployapi.DiskInfo{
