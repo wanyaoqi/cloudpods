@@ -79,11 +79,11 @@ ocredit = -1`,
 dcredit  =  -1  
 ucredit = -1`,
 			expected: &Config{
-				Minlen:  10,
-				Dcredit: -1,
-				Ucredit: -1,
-				Lcredit: 0,
-				Ocredit: 0,
+				Minlen:   10,
+				Dcredit:  -1,
+				Ucredit:  -1,
+				Lcredit:  0,
+				Ocredit:  0,
 				Minclass: 0,
 			},
 		},
@@ -94,11 +94,11 @@ dcredit = 1
 ucredit = 1
 lcredit = 1`,
 			expected: &Config{
-				Minlen:  8,
-				Dcredit: 1,
-				Ucredit: 1,
-				Lcredit: 1,
-				Ocredit: 0,
+				Minlen:   8,
+				Dcredit:  1,
+				Ucredit:  1,
+				Lcredit:  1,
+				Ocredit:  0,
 				Minclass: 0,
 			},
 		},
@@ -107,7 +107,7 @@ lcredit = 1`,
 			content: `minlen = 8
 maxrepeat = 3`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:    8,
 				Maxrepeat: 3,
 			},
 		},
@@ -125,7 +125,7 @@ maxclassrepeat = 2`,
 			content: `minlen = 8
 maxsequence = 3`,
 			expected: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 		},
@@ -147,8 +147,8 @@ maxsequence = 3`,
 			content: `minlen = abc
 dcredit = -1`,
 			expected: &Config{
-				Minlen:   0, // 无效值应该被忽略
-				Dcredit:  -1,
+				Minlen:  0, // 无效值应该被忽略
+				Dcredit: -1,
 			},
 		},
 		{
@@ -156,8 +156,8 @@ dcredit = -1`,
 			content: `minlen 8
 dcredit = -1`,
 			expected: &Config{
-				Minlen:   0, // 没有等号的行应该被忽略
-				Dcredit:  -1,
+				Minlen:  0, // 没有等号的行应该被忽略
+				Dcredit: -1,
 			},
 		},
 		{
@@ -184,8 +184,8 @@ dcredit = -1`,
 			content: `minlen = 
 dcredit = -1`,
 			expected: &Config{
-				Minlen:   0, // 空值应该被忽略
-				Dcredit:  -1,
+				Minlen:  0, // 空值应该被忽略
+				Dcredit: -1,
 			},
 		},
 		{
@@ -193,7 +193,7 @@ dcredit = -1`,
 			content: `minlen = 8
 enforcing = 1`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:    8,
 				Enforcing: 1,
 			},
 		},
@@ -202,7 +202,7 @@ enforcing = 1`,
 			content: `minlen = 8
 enforcing = 0`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:    8,
 				Enforcing: 0,
 			},
 		},
@@ -211,7 +211,7 @@ enforcing = 0`,
 			content: `minlen = 8
 enforce_for_root = 1`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:         8,
 				EnforceForRoot: 1,
 			},
 		},
@@ -221,8 +221,8 @@ enforce_for_root = 1`,
 enforcing = 1
 enforce_for_root = 1`,
 			expected: &Config{
-				Minlen:   8,
-				Enforcing: 1,
+				Minlen:         8,
+				Enforcing:      1,
 				EnforceForRoot: 1,
 			},
 		},
@@ -231,7 +231,7 @@ enforce_for_root = 1`,
 			content: `minlen = 8
 enforce_for_root`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:         8,
 				EnforceForRoot: 1, // 独立标志形式，应设置为 1
 			},
 		},
@@ -325,106 +325,106 @@ func TestConfig_Validate(t *testing.T) {
 		errorMsg  string
 	}{
 		{
-			name: "nil config should pass",
-			config: nil,
-			password: "anypassword",
+			name:      "nil config should pass",
+			config:    nil,
+			password:  "anypassword",
 			wantError: false,
 		},
 		{
-			name: "minlen check - too short",
-			config: &Config{Minlen: 8},
-			password: "short",
+			name:      "minlen check - too short",
+			config:    &Config{Minlen: 8},
+			password:  "short",
 			wantError: true,
-			errorMsg: "effective length",
+			errorMsg:  "effective length",
 		},
 		{
-			name: "minlen check - pass",
-			config: &Config{Minlen: 8},
-			password: "longpassword",
+			name:      "minlen check - pass",
+			config:    &Config{Minlen: 8},
+			password:  "longpassword",
 			wantError: false,
 		},
 		{
-			name: "dcredit negative - require at least 1 digit",
-			config: &Config{Dcredit: -1},
-			password: "nodigits",
+			name:      "dcredit negative - require at least 1 digit",
+			config:    &Config{Dcredit: -1},
+			password:  "nodigits",
 			wantError: true,
-			errorMsg: "password requires at least 1 digit(s)",
+			errorMsg:  "password requires at least 1 digit(s)",
 		},
 		{
-			name: "dcredit negative - pass with digit",
-			config: &Config{Dcredit: -1},
-			password: "pass1word",
+			name:      "dcredit negative - pass with digit",
+			config:    &Config{Dcredit: -1},
+			password:  "pass1word",
 			wantError: false,
 		},
 		{
-			name: "dcredit negative - require 2 digits",
-			config: &Config{Dcredit: -2},
-			password: "pass1word",
+			name:      "dcredit negative - require 2 digits",
+			config:    &Config{Dcredit: -2},
+			password:  "pass1word",
 			wantError: true,
-			errorMsg: "password requires at least 2 digit(s)",
+			errorMsg:  "password requires at least 2 digit(s)",
 		},
 		{
-			name: "dcredit negative - pass with 2 digits",
-			config: &Config{Dcredit: -2},
-			password: "pass12word",
+			name:      "dcredit negative - pass with 2 digits",
+			config:    &Config{Dcredit: -2},
+			password:  "pass12word",
 			wantError: false,
 		},
 		{
-			name: "ucredit negative - require uppercase",
-			config: &Config{Ucredit: -1},
-			password: "nouppercase",
+			name:      "ucredit negative - require uppercase",
+			config:    &Config{Ucredit: -1},
+			password:  "nouppercase",
 			wantError: true,
-			errorMsg: "password requires at least 1 uppercase letter(s)",
+			errorMsg:  "password requires at least 1 uppercase letter(s)",
 		},
 		{
-			name: "ucredit negative - pass with uppercase",
-			config: &Config{Ucredit: -1},
-			password: "passWord",
+			name:      "ucredit negative - pass with uppercase",
+			config:    &Config{Ucredit: -1},
+			password:  "passWord",
 			wantError: false,
 		},
 		{
-			name: "lcredit negative - require lowercase",
-			config: &Config{Lcredit: -1},
-			password: "NOLOWERCASE",
+			name:      "lcredit negative - require lowercase",
+			config:    &Config{Lcredit: -1},
+			password:  "NOLOWERCASE",
 			wantError: true,
-			errorMsg: "password requires at least 1 lowercase letter(s)",
+			errorMsg:  "password requires at least 1 lowercase letter(s)",
 		},
 		{
-			name: "lcredit negative - pass with lowercase",
-			config: &Config{Lcredit: -1},
-			password: "PASSWORDw",
+			name:      "lcredit negative - pass with lowercase",
+			config:    &Config{Lcredit: -1},
+			password:  "PASSWORDw",
 			wantError: false,
 		},
 		{
-			name: "ocredit negative - require special char",
-			config: &Config{Ocredit: -1},
-			password: "nospecialchar",
+			name:      "ocredit negative - require special char",
+			config:    &Config{Ocredit: -1},
+			password:  "nospecialchar",
 			wantError: true,
-			errorMsg: "password requires at least 1 special character(s)",
+			errorMsg:  "password requires at least 1 special character(s)",
 		},
 		{
-			name: "ocredit negative - pass with special char",
-			config: &Config{Ocredit: -1},
-			password: "password@",
+			name:      "ocredit negative - pass with special char",
+			config:    &Config{Ocredit: -1},
+			password:  "password@",
 			wantError: false,
 		},
 		{
-			name: "minclass - require 3 classes",
-			config: &Config{Minclass: 3},
-			password: "onlylowercase",
+			name:      "minclass - require 3 classes",
+			config:    &Config{Minclass: 3},
+			password:  "onlylowercase",
 			wantError: true,
-			errorMsg: "requires at least 3 character class(es)",
+			errorMsg:  "requires at least 3 character class(es)",
 		},
 		{
-			name: "minclass - pass with 3 classes",
-			config: &Config{Minclass: 3},
-			password: "Pass1word",
+			name:      "minclass - pass with 3 classes",
+			config:    &Config{Minclass: 3},
+			password:  "Pass1word",
 			wantError: false,
 		},
 		{
-			name: "minclass - pass with 4 classes",
-			config: &Config{Minclass: 3},
-			password: "Pass1@word",
+			name:      "minclass - pass with 4 classes",
+			config:    &Config{Minclass: 3},
+			password:  "Pass1@word",
 			wantError: false,
 		},
 		{
@@ -437,7 +437,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "Pass1@word",
+			password:  "Pass1@word",
 			wantError: false,
 		},
 		{
@@ -450,9 +450,9 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "Pass@word",
+			password:  "Pass@word",
 			wantError: true,
-			errorMsg: "password requires at least 1 digit(s)",
+			errorMsg:  "password requires at least 1 digit(s)",
 		},
 		{
 			name: "complex config - missing uppercase",
@@ -464,9 +464,9 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "pass1@word",
+			password:  "pass1@word",
 			wantError: true,
-			errorMsg: "password requires at least 1 uppercase letter(s)",
+			errorMsg:  "password requires at least 1 uppercase letter(s)",
 		},
 		{
 			name: "complex config - missing lowercase",
@@ -478,9 +478,9 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "PASS1@WORD",
+			password:  "PASS1@WORD",
 			wantError: true,
-			errorMsg: "password requires at least 1 lowercase letter(s)",
+			errorMsg:  "password requires at least 1 lowercase letter(s)",
 		},
 		{
 			name: "complex config - missing special char",
@@ -492,9 +492,9 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "Pass1word",
+			password:  "Pass1word",
 			wantError: true,
-			errorMsg: "password requires at least 1 special character(s)",
+			errorMsg:  "password requires at least 1 special character(s)",
 		},
 		{
 			name: "complex config - too short",
@@ -506,9 +506,9 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "Pass1@wor",
+			password:  "Pass1@wor",
 			wantError: true,
-			errorMsg: "effective length",
+			errorMsg:  "effective length",
 		},
 		{
 			name: "positive credit - dcredit",
@@ -516,9 +516,9 @@ func TestConfig_Validate(t *testing.T) {
 				Minlen:  8,
 				Dcredit: 1,
 			},
-			password: "password",
+			password:  "password",
 			wantError: true,
-			errorMsg: "password should contain at least one digit",
+			errorMsg:  "password should contain at least one digit",
 		},
 		{
 			name: "positive credit - pass with digit",
@@ -526,7 +526,7 @@ func TestConfig_Validate(t *testing.T) {
 				Minlen:  8,
 				Dcredit: 1,
 			},
-			password: "pass1word",
+			password:  "pass1word",
 			wantError: false,
 		},
 		{
@@ -539,7 +539,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "MyP@ssw0rd",
+			password:  "MyP@ssw0rd",
 			wantError: false,
 		},
 		{
@@ -552,7 +552,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ocredit:  -1,
 				Minclass: 3,
 			},
-			password: "password",
+			password:  "password",
 			wantError: true,
 		},
 		{
@@ -596,7 +596,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - ascending sequence too long",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "Pass1234",
@@ -606,7 +606,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - descending sequence too long",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "Pass4321",
@@ -616,7 +616,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - pass with sequence within limit",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "Pass123@",
@@ -625,7 +625,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - pass with no sequence",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "Pass1@word",
@@ -696,7 +696,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence boundary - exactly at limit",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "Pass123@",
@@ -705,7 +705,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence boundary - one over limit",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 2,
 			},
 			password:  "Pass123@",
@@ -734,7 +734,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - ascending at start",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "123Pass@",
@@ -743,7 +743,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - descending at end",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "Pass@321",
@@ -857,7 +857,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - short password less than maxsequence",
 			config: &Config{
-				Minlen:     2,
+				Minlen:      2,
 				Maxsequence: 3,
 			},
 			password:  "12", // 长度小于 maxsequence+1，不会触发检查
@@ -866,7 +866,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - exactly maxsequence+1 length with sequence",
 			config: &Config{
-				Minlen:     4,
+				Minlen:      4,
 				Maxsequence: 3,
 			},
 			password:  "1234", // 正好4个字符，包含4个连续字符序列
@@ -876,7 +876,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - ascending sequence in middle",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 2,
 			},
 			password:  "Pa123ss@",
@@ -886,7 +886,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - descending sequence in middle",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 2,
 			},
 			password:  "Pa321ss@",
@@ -896,7 +896,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "maxsequence - mixed ascending and descending",
 			config: &Config{
-				Minlen:     8,
+				Minlen:      8,
 				Maxsequence: 3,
 			},
 			password:  "Pass1234@", // 包含4个连续字符序列
@@ -1050,7 +1050,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				Minlen:         8,
 				EnforceForRoot: 0, // 不对 root 强制执行
-				Enforcing:     1,  // 强制执行（但对 root 不强制）
+				Enforcing:      1, // 强制执行（但对 root 不强制）
 			},
 			password:  "short", // 即使密码太短，root 用户也不应该报错
 			wantError: false,
@@ -1060,7 +1060,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				Minlen:         8,
 				EnforceForRoot: 1, // 对 root 强制执行
-				Enforcing:     1,  // 强制执行
+				Enforcing:      1, // 强制执行
 			},
 			password:  "short", // root 用户也需要验证密码强度
 			wantError: true,
@@ -1071,7 +1071,7 @@ func TestConfig_Validate(t *testing.T) {
 			config: &Config{
 				Minlen:         8,
 				EnforceForRoot: 0, // 不对 root 强制执行，但普通用户需要验证
-				Enforcing:     1,  // 强制执行（对普通用户）
+				Enforcing:      1, // 强制执行（对普通用户）
 			},
 			password:  "short", // 普通用户需要验证密码强度
 			wantError: true,
@@ -1093,20 +1093,20 @@ func TestConfig_Validate(t *testing.T) {
 			} else if strings.Contains(tt.name, "root user") {
 				username = "root"
 			}
-			
+
 			// 如果 config 不为 nil 且未设置 Enforcing，默认设置为 1（强制执行）
 			// 但如果是 enforcing=0 的测试用例，不要修改
 			// 对于 root 用户测试，如果 enforce_for_root=0，enforcing 可能为 0，不要修改
 			// 对于 non-root 用户测试，如果已经设置了 Enforcing=1，不要修改
 			// 注意：只对 Enforcing=0 的测试用例进行修改，且排除特殊测试用例
-			if tt.config != nil && tt.config.Enforcing == 0 && tt.name != "nil config should pass" && 
-				!strings.Contains(tt.name, "enforcing = 0") && 
+			if tt.config != nil && tt.config.Enforcing == 0 && tt.name != "nil config should pass" &&
+				!strings.Contains(tt.name, "enforcing = 0") &&
 				!strings.Contains(tt.name, "root user with enforce_for_root = 0") &&
 				!strings.Contains(tt.name, "non-root user") {
 				// 只对非特殊测试用例且 Enforcing=0 的情况设置为 1
 				tt.config.Enforcing = 1
 			}
-			
+
 			err := tt.config.Validate(tt.password, username)
 			if tt.wantError {
 				if err == nil {
@@ -1128,7 +1128,7 @@ func TestConfig_Validate_CharacterClasses(t *testing.T) {
 		Minclass:  4,
 		Enforcing: 1, // 强制执行
 	}
-	
+
 	tests := []struct {
 		name      string
 		password  string
@@ -1200,11 +1200,11 @@ password required pam_unix.so`,
 password requisite pam_pwquality.so minlen=10 dcredit=-1
 # Another comment`,
 			expected: &Config{
-				Minlen:  10,
-				Dcredit: -1,
-				Ucredit: 0,
-				Lcredit: 0,
-				Ocredit: 0,
+				Minlen:   10,
+				Dcredit:  -1,
+				Ucredit:  0,
+				Lcredit:  0,
+				Ocredit:  0,
 				Minclass: 0,
 			},
 		},
@@ -1227,16 +1227,16 @@ auth required pam_unix.so`,
 password required pam_unix.so
 password optional pam_gnome_keyring.so`,
 			expected: &Config{
-				Minlen:  8,
-				Dcredit: -1,
-				Ucredit: 0,
-				Lcredit: 0,
-				Ocredit: 0,
+				Minlen:   8,
+				Dcredit:  -1,
+				Ucredit:  0,
+				Lcredit:  0,
+				Ocredit:  0,
 				Minclass: 0,
 			},
 		},
 		{
-			name: "PAM config with new options",
+			name:    "PAM config with new options",
 			content: `password requisite pam_pwquality.so minlen=8 maxrepeat=3 maxclassrepeat=2 maxsequence=3`,
 			expected: &Config{
 				Minlen:         8,
@@ -1246,7 +1246,7 @@ password optional pam_gnome_keyring.so`,
 			},
 		},
 		{
-			name: "PAM config with invalid value",
+			name:    "PAM config with invalid value",
 			content: `password requisite pam_pwquality.so minlen=abc dcredit=-1`,
 			expected: &Config{
 				Minlen:  0, // 无效值应该被忽略
@@ -1271,12 +1271,12 @@ auth required pam_unix.so`,
 			content: `auth required pam_pwquality.so minlen=8
 account required pam_unix.so`,
 			expected: &Config{
-				Minlen:   0, // 不是 password 行，应该被忽略
-				Dcredit:  0,
+				Minlen:  0, // 不是 password 行，应该被忽略
+				Dcredit: 0,
 			},
 		},
 		{
-			name: "PAM config - parameter without equals",
+			name:    "PAM config - parameter without equals",
 			content: `password requisite pam_pwquality.so minlen dcredit=-1`,
 			expected: &Config{
 				Minlen:  0, // 没有等号的参数应该被忽略
@@ -1284,7 +1284,7 @@ account required pam_unix.so`,
 			},
 		},
 		{
-			name: "PAM config - multiple equals in parameter",
+			name:    "PAM config - multiple equals in parameter",
 			content: `password requisite pam_pwquality.so minlen=8=10 dcredit=-1`,
 			expected: &Config{
 				Minlen:  0, // "8=10" 不是有效数字，会被忽略
@@ -1292,43 +1292,43 @@ account required pam_unix.so`,
 			},
 		},
 		{
-			name: "PAM config with enforcing",
+			name:    "PAM config with enforcing",
 			content: `password requisite pam_pwquality.so minlen=8 enforcing=1`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:    8,
 				Enforcing: 1,
 			},
 		},
 		{
-			name: "PAM config with enforce_for_root",
+			name:    "PAM config with enforce_for_root",
 			content: `password requisite pam_pwquality.so minlen=8 enforce_for_root=1`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:         8,
 				EnforceForRoot: 1,
 			},
 		},
 		{
-			name: "PAM config with both enforcing parameters",
+			name:    "PAM config with both enforcing parameters",
 			content: `password requisite pam_pwquality.so minlen=8 enforcing=0 enforce_for_root=1`,
 			expected: &Config{
-				Minlen:   8,
-				Enforcing: 0,
+				Minlen:         8,
+				Enforcing:      0,
 				EnforceForRoot: 1,
 			},
 		},
 		{
-			name: "PAM config with enforce_for_root as flag (no value)",
+			name:    "PAM config with enforce_for_root as flag (no value)",
 			content: `password requisite pam_pwquality.so minlen=8 enforce_for_root`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:         8,
 				EnforceForRoot: 1, // 独立标志形式，应设置为 1
 			},
 		},
 		{
-			name: "PAM config with usercheck",
+			name:    "PAM config with usercheck",
 			content: `password requisite pam_pwquality.so minlen=8 usercheck=1`,
 			expected: &Config{
-				Minlen:   8,
+				Minlen:    8,
 				Usercheck: 1,
 			},
 		},
@@ -1336,7 +1336,7 @@ account required pam_unix.so`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := ParsePAMConfig([]byte(tt.content))
+			config := ParsePAMConfig([]byte(tt.content), nil)
 			if config.Minlen != tt.expected.Minlen {
 				t.Errorf("Minlen = %d, want %d", config.Minlen, tt.expected.Minlen)
 			}
@@ -1382,23 +1382,23 @@ ucredit = -1
 lcredit = -1
 ocredit = -1`,
 			expected: &Config{
-				Minlen:  8,
-				Dcredit: -1,
-				Ucredit: -1,
-				Lcredit: -1,
-				Ocredit: -1,
+				Minlen:   8,
+				Dcredit:  -1,
+				Ucredit:  -1,
+				Lcredit:  -1,
+				Ocredit:  -1,
 				Minclass: 0,
 			},
 		},
 		{
-			name: "SUSE PAM format",
+			name:    "SUSE PAM format",
 			content: `password requisite pam_pwquality.so minlen=10 dcredit=-1`,
 			expected: &Config{
-				Minlen:  10,
-				Dcredit: -1,
-				Ucredit: 0,
-				Lcredit: 0,
-				Ocredit: 0,
+				Minlen:   10,
+				Dcredit:  -1,
+				Ucredit:  0,
+				Lcredit:  0,
+				Ocredit:  0,
 				Minclass: 0,
 			},
 		},
@@ -1564,7 +1564,7 @@ func TestConfig_IsEnforcing(t *testing.T) {
 		{
 			name:     "default config - enforcing not set",
 			config:   &Config{Enforcing: 1}, // 默认值为1
-			expected: true, // 默认值为1，强制执行
+			expected: true,                  // 默认值为1，强制执行
 		},
 	}
 
@@ -1954,7 +1954,7 @@ func TestConfig_GeneratePassword_EdgeCases(t *testing.T) {
 		{
 			name: "minLength = 0 with credit requirements",
 			config: &Config{
-				Minlen:  0, // 没有设置最小长度
+				Minlen:  0,  // 没有设置最小长度
 				Dcredit: -2, // 需要2个数字
 			},
 			passwordGenerator: func(length int) string {
@@ -2076,4 +2076,3 @@ func TestConfig_GeneratePassword_MaxAttempts(t *testing.T) {
 		t.Errorf("Expected password length >= 8 after retries, got %d", len(password))
 	}
 }
-

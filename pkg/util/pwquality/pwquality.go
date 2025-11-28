@@ -441,20 +441,22 @@ func reverseString(s string) string {
 //   password requisite pam_pwquality.so minlen=8 enforce_for_root
 //   这种情况下，如果解析到 enforce_for_root 标志（无值），将设置为 1
 // - 如果系统不支持这些参数，配置文件中不会出现，将使用默认值
-func ParsePAMConfig(content []byte) *Config {
-	config := &Config{
-		Minlen:         0,
-		Dcredit:        0,
-		Ucredit:        0,
-		Lcredit:        0,
-		Ocredit:        0,
-		Minclass:       0,
-		Maxrepeat:      0,
-		Maxclassrepeat: 0,
-		Maxsequence:    0,
-		Enforcing:      1, // 默认值（1 表示强制执行）
-		EnforceForRoot: 0, // 默认值（0 表示不对 root 强制执行）
-		Usercheck:      0, // 默认值（0 表示不检查用户名）
+func ParsePAMConfig(content []byte, config *Config) *Config {
+	if config == nil {
+		config = &Config{
+			Minlen:         0,
+			Dcredit:        0,
+			Ucredit:        0,
+			Lcredit:        0,
+			Ocredit:        0,
+			Minclass:       0,
+			Maxrepeat:      0,
+			Maxclassrepeat: 0,
+			Maxsequence:    0,
+			Enforcing:      1, // 默认值（1 表示强制执行）
+			EnforceForRoot: 0, // 默认值（0 表示不对 root 强制执行）
+			Usercheck:      0, // 默认值（0 表示不检查用户名）
+		}
 	}
 
 	lines := strings.Split(string(content), "\n")

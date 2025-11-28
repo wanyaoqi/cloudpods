@@ -1120,10 +1120,11 @@ func (r *sDebianLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid
 		if err == nil {
 			pwqualityConf = pwquality.ParseConfig(pwConfig)
 		}
-	} else if rootFs.Exists("/etc/pam.d/common-password", false) {
+	}
+	if rootFs.Exists("/etc/pam.d/common-password", false) {
 		pamConfig, err := rootFs.FileGetContents("/etc/pam.d/common-password", false)
 		if err == nil {
-			pwqualityConf = pwquality.ParsePAMConfig(pamConfig)
+			pwqualityConf = pwquality.ParsePAMConfig(pamConfig, pwqualityConf)
 		}
 	}
 	password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password, isRandomPassword)
@@ -1432,10 +1433,11 @@ func (r *sRedhatLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid
 		if err == nil {
 			pwqualityConf = pwquality.ParseConfig(pwConfig)
 		}
-	} else if rootFs.Exists("/etc/pam.d/system-auth", false) {
+	}
+	if rootFs.Exists("/etc/pam.d/system-auth", false) {
 		pamConfig, err := rootFs.FileGetContents("/etc/pam.d/system-auth", false)
 		if err == nil {
-			pwqualityConf = pwquality.ParsePAMConfig(pamConfig)
+			pwqualityConf = pwquality.ParsePAMConfig(pamConfig, pwqualityConf)
 		}
 	}
 	password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password, isRandomPassword)
