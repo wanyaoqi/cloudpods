@@ -200,20 +200,19 @@ func ParseConfig(content []byte) *Config {
 // username 为用户名，用于检查密码中是否包含用户名（如果启用了 usercheck）
 // 参考 libpwquality 的实现逻辑
 func (c *Config) Validate(password string, username string) error {
-	if c == nil {
-		// 如果没有配置，不进行校验
+	if !c.HasAnyPolicy() {
 		return nil
 	}
 
 	// 如果 enforcing=0，密码策略不会强制执行（只是警告），直接返回
-	if !c.IsEnforcing() {
-		return nil
-	}
+	//if username != "root" && !c.IsEnforcing() {
+	//	return nil
+	//}
 
 	// 如果用户是 root 且 enforce_for_root=0，不对 root 强制执行密码策略
-	if username == "root" && !c.IsEnforcingForRoot() {
-		return nil
-	}
+	//if username == "root" && !c.IsEnforcingForRoot() {
+	//	return nil
+	//}
 
 	// 统计各类字符数量
 	var digits, uppers, lowers, others int
@@ -616,7 +615,7 @@ func (c *Config) GeneratePassword(passwordGenerator func(int) string) string {
 	}
 
 	// 生成密码并验证，直到符合要求
-	maxAttempts := 100
+	maxAttempts := 64
 	for i := 0; i < maxAttempts; i++ {
 		password := passwordGenerator(passwordLength)
 		// GeneratePassword 不提供用户名，所以传空字符串

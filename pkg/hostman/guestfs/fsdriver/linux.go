@@ -233,21 +233,21 @@ func (l *sLinuxRootFs) GetLoginAccount(rootFs IDiskPartition, sUser string, defa
 	return selUsr, nil
 }
 
-func (l *sLinuxRootFs) checkInputPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) {
-	content, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
-	if err == nil {
-		config := pwquality.ParseConfig(content)
-		err = config.Validate(password, account)
-		if err != nil && errors.Cause(err) == pwquality.ErrPasswordTooWeak && isRandomPassword {
-			log.Infof("password %s too weak, try regenerate password", password)
-			npassword := config.GeneratePassword(seclib2.RandomPassword2)
-			if len(npassword) > 0 {
-				password = npassword
-			}
-		}
-	} else {
-		log.Debugf("Failed to read /etc/security/pwquality.conf: %v, skip password strength check", err)
+func (l *sLinuxRootFs) checkInputPasswd(rootFs IDiskPartition, config *pwquality.Config, account, gid, publicKey, password string, isRandomPassword bool) string {
+	if config == nil {
+		return password
 	}
+
+	err := config.Validate(password, account)
+	if err != nil && errors.Cause(err) == pwquality.ErrPasswordTooWeak && isRandomPassword {
+		log.Infof("password %s too weak, try regenerate password", password)
+		npassword := config.GeneratePassword(seclib2.RandomPassword2)
+		if len(npassword) > 0 {
+			log.Infof("regenerate password %s", npassword)
+			password = npassword
+		}
+	}
+	return password
 }
 
 // ChangeUserPasswd 通用的密码修改方法，包含密码修改、加密、autorelabel 等通用逻辑
@@ -904,29 +904,6 @@ func newDebianLikeRootFs(part IDiskPartition) *sDebianLikeRootFs {
 	}
 }
 
-func (d *sDebianLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
-	// 提前校验密码强度，避免在 chroot 环境中执行 passwd 时因密码强度不足而失败
-	// Debian like: 先尝试 /etc/security/pwquality.conf (如果安装了 libpam-pwquality)
-	// 否则使用 /etc/pam.d/common-password 或 /etc/pam.d/passwd
-	content, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
-	if err == nil {
-		config := pwquality.ParseConfig(content)
-		err = config.Validate(password, account)
-		if err != nil && errors.Cause(err) == pwquality.ErrPasswordTooWeak && isRandomPassword {
-			log.Infof("password %s too weak, try regenerate password", password)
-			npassword := config.GeneratePassword(seclib2.RandomPassword2)
-			if len(npassword) > 0 {
-				password = npassword
-			}
-		}
-	} else {
-		log.Debugf("Failed to read /etc/security/pwquality.conf: %v, skip password strength check", err)
-	}
-
-	// 调用父类的通用方法进行密码修改
-	return d.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password, isRandomPassword)
-}
-
 func (d *sDebianLikeRootFs) PrepareFsForTemplate(rootFs IDiskPartition) error {
 	if err := d.sLinuxRootFs.PrepareFsForTemplate(rootFs); err != nil {
 		return err
@@ -1134,6 +1111,23 @@ func (d *sDebianLikeRootFs) DeployNetworkingScripts(rootFs IDiskPartition, nics 
 	}
 	log.Debugf("%s", cmds.String())
 	return rootFs.FilePutContents(fn, cmds.String(), false, false)
+}
+
+func (r *sDebianLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
+	var pwqualityConf *pwquality.Config
+	if rootFs.Exists("/etc/security/pwquality.conf", false) {
+		pwConfig, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
+		if err == nil {
+			pwqualityConf = pwquality.ParseConfig(pwConfig)
+		}
+	} else if rootFs.Exists("/etc/pam.d/common-password", false) {
+		pamConfig, err := rootFs.FileGetContents("/etc/pam.d/common-password", false)
+		if err == nil {
+			pwqualityConf = pwquality.ParsePAMConfig(pamConfig)
+		}
+	}
+	password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password, isRandomPassword)
+	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password, isRandomPassword)
 }
 
 type SDebianRootFs struct {
@@ -1356,27 +1350,6 @@ func newRedhatLikeRootFs(part IDiskPartition) *sRedhatLikeRootFs {
 	}
 }
 
-func (r *sRedhatLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
-	// 提前校验密码强度，避免在 chroot 环境中执行 passwd 时因密码强度不足而失败
-	// Red Hat like: /etc/security/pwquality.conf
-	content, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
-	if err == nil {
-		config := pwquality.ParseConfig(content)
-		err = config.Validate(password, account)
-		if err != nil && errors.Cause(err) == pwquality.ErrPasswordTooWeak && isRandomPassword {
-			log.Infof("password %s too weak, try regenerate password", password)
-			npassword := config.GeneratePassword(seclib2.RandomPassword2)
-			if len(npassword) > 0 {
-				password = npassword
-			}
-		}
-	} else {
-		log.Debugf("Failed to read /etc/security/pwquality.conf: %v, skip password strength check", err)
-	}
-
-	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password, isRandomPassword)
-}
-
 func (r *sRedhatLikeRootFs) PrepareFsForTemplate(rootFs IDiskPartition) error {
 	if err := r.sLinuxRootFs.PrepareFsForTemplate(rootFs); err != nil {
 		return err
@@ -1450,6 +1423,23 @@ func (r *sRedhatLikeRootFs) Centos5DeployNetworkingScripts(rootFs IDiskPartition
 			nicRules, false, false)
 	}
 	return nil
+}
+
+func (r *sRedhatLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
+	var pwqualityConf *pwquality.Config
+	if rootFs.Exists("/etc/security/pwquality.conf", false) {
+		pwConfig, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
+		if err == nil {
+			pwqualityConf = pwquality.ParseConfig(pwConfig)
+		}
+	} else if rootFs.Exists("/etc/pam.d/system-auth", false) {
+		pamConfig, err := rootFs.FileGetContents("/etc/pam.d/system-auth", false)
+		if err == nil {
+			pwqualityConf = pwquality.ParsePAMConfig(pamConfig)
+		}
+	}
+	password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password, isRandomPassword)
+	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password, isRandomPassword)
 }
 
 func getMainNic(nics []*types.SServerNic) *types.SServerNic {
