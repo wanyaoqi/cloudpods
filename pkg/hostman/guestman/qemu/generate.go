@@ -884,7 +884,7 @@ func GenerateStartOptions(
 	opts = append(opts, nicOpts...)
 
 	if !input.GuestDesc.LightMode {
-		if input.QemuArch == Arch_aarch64 {
+		if !input.QemuArch.IsX86() {
 			if input.GuestDesc.Usb != nil {
 				opts = append(opts, generatePCIDeviceOption(input.GuestDesc.Usb.PCIDevice))
 				for _, device := range input.Devices {
