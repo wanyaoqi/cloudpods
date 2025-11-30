@@ -618,7 +618,7 @@ func (c *Config) GeneratePassword(passwordGenerator func(int) string) string {
 
 	// 生成密码并验证，直到符合要求
 	maxAttempts := 64
-	for i := 0; i < maxAttempts; i++ {
+	for i := 12; i < maxAttempts; i += 2 {
 		password := passwordGenerator(passwordLength)
 		// GeneratePassword 不提供用户名，所以传空字符串
 		if c.Validate(password, "") == nil {
