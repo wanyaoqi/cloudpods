@@ -233,13 +233,13 @@ func (l *sLinuxRootFs) GetLoginAccount(rootFs IDiskPartition, sUser string, defa
 	return selUsr, nil
 }
 
-func (l *sLinuxRootFs) checkInputPasswd(rootFs IDiskPartition, config *pwquality.Config, account, gid, publicKey, password string, isRandomPassword bool) string {
+func (l *sLinuxRootFs) checkInputPasswd(rootFs IDiskPartition, config *pwquality.Config, account, gid, publicKey, password string) string {
 	if config == nil {
 		return password
 	}
 
 	err := config.Validate(password, account)
-	if err != nil && errors.Cause(err) == pwquality.ErrPasswordTooWeak && isRandomPassword {
+	if err != nil && errors.Cause(err) == pwquality.ErrPasswordTooWeak {
 		log.Infof("password %s too weak, try regenerate password", password)
 		npassword := config.GeneratePassword(seclib2.RandomPassword2)
 		if len(npassword) > 0 {
@@ -250,8 +250,6 @@ func (l *sLinuxRootFs) checkInputPasswd(rootFs IDiskPartition, config *pwquality
 	return password
 }
 
-// ChangeUserPasswd 通用的密码修改方法，包含密码修改、加密、autorelabel 等通用逻辑
-// 各个发行版类型应该先进行密码强度校验，然后调用此方法
 func (l *sLinuxRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
 	var secret string
 	var err error
@@ -1114,20 +1112,23 @@ func (d *sDebianLikeRootFs) DeployNetworkingScripts(rootFs IDiskPartition, nics 
 }
 
 func (r *sDebianLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
-	var pwqualityConf *pwquality.Config
-	if rootFs.Exists("/etc/security/pwquality.conf", false) {
-		pwConfig, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
-		if err == nil {
-			pwqualityConf = pwquality.ParseConfig(pwConfig)
+	if isRandomPassword {
+		var pwqualityConf *pwquality.Config
+		if rootFs.Exists("/etc/security/pwquality.conf", false) {
+			pwConfig, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
+			if err == nil {
+				pwqualityConf = pwquality.ParseConfig(pwConfig)
+			}
 		}
-	}
-	if rootFs.Exists("/etc/pam.d/common-password", false) {
-		pamConfig, err := rootFs.FileGetContents("/etc/pam.d/common-password", false)
-		if err == nil {
-			pwqualityConf = pwquality.ParsePAMConfig(pamConfig, pwqualityConf)
+		if rootFs.Exists("/etc/pam.d/common-password", false) {
+			pamConfig, err := rootFs.FileGetContents("/etc/pam.d/common-password", false)
+			if err == nil {
+				pwqualityConf = pwquality.ParsePAMConfig(pamConfig, pwqualityConf)
+			}
 		}
+		password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password)
 	}
-	password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password, isRandomPassword)
+
 	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password, isRandomPassword)
 }
 
@@ -1427,20 +1428,22 @@ func (r *sRedhatLikeRootFs) Centos5DeployNetworkingScripts(rootFs IDiskPartition
 }
 
 func (r *sRedhatLikeRootFs) ChangeUserPasswd(rootFs IDiskPartition, account, gid, publicKey, password string, isRandomPassword bool) (string, error) {
-	var pwqualityConf *pwquality.Config
-	if rootFs.Exists("/etc/security/pwquality.conf", false) {
-		pwConfig, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
-		if err == nil {
-			pwqualityConf = pwquality.ParseConfig(pwConfig)
+	if isRandomPassword {
+		var pwqualityConf *pwquality.Config
+		if rootFs.Exists("/etc/security/pwquality.conf", false) {
+			pwConfig, err := rootFs.FileGetContents("/etc/security/pwquality.conf", false)
+			if err == nil {
+				pwqualityConf = pwquality.ParseConfig(pwConfig)
+			}
 		}
-	}
-	if rootFs.Exists("/etc/pam.d/system-auth", false) {
-		pamConfig, err := rootFs.FileGetContents("/etc/pam.d/system-auth", false)
-		if err == nil {
-			pwqualityConf = pwquality.ParsePAMConfig(pamConfig, pwqualityConf)
+		if rootFs.Exists("/etc/pam.d/system-auth", false) {
+			pamConfig, err := rootFs.FileGetContents("/etc/pam.d/system-auth", false)
+			if err == nil {
+				pwqualityConf = pwquality.ParsePAMConfig(pamConfig, pwqualityConf)
+			}
 		}
+		password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password)
 	}
-	password = r.checkInputPasswd(rootFs, pwqualityConf, account, gid, publicKey, password, isRandomPassword)
 	return r.sLinuxRootFs.ChangeUserPasswd(rootFs, account, gid, publicKey, password, isRandomPassword)
 }
 
