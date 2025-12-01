@@ -846,8 +846,8 @@ func (d *QemuRISCVDriver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool
 		cdromDeviceOpts,
 		fwOpts,
 		socketPath,
-		manager.GetARMInitrdPath(),
-		manager.GetARMKernelPath(),
+		manager.GetRISCVInitrdPath(),
+		manager.GetRISCVKernelPath(),
 	)
 
 	log.Infof("start guest %s", cmd)

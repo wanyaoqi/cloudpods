@@ -1282,6 +1282,8 @@ func (s *SKVMGuestInstance) fixGuestMachineType() {
 		}) {
 			s.Desc.Machine = api.VM_MACHINE_TYPE_VIRT
 		}
+	}
+	if s.manager.host.IsAarch64() {
 		s.Desc.Bios = qemu.BIOS_UEFI
 	}
 }
