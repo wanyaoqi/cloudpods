@@ -362,7 +362,9 @@ func getDiskDeviceOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName strin
 	var opt = ""
 	opt += GetDiskDeviceModel(diskDriver)
 	if osName != OS_NAME_VMWARE {
-		opt += fmt.Sprintf(",serial=%s", strings.ReplaceAll(disk.DiskId, "-", ""))
+		serial := strings.ReplaceAll(disk.DiskId, "-", "")
+		opt += fmt.Sprintf(",serial=%s", serial)
+		opt += optDrv.ScsiDeviceId(serial)
 	}
 	opt += fmt.Sprintf(",drive=drive_%d", diskIndex)
 	if diskDriver == DISK_DRIVER_VIRTIO {

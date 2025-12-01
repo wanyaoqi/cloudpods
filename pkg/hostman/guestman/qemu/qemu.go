@@ -115,6 +115,7 @@ type QemuOptions interface {
 	VNC(port uint, usePasswd bool) string
 	Initrd(initrdPath string) string
 	Kernel(kernelPath string) string
+	ScsiDeviceId(serial string) string
 }
 
 var (
@@ -221,6 +222,10 @@ func (o baseOptions) NoHpet() (bool, string) {
 
 func (o baseOptions) Nodefconfig() string {
 	return "-nodefconfig"
+}
+
+func (o baseOptions) ScsiDeviceId(serial string) string {
+	return fmt.Sprintf(",device_id=%s", serial[:20])
 }
 
 /*
