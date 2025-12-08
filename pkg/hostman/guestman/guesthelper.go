@@ -485,7 +485,7 @@ func (pq *CpuSetCounter) getDistancesSeqByPreferNodes(preferNumaNodes []int8) []
 			CpuReserved: pq.Nodes[i].ReserveCpuCount > 0,
 		}
 	}
-	log.Errorf("==== sorted numa distance %s", jsonutils.Marshal(sortedNumaDistance))
+	log.Errorf("==== sorted numa distance %s\nnodes %s", jsonutils.Marshal(sortedNumaDistance), jsonutils.Marshal(pq.Nodes))
 	sort.Slice(sortedNumaDistance, func(i, j int) bool {
 		// 7 is tolerant max distances
 		if sortedNumaDistance[i].Distance > (7 + sortedNumaDistance[j].Distance) {
@@ -503,7 +503,7 @@ func (pq *CpuSetCounter) getDistancesSeqByPreferNodes(preferNumaNodes []int8) []
 			return (sortedNumaDistance[i].FreeMemSize + 1024*1024) > sortedNumaDistance[j].FreeMemSize
 		}
 	})
-	log.Errorf("==== sorted numa distance %s", jsonutils.Marshal(sortedNumaDistance))
+	log.Errorf("==== sorted numa distance %s\nnodes %s", jsonutils.Marshal(sortedNumaDistance), jsonutils.Marshal(pq.Nodes))
 	return sortedNumaDistance
 }
 
