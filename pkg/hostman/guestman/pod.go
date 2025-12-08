@@ -1382,6 +1382,7 @@ func (s *sPodGuestInstance) allocateCpuNumaPin() error {
 			break
 		}
 	}
+	log.Errorf("guest %s perfernodes %s", s.Id, preferNumaNodes)
 
 	nodeNumaCpus, err := s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem*1024, preferNumaNodes, s.GetId())
 	if err != nil {

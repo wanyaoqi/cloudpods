@@ -464,7 +464,7 @@ func (pq *CpuSetCounter) getDistancesSeqByPreferNodes(preferNumaNodes []int8) []
 	for i := range pq.Nodes {
 		distance := 0
 		for j := range preferNumaNodes {
-			log.Errorf("node perferNumaNodes %d, distance %d", preferNumaNodes[j], pq.Nodes[i].Distances[preferNumaNodes[j]])
+			log.Errorf("node preferNumaNodes %d, distance %d", preferNumaNodes[j], pq.Nodes[i].Distances[preferNumaNodes[j]])
 			distance += pq.Nodes[i].Distances[preferNumaNodes[j]]
 		}
 
