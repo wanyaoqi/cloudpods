@@ -1312,7 +1312,7 @@ func (h *SHostInfo) initHostRecord() (*api.HostDetails, error) {
 	}
 
 	h.HostId = hostInfo.Id
-	h.cpuCmtBound = hostInfo.CpuCmtbound
+	h.cpuCmtBound = hostInfo.CpuCommitBound
 	h.memCmtBound = hostInfo.MemCommitBound
 	hostInfo, err = h.updateHostMetadata(hostInfo.Name)
 	if err != nil {
