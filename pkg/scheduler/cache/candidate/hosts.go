@@ -618,8 +618,11 @@ func (h *SHostTopo) getDistancesSeqByPreferNodes(preferNumaNodes []int) []SSorte
 		} else if (sortedNumaDistance[i].Distance + 7) < sortedNumaDistance[j].Distance {
 			return true
 		}
-
-		return sortedNumaDistance[i].FreeMemSize > sortedNumaDistance[j].FreeMemSize
+		if sortedNumaDistance[i].Distance < sortedNumaDistance[j].Distance {
+			return (sortedNumaDistance[j].FreeMemSize + 1024*1024) > sortedNumaDistance[i].FreeMemSize
+		} else {
+			return (sortedNumaDistance[i].FreeMemSize + 1024*1024) > sortedNumaDistance[j].FreeMemSize
+		}
 	})
 	return sortedNumaDistance
 }

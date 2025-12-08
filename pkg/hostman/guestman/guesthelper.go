@@ -496,7 +496,11 @@ func (pq *CpuSetCounter) getDistancesSeqByPreferNodes(preferNumaNodes []int8) []
 		if sortedNumaDistance[i].CpuReserved {
 			return sortedNumaDistance[i].UsedRate < sortedNumaDistance[j].UsedRate
 		}
-		return sortedNumaDistance[i].FreeMemSize > sortedNumaDistance[j].FreeMemSize
+		if sortedNumaDistance[i].Distance < sortedNumaDistance[j].Distance {
+			return (sortedNumaDistance[j].FreeMemSize + 1024*1024) > sortedNumaDistance[i].FreeMemSize
+		} else {
+			return (sortedNumaDistance[i].FreeMemSize + 1024*1024) > sortedNumaDistance[j].FreeMemSize
+		}
 	})
 	return sortedNumaDistance
 }
