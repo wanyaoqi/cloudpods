@@ -499,9 +499,9 @@ func (pq *CpuSetCounter) getDistancesSeqByPreferNodes(preferNumaNodes []int8) []
 			return sortedNumaDistance[i].UsedRate < sortedNumaDistance[j].UsedRate
 		}
 		if sortedNumaDistance[i].Distance < sortedNumaDistance[j].Distance {
-			return (sortedNumaDistance[j].FreeMemSize + 1024*1024) > sortedNumaDistance[i].FreeMemSize
+			return (sortedNumaDistance[j].FreeMemSize - sortedNumaDistance[i].FreeMemSize) < 1024*1024
 		} else {
-			return (sortedNumaDistance[i].FreeMemSize + 1024*1024) > sortedNumaDistance[j].FreeMemSize
+			return (sortedNumaDistance[i].FreeMemSize - sortedNumaDistance[j].FreeMemSize) > 1024*1024
 		}
 	})
 	log.Errorf("==== sorted numa distance %s\nnodes %s", jsonutils.Marshal(sortedNumaDistance), jsonutils.Marshal(pq.Nodes))
