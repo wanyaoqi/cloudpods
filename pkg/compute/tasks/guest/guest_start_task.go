@@ -113,6 +113,7 @@ func (task *GuestStartTask) OnStartComplete(ctx context.Context, obj db.IStandal
 	// save start time
 	guest.SaveLastStartAt()
 
+	log.Errorf("onStartComplete %s", data)
 	if data.Contains("cpu_numa_pin") {
 		cpuNumaPin := make([]api.SCpuNumaPin, 0)
 		err := data.Unmarshal(&cpuNumaPin, "cpu_numa_pin")
