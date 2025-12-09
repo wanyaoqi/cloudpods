@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path"
+	"runtime/debug"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -421,6 +422,8 @@ func SaveLiveDesc(s GuestRuntimeInstance, guestDesc *desc.SGuestDesc) error {
 			}
 		}
 	}
+
+	log.Errorf("stack: %s", debug.Stack())
 
 	log.Errorf("desc cpu numa pin %v", s.GetDesc().CpuNumaPin)
 	if err := fileutils2.FilePutContents(
