@@ -422,6 +422,7 @@ func SaveLiveDesc(s GuestRuntimeInstance, guestDesc *desc.SGuestDesc) error {
 		}
 	}
 
+	log.Errorf("desc cpu numa pin %v", s.GetDesc().CpuNumaPin)
 	if err := fileutils2.FilePutContents(
 		s.GetDescFilePath(), jsonutils.Marshal(s.GetDesc()).String(), false,
 	); err != nil {

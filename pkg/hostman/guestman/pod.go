@@ -1388,7 +1388,7 @@ func (s *sPodGuestInstance) allocateCpuNumaPin() error {
 			break
 		}
 	}
-	log.Infof("guest %s prefer nodes %s", s.Id, preferNumaNodes)
+	log.Infof("guest %s prefer nodes %v", s.Id, preferNumaNodes)
 
 	nodeNumaCpus, err := s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem*1024, preferNumaNodes, s.GetId())
 	if err != nil {
@@ -1398,6 +1398,7 @@ func (s *sPodGuestInstance) allocateCpuNumaPin() error {
 		cpus = append(cpus, numaCpus.Cpuset...)
 	}
 
+	log.Errorf("cpu numa pin %v", s.Desc.CpuNumaPin)
 	if !s.manager.hostagentNumaAllocate {
 		s.Desc.VcpuPin = []desc.SCpuPin{
 			{
@@ -1432,6 +1433,7 @@ func (s *sPodGuestInstance) allocateCpuNumaPin() error {
 		s.Desc.CpuNumaPin = cpuNumaPin
 	}
 
+	log.Errorf("cpu numa pin %v", s.Desc.CpuNumaPin)
 	return SaveLiveDesc(s, s.Desc)
 }
 
