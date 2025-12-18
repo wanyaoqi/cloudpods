@@ -1698,6 +1698,11 @@ func (manager *SGuestManager) validateCreateData(
 			input.OsArch = apis.OS_ARCH_AARCH64
 		}
 
+		// enable tpm on windows 11 image
+		if osDist := imgProperties["os_distribution"]; strings.Contains(arch, "Windows 11") {
+			input.EnableTpm = true
+		}
+
 		// use uefi boot and q35 machine type on enable tpm
 		if input.EnableTpm {
 			input.Bios = "UEFI"
