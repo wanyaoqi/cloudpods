@@ -674,6 +674,7 @@ type GenerateStartOptionsInput struct {
 	OVNIntegrationBridge string
 	Devices              []string
 	OVMFPath             string
+	OVMFVarsPath         string
 	VNCPort              uint
 	VNCPassword          bool
 	EnableLog            bool
@@ -772,7 +773,7 @@ func GenerateStartOptions(
 		if input.OVMFPath == "" {
 			return "", errors.Errorf("input OVMF path is empty")
 		}
-		fmOpt, err := drvOpt.BIOS(input.OVMFPath, input.HomeDir)
+		fmOpt, err := drvOpt.BIOS(input.OVMFPath, input.OVMFVarsPath, input.HomeDir)
 		if err != nil {
 			return "", errors.Wrap(err, "bios option")
 		}

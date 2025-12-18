@@ -1698,6 +1698,12 @@ func (manager *SGuestManager) validateCreateData(
 			input.OsArch = apis.OS_ARCH_AARCH64
 		}
 
+		// use uefi boot and q35 machine type on enable tpm
+		if input.EnableTpm {
+			input.Bios = "UEFI"
+			input.Machine = api.VM_MACHINE_TYPE_Q35
+		}
+
 		if imageDiskFormat != "iso" {
 			var imgSupportUEFI *bool
 			var imgSupportBIOS *bool

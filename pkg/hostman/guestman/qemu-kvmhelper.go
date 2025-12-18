@@ -489,6 +489,7 @@ function nic_mtu() {
 
 	if input.EnableTpm {
 		input.OVMFPath = options.HostOptions.SecbootOvmfPath
+		input.OVMFVarsPath = options.HostOptions.SecbootOvmfVarsPath
 		cmd += `
 function start_swtpm() {
     local swtpm_binary=$1

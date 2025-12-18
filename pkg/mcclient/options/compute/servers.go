@@ -560,6 +560,7 @@ func (opts *ServerCreateOptionalOptions) OptionalParams() (*computeapi.ServerCre
 		GuestImageID:       opts.GuestImageID,
 		Secgroups:          opts.Secgroups,
 		EnableMemclean:     opts.EnableMemclean,
+		EnableTpm:          opts.EnableTpm,
 	}
 
 	params.ProjectId = opts.Project
