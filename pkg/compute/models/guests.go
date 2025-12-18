@@ -1699,7 +1699,7 @@ func (manager *SGuestManager) validateCreateData(
 		}
 
 		// enable tpm on windows 11 image
-		if osDist := imgProperties["os_distribution"]; strings.Contains(arch, "Windows 11") {
+		if osDist := imgProperties["os_distribution"]; strings.Contains(osDist, "Windows 11") {
 			input.EnableTpm = true
 		}
 
