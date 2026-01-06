@@ -49,13 +49,16 @@ var (
 	ActionSystemPanic     SAction = "panic"
 	ActionSystemException SAction = "exception"
 
+	ActionHostDown            SAction = "host_down"
+	ActionHostDownAutoMigrate SAction = "host_down_auto_migrate"
+
 	ActionChecksumTest SAction = "checksum_test"
 
 	ActionLock SAction = "lock"
 
 	ActionExceedCount          SAction = "exceed_count"
 	ActionPasswordExpireSoon   SAction = "password_expire_soon"
-	ActionWorkerBlock          SAction = "woker_block"
+	ActionWorkerBlock          SAction = "worker_block"
 	ActionNetOutOfSync         SAction = "net_out_of_sync"
 	ActionMysqlOutOfSync       SAction = "mysql_out_of_sync"
 	ActionServiceAbnormal      SAction = "service_abnormal"
