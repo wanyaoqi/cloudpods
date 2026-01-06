@@ -345,6 +345,8 @@ func (sm *STopicManager) InitializeData() error {
 				notify.ActionSystemPanic,
 				notify.ActionSystemException,
 				notify.ActionOffline,
+				notify.ActionHostDown,
+				notify.ActionHostDownAutoMigrate,
 			)
 			t.Type = notify.TOPIC_TYPE_RESOURCE
 			t.Results = tristate.False
