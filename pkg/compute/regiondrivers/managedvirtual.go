@@ -1132,6 +1132,7 @@ func (self *SManagedVirtualizationRegionDriver) RequestCreateSnapshot(ctx contex
 		}
 		_, err = db.Update(snapshot, func() error {
 			snapshot.Size = int(iSnapshot.GetSizeMb())
+			snapshot.VirtualSize = int(iSnapshot.GetSizeMb())
 			snapshot.ExternalId = iSnapshot.GetGlobalId()
 			return nil
 		})
