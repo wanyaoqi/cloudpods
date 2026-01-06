@@ -40,7 +40,7 @@ func (d *sLinuxRootFs) installInitScript(name, cmd string, oneshot bool) error {
 }
 
 func (d *sLinuxRootFs) installCrond(cmd string) error {
-	cronJob := fmt.Sprintf("@reboot %s", cmd)
+	cronJob := fmt.Sprintf("@reboot PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin exec %s", cmd)
 	if procutils.NewCommand("chroot", d.rootFs.GetMountPath(), "crontab", "-l", "|", "grep", cronJob).Run() == nil {
 		// if cronjob exist, return success
 		return nil
