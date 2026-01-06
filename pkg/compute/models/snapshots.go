@@ -74,7 +74,9 @@ type SSnapshot struct {
 	CreatedBy string `width:"36" charset:"ascii" nullable:"false" default:"manual" list:"user" create:"optional"`
 	Location  string `charset:"ascii" nullable:"true" list:"admin" create:"optional"`
 	// 快照大小,单位Mb
-	Size        int    `nullable:"false" list:"user" create:"required"`
+	Size int `nullable:"false" list:"user" create:"optional"`
+	// Virtual size, for kvm is origin disk size
+	VirtualSize int    `nullable:"false" list:"user" create:"optional"`
 	OutOfChain  bool   `nullable:"false" default:"false" list:"admin" create:"optional"`
 	FakeDeleted bool   `nullable:"false" default:"false"`
 	DiskType    string `width:"32" charset:"ascii" nullable:"true" list:"user" create:"optional"`
@@ -433,7 +435,7 @@ func (manager *SSnapshotManager) FetchCustomizeColumns(
 
 func (self *SSnapshot) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
 	res := self.SVirtualResourceBase.GetShortDesc(ctx)
-	res.Add(jsonutils.NewInt(int64(self.Size)), "size")
+	res.Add(jsonutils.NewInt(int64(self.VirtualSize)), "size")
 	res.Add(jsonutils.NewString(self.DiskId), "disk_id")
 	disk, _ := self.GetDisk()
 	if disk != nil {
@@ -716,7 +718,7 @@ func (self *SSnapshotManager) CreateSnapshot(ctx context.Context, owner mcclient
 		return nil, err
 	}
 	snapshot.OutOfChain = driver.SnapshotIsOutOfChain(disk)
-	snapshot.Size = disk.DiskSize
+	snapshot.VirtualSize = disk.DiskSize
 	snapshot.DiskType = disk.DiskType
 	snapshot.Location = location
 	snapshot.CreatedBy = createdBy
@@ -1000,6 +1002,7 @@ func (self *SSnapshot) SyncWithCloudSnapshot(ctx context.Context, userCred mccli
 		}
 		self.Status = ext.GetStatus()
 		self.DiskType = ext.GetDiskType()
+		self.VirtualSize = int(ext.GetSizeMb())
 		self.Size = int(ext.GetSizeMb())
 
 		self.CloudregionId = region.Id
@@ -1047,6 +1050,7 @@ func (manager *SSnapshotManager) newFromCloudSnapshot(ctx context.Context, userC
 	}
 
 	snapshot.DiskType = extSnapshot.GetDiskType()
+	snapshot.VirtualSize = int(extSnapshot.GetSizeMb())
 	snapshot.Size = int(extSnapshot.GetSizeMb())
 	snapshot.ManagerId = provider.Id
 	snapshot.CloudregionId = region.Id
