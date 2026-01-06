@@ -61,6 +61,9 @@ var (
 	ActionServiceAbnormal    = api.ActionServiceAbnormal
 	ActionServerPanicked     = api.ActionServerPanicked
 
+	ActionHostDown            = api.ActionHostDown
+	ActionHostDownAutoMigrate = api.ActionHostDownAutoMigrate
+
 	ActionPendingDelete = api.ActionPendingDelete
 
 	ActionSyncCreate           = api.ActionSyncCreate
