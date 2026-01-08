@@ -145,6 +145,9 @@ func init() {
 	cmd.Get("hardware-info", new(options.ServerIdOptions))
 	cmd.Get("screen-dump-show", new(options.ServerScreenDumpOptions))
 	cmd.BatchPerform("screen-dump", new(options.ServerIdsOptions))
+	cmd.Perform("set-network-secgroup", new(options.ServerNetworkSecGroupsOptions))
+	cmd.Perform("add-network-secgroup", new(options.ServerNetworkSecGroupsOptions))
+	cmd.Perform("revoke-network-secgroup", new(options.ServerNetworkSecGroupsOptions))
 
 	cmd.GetProperty(&options.ServerStatusStatisticsOptions{})
 	cmd.GetProperty(&options.ServerProjectStatisticsOptions{})

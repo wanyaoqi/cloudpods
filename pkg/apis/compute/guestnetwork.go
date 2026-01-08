@@ -17,6 +17,8 @@ package compute
 import (
 	"yunion.io/x/cloudmux/pkg/apis/compute"
 	"yunion.io/x/jsonutils"
+
+	"yunion.io/x/onecloud/pkg/apis"
 )
 
 type GuestnetworkDetails struct {
@@ -55,6 +57,12 @@ type GuestnetworkShortDesc struct {
 	SubIps string `json:"sub_ips"`
 	// 网卡序号
 	Index int `json:"index"`
+}
+
+type GuestnetworkSecgroupShortDesc struct {
+	NetworkIndex int                        `json:"network_index"`
+	Secgroups    []apis.StandaloneShortDesc `json:"secgroups"`
+	Mac          string                     `json:"mac"`
 }
 
 type GuestnetworkListInput struct {
@@ -119,6 +127,9 @@ type GuestnetworkBaseDesc struct {
 	WireId    string `json:"wire_id"`
 	Interface string `json:"interface"`
 
+	Secgroups     []*SecgroupJsonDesc `json:"secgroups"`
+	SecurityRules string              `json:"security_rules"`
+
 	Vpc struct {
 		Id           string `json:"id"`
 		Provider     string `json:"provider"`
@@ -149,6 +160,14 @@ type GuestnetworkJsonDesc struct {
 	BaremetalId string `json:"baremetal_id"`
 
 	LinkUp bool `json:"link_up"`
+}
+
+type GuestnetworkSecgroupDesc struct {
+	Secgroups     []*SecgroupJsonDesc `json:"secgroups"`
+	SecurityRules string              `json:"security_rules"`
+
+	Index int    `json:"index"`
+	Mac   string `json:"mac"`
 }
 
 type SNicTrafficRecord struct {
