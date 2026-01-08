@@ -42,12 +42,52 @@ func (el *Guest) OrderedSecurityGroupRules() []*SecurityGroupRule {
 				Action:    string(secrules.SecurityRuleAllow),
 			},
 		},
+		{
+			// allow in-bound icmp traffic
+			SSecurityGroupRule: compute_models.SSecurityGroupRule{
+				Priority:  3,
+				Direction: string(secrules.SecurityRuleIngress),
+				Protocol:  secrules.PROTO_ICMP,
+				Action:    string(secrules.SecurityRuleAllow),
+			},
+		},
 	}
 	for _, secgroup := range el.SecurityGroups {
 		rs = append(rs, secgroup.securityGroupRules(100)...)
 	}
 	if el.AdminSecurityGroup != nil {
 		rs = append(rs, el.AdminSecurityGroup.securityGroupRules(1000)...)
+	}
+	sort.Slice(rs, SecurityGroupRuleLessFunc(rs))
+	return rs
+}
+
+func (el *Guestnetwork) OrderedSecurityGroupRules(guest *Guest) []*SecurityGroupRule {
+	if len(el.Guestnetworksecgroups) == 0 {
+		return guest.OrderedSecurityGroupRules()
+	}
+	// deny any incoming traffic and allow ARP
+	rs := []*SecurityGroupRule{
+		{
+			// deny all in-bound traffic
+			SSecurityGroupRule: compute_models.SSecurityGroupRule{
+				Priority:  1,
+				Direction: string(secrules.SecurityRuleIngress),
+				Action:    string(secrules.SecurityRuleDeny),
+			},
+		},
+		{
+			// allow in-bound arp traffic
+			SSecurityGroupRule: compute_models.SSecurityGroupRule{
+				Priority:  2,
+				Direction: string(secrules.SecurityRuleIngress),
+				Protocol:  "arp",
+				Action:    string(secrules.SecurityRuleAllow),
+			},
+		},
+	}
+	for _, guestSecgroup := range el.Guestnetworksecgroups {
+		rs = append(rs, guestSecgroup.SecurityGroup.securityGroupRules(100)...)
 	}
 	sort.Slice(rs, SecurityGroupRuleLessFunc(rs))
 	return rs
