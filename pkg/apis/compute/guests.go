@@ -579,6 +579,12 @@ type GuestAddSecgroupInput struct {
 	SecgroupIds []string `json:"secgroup_ids"`
 }
 
+type GuestNetworkAddSecgroupInput struct {
+	SecgroupIds []string `json:"secgroup_ids"`
+
+	NetworkIndex *int `json:"network_index"`
+}
+
 type ServerRemoteUpdateInput struct {
 	// 是否覆盖替换所有标签
 	ReplaceTags *bool `json:"replace_tags" help:"replace all remote tags"`

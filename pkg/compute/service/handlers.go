@@ -265,6 +265,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.CloudregionschedtagManager,
 		models.GuestnetworkManager,
 		models.GuestsecgroupManager,
+		models.GuestnetworksecgroupManager,
 		models.LoadbalancernetworkManager,
 		models.GuestdiskManager,
 		models.GroupnetworkManager,

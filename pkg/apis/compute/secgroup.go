@@ -310,6 +310,15 @@ type GuestsecgroupListInput struct {
 	SecgroupFilterListInput
 }
 
+type GuestnetworksecgroupListInput struct {
+	GuestJointsListInput
+	SecgroupFilterListInput
+
+	NetworkIndex *int `json:"network_index"`
+
+	IsAdmin bool `json:"is_admin"`
+}
+
 type ElasticcachesecgroupListInput struct {
 	ElasticcacheJointsListInput
 	SecgroupFilterListInput
@@ -322,6 +331,19 @@ type GuestsecgroupDetails struct {
 
 	// 安全组名称
 	Secgroup string `json:"secgroup"`
+}
+
+type GuestnetworksecgroupDetails struct {
+	GuestJointResourceDetails
+
+	SGuestsecgroup
+
+	// 安全组名称
+	Secgroup string `json:"secgroup"`
+
+	NetworkIndex int `json:"network_index"`
+
+	Admin bool `json:"admin"`
 }
 
 //type SElasticcachesecgroup struct {
