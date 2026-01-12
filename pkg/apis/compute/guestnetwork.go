@@ -119,6 +119,9 @@ type GuestnetworkBaseDesc struct {
 	WireId    string `json:"wire_id"`
 	Interface string `json:"interface"`
 
+	Secgroups     []*SecgroupJsonDesc `json:"secgroups"`
+	SecurityRules string              `json:"security_rules"`
+
 	Vpc struct {
 		Id           string `json:"id"`
 		Provider     string `json:"provider"`
@@ -149,6 +152,14 @@ type GuestnetworkJsonDesc struct {
 	BaremetalId string `json:"baremetal_id"`
 
 	LinkUp bool `json:"link_up"`
+}
+
+type GuestnetworkSecgroupDesc struct {
+	Secgroups     []*SecgroupJsonDesc `json:"secgroups"`
+	SecurityRules string              `json:"security_rules"`
+
+	Index int    `json:"index"`
+	Mac   string `json:"mac"`
 }
 
 type SNicTrafficRecord struct {
