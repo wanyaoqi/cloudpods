@@ -311,7 +311,8 @@ type GuestsecgroupListInput struct {
 }
 
 type GuestnetworksecgroupListInput struct {
-	GuestJointsListInput
+	apis.ResourceBaseListInput
+	ServerFilterListInput
 	SecgroupFilterListInput
 
 	NetworkIndex *int `json:"network_index"`

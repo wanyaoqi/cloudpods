@@ -174,6 +174,22 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 	return rows
 }
 
+func (self *SGuestnetworksecgroupManager) QueryDistinctExtraField(q *sqlchemy.SQuery, field string) (*sqlchemy.SQuery, error) {
+	q, err := self.SResourceBaseManager.QueryDistinctExtraField(q, field)
+	if err == nil {
+		return q, nil
+	}
+	q, err = self.SGuestResourceBaseManager.QueryDistinctExtraField(q, field)
+	if err == nil {
+		return q, nil
+	}
+	q, err = self.SSecurityGroupResourceBaseManager.QueryDistinctExtraField(q, field)
+	if err == nil {
+		return q, nil
+	}
+	return q, httperrors.ErrNotFound
+}
+
 func (self *SGuestnetworksecgroupManager) GetGuestnetworksecgroups(guestId string, networkIndex int) ([]SSecurityGroup, error) {
 	q := GuestnetworksecgroupManager.Query("secgroup_id").Equals("guest_id", guestId)
 	if networkIndex >= 0 {
