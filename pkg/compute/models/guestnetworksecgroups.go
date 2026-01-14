@@ -178,7 +178,7 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 }
 
 func (self *SGuestnetworksecgroupManager) GetGuestnetworksecgroups(guestId string, networkIndex int) ([]SSecurityGroup, error) {
-	q := SGuestnetworksecgroupManager.Query("secgroup_id").Equals("guest_id", guestId)
+	q := GuestnetworksecgroupManager.Query("secgroup_id").Equals("guest_id", guestId)
 	if networkIndex >= 0 {
 		q = q.Equals("network_index", networkIndex)
 	}
