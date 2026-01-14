@@ -334,7 +334,7 @@ type GuestsecgroupDetails struct {
 }
 
 type GuestnetworksecgroupDetails struct {
-	GuestJointResourceDetails
+	GuestResourceInfo
 
 	SGuestsecgroup
 

@@ -35,8 +35,9 @@ import (
 )
 
 type SGuestnetworksecgroupManager struct {
-	SGuestJointsManager
+	db.SResourceBaseManager
 	SSecurityGroupResourceBaseManager
+	SGuestResourceBaseManager
 }
 
 var GuestnetworksecgroupManager *SGuestnetworksecgroupManager
@@ -44,12 +45,11 @@ var GuestnetworksecgroupManager *SGuestnetworksecgroupManager
 func init() {
 	db.InitManager(func() {
 		GuestnetworksecgroupManager = &SGuestnetworksecgroupManager{
-			SGuestJointsManager: NewGuestJointsManager(
+			SResourceBaseManager: db.NewResourceBaseManager(
 				SGuestnetworksecgroup{},
 				"guestnetworksecgroups_tbl",
 				"guestnetworksecgroup",
 				"guestnetworksecgroups",
-				SecurityGroupManager,
 			),
 		}
 		GuestnetworksecgroupManager.SetVirtualObject(GuestnetworksecgroupManager)
@@ -57,8 +57,9 @@ func init() {
 }
 
 type SGuestnetworksecgroup struct {
-	SGuestJointsBase
+	db.SResourceBase
 
+	GuestId                    string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 	SSecurityGroupResourceBase `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required"`
 	NetworkIndex               int `nullable:"false" list:"user" update:"user"`
 
@@ -73,10 +74,6 @@ func (self *SGuestnetworksecgroup) Delete(ctx context.Context, userCred mcclient
 	return db.DeleteModel(ctx, userCred, self)
 }
 
-func (self *SGuestnetworksecgroup) Detach(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return db.DetachJoint(ctx, userCred, self)
-}
-
 func (manager *SGuestnetworksecgroupManager) ListItemFilter(
 	ctx context.Context,
 	q *sqlchemy.SQuery,
@@ -85,7 +82,7 @@ func (manager *SGuestnetworksecgroupManager) ListItemFilter(
 ) (*sqlchemy.SQuery, error) {
 	var err error
 
-	q, err = manager.SGuestJointsManager.ListItemFilter(ctx, q, userCred, query.GuestJointsListInput)
+	q, err = manager.SGuestResourceBaseManager.ListItemFilter(ctx, q, userCred, query.ServerFilterListInput)
 	if err != nil {
 		return nil, errors.Wrap(err, "SGuestJointsManager.ListItemFilter")
 	}
@@ -110,7 +107,7 @@ func (manager *SGuestnetworksecgroupManager) OrderByExtraFields(
 ) (*sqlchemy.SQuery, error) {
 	var err error
 
-	q, err = manager.SGuestJointsManager.OrderByExtraFields(ctx, q, userCred, query.GuestJointsListInput)
+	q, err = manager.SGuestResourceBaseManager.OrderByExtraFields(ctx, q, userCred, query.ServerFilterListInput)
 	if err != nil {
 		return nil, errors.Wrap(err, "SGuestJointsManager.OrderByExtraFields")
 	}
@@ -129,7 +126,7 @@ func (manager *SGuestnetworksecgroupManager) ListItemExportKeys(ctx context.Cont
 ) (*sqlchemy.SQuery, error) {
 	var err error
 
-	q, err = manager.SGuestJointsManager.ListItemExportKeys(ctx, q, userCred, keys)
+	q, err = manager.SGuestResourceBaseManager.ListItemExportKeys(ctx, q, userCred, keys)
 	if err != nil {
 		return nil, errors.Wrap(err, "SGuestJointsManager.ListItemExportKeys")
 	}
@@ -153,10 +150,10 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 ) []api.GuestnetworksecgroupDetails {
 	rows := make([]api.GuestnetworksecgroupDetails, len(objs))
 
-	guestRows := manager.SGuestJointsManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	guestRows := manager.SGuestResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	secgroupIds := make([]string, len(rows))
 	for i := range rows {
-		rows[i].GuestJointResourceDetails = guestRows[i]
+		rows[i].GuestResourceInfo = guestRows[i]
 		rows[i].NetworkIndex = objs[i].(*SGuestnetworksecgroup).NetworkIndex
 		rows[i].Admin = objs[i].(*SGuestnetworksecgroup).Admin
 		secgroupIds[i] = objs[i].(*SGuestnetworksecgroup).SecgroupId

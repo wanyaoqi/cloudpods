@@ -160,6 +160,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.RouteTableRouteSetManager,
 		models.InterVpcNetworkRouteSetManager,
 		models.GuestScreenDumpManager,
+		models.GuestnetworksecgroupManager,
 
 		models.SchedpolicyManager,
 		models.DynamicschedtagManager,
@@ -265,7 +266,6 @@ func InitHandlers(app *appsrv.Application) {
 		models.CloudregionschedtagManager,
 		models.GuestnetworkManager,
 		models.GuestsecgroupManager,
-		models.GuestnetworksecgroupManager,
 		models.LoadbalancernetworkManager,
 		models.GuestdiskManager,
 		models.GroupnetworkManager,
