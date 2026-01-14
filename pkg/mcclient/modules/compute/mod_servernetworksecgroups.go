@@ -20,16 +20,14 @@ import (
 )
 
 var (
-	Servernetworksecgroups modulebase.JointResourceManager
+	Servernetworksecgroups modulebase.ResourceManager
 )
 
 func init() {
-	Servernetworksecgroups = modules.NewJointComputeManager(
+	Servernetworksecgroups = modules.NewComputeManager(
 		"guestnetworksecgroup",
 		"guestnetworksecgroups",
 		[]string{"Guest_id", "Network_index", "Secgroup_id", "Admin"},
-		[]string{},
-		&Servers,
-		&SecGroups)
+		[]string{})
 	modules.RegisterCompute(&Servernetworksecgroups)
 }

@@ -209,7 +209,7 @@ func (self *SGuestnetworksecgroupManager) GetGuestnetworksecgroups(guestId strin
 }
 
 // guest network attach secgroup
-func (self *SGuest) PerformNetworkAddSecgroup(
+func (self *SGuest) PerformAddNetworkSecgroup(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
