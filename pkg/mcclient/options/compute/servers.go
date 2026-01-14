@@ -816,7 +816,7 @@ func (o *ServerNetworkSecGroupsOptions) GetId() string {
 }
 
 func (opts *ServerNetworkSecGroupsOptions) Params() (jsonutils.JSONObject, error) {
-	return jsonutils.Marshal(map[string][]string{"secgroup_ids": opts.SecgroupIds}), nil
+	return jsonutils.Marshal(opts), nil
 }
 
 type ServerModifySrcCheckOptions struct {
