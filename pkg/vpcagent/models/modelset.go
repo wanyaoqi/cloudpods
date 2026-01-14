@@ -591,14 +591,10 @@ func (set Guestnetworks) joinGuestnetworksecgroups(subEntries Guestnetworksecgro
 		if !ok {
 			continue
 		}
-		if gn.Guestnetworksecgroups == nil {
-
+		if len(gn.Guestnetworksecgroups) == 0 {
+			gn.Guestnetworksecgroups = Guestnetworksecgroups{}
 		}
-		if g.Guestnetworks == nil {
-			g.Guestnetworks = Guestnetworks{}
-		}
-		rowIdStr := fmt.Sprintf("%d", gn.RowId)
-		g.Guestnetworks[rowIdStr] = gn
+		gn.Guestnetworksecgroups[key] = gns
 	}
 	return true
 }
@@ -627,6 +623,18 @@ func (set Guestnetworksecgroups) Copy() apihelper.IModelSet {
 		setCopy[id] = el.Copy()
 	}
 	return setCopy
+}
+
+func (set Guestnetworksecgroups) joinSecurityGroups(subEntries SecurityGroups) bool {
+	for _, gns := range set {
+		key := gns.SecgroupId
+		secgroup, ok := subEntries[key]
+		if !ok {
+			continue
+		}
+		gns.SecurityGroup = secgroup
+	}
+	return true
 }
 
 func (set NetworkAddresses) ModelManager() mcclient_modulebase.IBaseManager {

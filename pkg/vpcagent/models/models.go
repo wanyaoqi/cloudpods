@@ -115,7 +115,6 @@ func (el *NetworkAddress) Copy() *NetworkAddress {
 type Guestnetworksecgroup struct {
 	compute_models.SGuestnetworksecgroup
 
-	Guestnetwork  *Guestnetwork  `json:"-"`
 	SecurityGroup *SecurityGroup `json:"-"`
 }
 
