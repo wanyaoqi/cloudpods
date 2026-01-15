@@ -25,31 +25,32 @@ import (
 func (el *Guest) OrderedSecurityGroupRules() []*SecurityGroupRule {
 	// deny any incoming traffic and allow ARP
 	rs := []*SecurityGroupRule{
-		//{
-		//	// allow all-out bound traffic
-		//	SSecurityGroupRule: compute_models.SSecurityGroupRule{
-		//		Priority:  0,
-		//		Direction: string(secrules.SecurityRuleEgress),
-		//		Action:    string(secrules.SecurityRuleAllow),
-		//	},
-		//},
-		//{
-		//	// deny all in-bound traffic (low priority, can be overridden by user rules)
-		//	SSecurityGroupRule: compute_models.SSecurityGroupRule{
-		//		Priority:  0,
-		//		Direction: string(secrules.SecurityRuleIngress),
-		//		Action:    string(secrules.SecurityRuleDeny),
-		//	},
-		//},
-		//{
-		//	// allow in-bound arp traffic
-		//	SSecurityGroupRule: compute_models.SSecurityGroupRule{
-		//		Priority:  2,
-		//		Direction: string(secrules.SecurityRuleIngress),
-		//		Protocol:  "arp",
-		//		Action:    string(secrules.SecurityRuleAllow),
-		//	},
-		//},
+		{
+			// deny all in-bound traffic (low priority, can be overridden by user rules)
+			SSecurityGroupRule: compute_models.SSecurityGroupRule{
+				Priority:  1,
+				Direction: string(secrules.SecurityRuleIngress),
+				Action:    string(secrules.SecurityRuleDeny),
+			},
+		},
+		{
+			// allow in-bound arp traffic
+			SSecurityGroupRule: compute_models.SSecurityGroupRule{
+				Priority:  2,
+				Direction: string(secrules.SecurityRuleIngress),
+				Protocol:  "arp",
+				Action:    string(secrules.SecurityRuleAllow),
+			},
+		},
+		{
+			// allow in-bound arp traffic
+			SSecurityGroupRule: compute_models.SSecurityGroupRule{
+				Priority:  3,
+				Direction: string(secrules.SecurityRuleIngress),
+				Protocol:  secrules.PROTO_ICMP,
+				Action:    string(secrules.SecurityRuleAllow),
+			},
+		},
 	}
 	for _, secgroup := range el.SecurityGroups {
 		rs = append(rs, secgroup.securityGroupRules(100)...)
