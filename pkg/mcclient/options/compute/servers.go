@@ -807,8 +807,8 @@ func (opts *ServerSecGroupsOptions) Params() (jsonutils.JSONObject, error) {
 
 type ServerNetworkSecGroupsOptions struct {
 	ID           string   `help:"ID or Name of server" metavar:"Guest" json:"-"`
+	NetworkIndex *int     `help:"Guest network index" metavar:"Network Index"`
 	SecgroupIds  []string `help:"Ids of Security Groups" metavar:"Security Groups" positional:"true"`
-	NetworkIndex *int     `help:"Guest network index"`
 }
 
 func (o *ServerNetworkSecGroupsOptions) GetId() string {

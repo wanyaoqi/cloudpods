@@ -26,9 +26,17 @@ func (el *Guest) OrderedSecurityGroupRules() []*SecurityGroupRule {
 	// deny any incoming traffic and allow ARP
 	rs := []*SecurityGroupRule{
 		{
-			// deny all in-bound traffic
+			// allow all-out bound traffic
 			SSecurityGroupRule: compute_models.SSecurityGroupRule{
-				Priority:  1,
+				Priority:  0,
+				Direction: string(secrules.SecurityRuleEgress),
+				Action:    string(secrules.SecurityRuleAllow),
+			},
+		},
+		{
+			// deny all in-bound traffic (low priority, can be overridden by user rules)
+			SSecurityGroupRule: compute_models.SSecurityGroupRule{
+				Priority:  0,
 				Direction: string(secrules.SecurityRuleIngress),
 				Action:    string(secrules.SecurityRuleDeny),
 			},
