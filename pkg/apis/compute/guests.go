@@ -242,6 +242,9 @@ type ServerDetails struct {
 	// 关联主安全组
 	Secgroup string `json:"secgroup"`
 
+	// 网卡级别安全组
+	NetworkSecgroups []GuestnetworkSecgroupShortDesc `json:"network_secgroups"`
+
 	// 浮动IP
 	Eip string `json:"eip"`
 	// 浮动IP类型

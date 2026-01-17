@@ -2013,6 +2013,11 @@ func (manager *SGuestManager) validateCreateData(
 			netConfig.SriovDevice = devConfig
 			netConfig.Driver = api.NETWORK_DRIVER_VFIO
 		}
+		secgroupIds, err := isValidSecgroups(ctx, userCred, netConfig.Secgroups)
+		if err != nil {
+			return nil, err
+		}
+		netConfig.Secgroups = secgroupIds
 
 		netConfig.Project = ownerId.GetProjectId()
 		netConfig.Domain = ownerId.GetProjectDomainId()
@@ -2079,15 +2084,9 @@ func (manager *SGuestManager) validateCreateData(
 		input.KeypairId = keypairObj.GetId()
 	}
 
-	secGrpIds := []string{}
-	for _, secgroup := range input.Secgroups {
-		secGrpObj, err := SecurityGroupManager.FetchByIdOrName(ctx, userCred, secgroup)
-		if err != nil {
-			return nil, httperrors.NewResourceNotFoundError("Secgroup %s not found", secgroup)
-		}
-		if !utils.IsInStringArray(secGrpObj.GetId(), secGrpIds) {
-			secGrpIds = append(secGrpIds, secGrpObj.GetId())
-		}
+	secGrpIds, err := isValidSecgroups(ctx, userCred, input.Secgroups)
+	if err != nil {
+		return nil, err
 	}
 	if len(secGrpIds) > 0 {
 		input.SecgroupId = secGrpIds[0]
@@ -4361,7 +4360,12 @@ func (self *SGuest) CreateNetworksOnHost(
 				return errors.Wrap(err, "self.allocSriovNicDevice")
 			}
 		}
-
+		if len(netConfig.Secgroups) > 0 {
+			err = self.SaveNetworkSecgroups(ctx, userCred, netConfig.Secgroups, gns[0].Index)
+			if err != nil {
+				return errors.Wrap(err, "SaveNetworkSecgroups")
+			}
+		}
 	}
 	return nil
 }

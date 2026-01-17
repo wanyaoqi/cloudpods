@@ -510,3 +510,23 @@ func (self *SGuestnetworksecgroupManager) getNetworkSecgroupJson(guestId string,
 	}
 	return ret, nil
 }
+
+func (self *SGuest) RevokeAllNetworkSecgroups(ctx context.Context, userCred mcclient.TokenCredential) error {
+	gns, err := self.GetNetworks("")
+	if err != nil {
+		return errors.Wrap(err, "GetNetworks")
+	}
+	for i := range gns {
+		gnss, err := self.GetGuestNetworkSecgroups(gns[i].Index)
+		if err != nil {
+			return errors.Wrap(err, "GetGuestNetworkSecgroups")
+		}
+		for j := range gnss {
+			err = gnss[j].Delete(ctx, userCred)
+			if err != nil {
+				return errors.Wrap(err, "Delete guestnetworksecgroup")
+			}
+		}
+	}
+	return nil
+}
