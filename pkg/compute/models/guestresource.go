@@ -32,7 +32,7 @@ import (
 )
 
 type SGuestResourceBase struct {
-	GuestId string `width:"36" charset:"ascii" nullable:"true" list:"user" create:"optional"`
+	GuestId string `width:"36" charset:"ascii" nullable:"true" list:"user" create:"optional" json:"guest_id"`
 }
 
 type SGuestResourceBaseManager struct {
