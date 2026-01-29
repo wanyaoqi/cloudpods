@@ -162,9 +162,7 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 		log.Errorf("FetchStandaloneObjectsByIds fail %s", err)
 		return nil
 	}
-	log.Errorf("Objs %s", jsonutils.Marshal(objs))
 	guestRows := manager.SGuestResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	log.Errorf("guestRows %s", jsonutils.Marshal(guestRows))
 
 	regionList := make([]interface{}, len(objs))
 	managerList := make([]interface{}, len(objs))

@@ -98,7 +98,7 @@ func (manager *SGuestResourceBaseManager) FetchCustomizeColumns(
 		var base *SGuestResourceBase
 		err := reflectutils.FindAnonymouStructPointer(objs[i], &base)
 		if err != nil {
-			log.Errorf("Cannot find SGuestResourceBase in object %s", objs[i])
+			log.Errorf("Cannot find SGuestResourceBase in object %s %s", objs[i], err)
 			continue
 		}
 		guestIds[i] = base.GuestId
