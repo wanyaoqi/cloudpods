@@ -297,10 +297,6 @@ type SecurityGroupResourceInfo struct {
 	// 安全组名称
 	Secgroup string `json:"secgroup"`
 
-	// VPC ID
-	VpcId string `json:"vpc_id"`
-	Vpc   string `json:"vpc"`
-
 	// VPC归属区域ID
 	CloudregionId string `json:"cloudregion_id"`
 
@@ -347,6 +343,17 @@ type GuestnetworksecgroupDetails struct {
 	SGuestsecgroup
 
 	SecurityGroupResourceInfo
+
+	ProjectId string `json:"tenant_id"`
+
+	apis.ProjectizedResourceInfo
+
+	// 安全组状态
+	SecgroupStatus string `json:"secgroup_status"`
+
+	// VPC ID
+	VpcId string `json:"vpc_id"`
+	Vpc   string `json:"vpc"`
 
 	NetworkIndex int    `json:"network_index"`
 	GuestNetwork string `json:"guest_network"`

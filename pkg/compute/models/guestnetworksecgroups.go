@@ -20,8 +20,8 @@ import (
 	"strconv"
 
 	"gopkg.in/fatih/set.v0"
-
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
@@ -151,15 +151,58 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 	isList bool,
 ) []api.GuestnetworksecgroupDetails {
 	rows := make([]api.GuestnetworksecgroupDetails, len(objs))
+	secgrpIds := make([]string, len(objs))
+	for i := range objs {
+		secgrpIds[i] = objs[i].(*SGuestnetworksecgroup).SecgroupId
+	}
 
+	groups := make(map[string]SSecurityGroup)
+	err := db.FetchStandaloneObjectsByIds(SecurityGroupManager, secgrpIds, groups)
+	if err != nil {
+		log.Errorf("FetchStandaloneObjectsByIds fail %s", err)
+		return nil
+	}
 	guestRows := manager.SGuestResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	secgroupRows := manager.SSecurityGroupResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+
+	regionList := make([]interface{}, 0)
+	managerList := make([]interface{}, 0)
+	vpcList := make([]interface{}, 0)
+	projectList := make([]interface{}, 0)
 	for i := range rows {
+		secgroupId := objs[i].(*SGuestnetworksecgroup).SecgroupId
 		rows[i].GuestResourceInfo = guestRows[i]
 		rows[i].NetworkIndex = objs[i].(*SGuestnetworksecgroup).NetworkIndex
 		rows[i].Admin = objs[i].(*SGuestnetworksecgroup).Admin
-		rows[i].SecurityGroupResourceInfo = secgroupRows[i]
-		rows[i].GuestNetwork = path.Join(objs[i].(*SGuestnetworksecgroup).GuestId, strconv.Itoa(rows[i].NetworkIndex))
+		rows[i].GuestNetwork = path.Join(objs[i].(*SGuestnetworksecgroup).GuestId, secgroupId, strconv.Itoa(rows[i].NetworkIndex))
+		if group, ok := groups[secgrpIds[i]]; ok {
+			rows[i].Secgroup = group.Name
+			rows[i].CloudregionId = group.CloudregionId
+			rows[i].ManagerId = group.ManagerId
+			rows[i].VpcId = group.VpcId
+			rows[i].SecgroupStatus = group.Status
+			rows[i].ProjectId = group.ProjectId
+
+			secgroup := group
+			projectList[i] = &secgroup
+		}
+		regionList[i] = &SCloudregionResourceBase{rows[i].CloudregionId}
+		managerList[i] = &SManagedResourceBase{rows[i].ManagerId}
+		vpcList[i] = &SVpcResourceBase{rows[i].VpcId}
+
+	}
+	projRows := SecurityGroupManager.SProjectizedResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, projectList, fields, isList)
+	for i := range rows {
+		rows[i].ProjectizedResourceInfo = projRows[i]
+	}
+
+	regionRows := manager.SCloudregionResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, regionList, fields, isList)
+	managerRows := manager.SManagedResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, managerList, fields, isList)
+	vpcRows := manager.SVpcResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, vpcList, fields, isList)
+
+	for i := range rows {
+		rows[i].CloudregionResourceInfo = regionRows[i]
+		rows[i].ManagedResourceInfo = managerRows[i]
+		rows[i].Vpc = vpcRows[i].Vpc
 	}
 
 	return rows
