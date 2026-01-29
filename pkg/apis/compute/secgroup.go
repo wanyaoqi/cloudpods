@@ -348,7 +348,8 @@ type GuestnetworksecgroupDetails struct {
 
 	SecurityGroupResourceInfo
 
-	NetworkIndex int `json:"network_index"`
+	NetworkIndex int    `json:"network_index"`
+	GuestNetwork string `json:"guest_network"`
 
 	Admin bool `json:"admin"`
 }

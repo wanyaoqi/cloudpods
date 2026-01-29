@@ -16,6 +16,8 @@ package models
 
 import (
 	"context"
+	"path"
+	"strconv"
 
 	"gopkg.in/fatih/set.v0"
 
@@ -157,6 +159,7 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 		rows[i].NetworkIndex = objs[i].(*SGuestnetworksecgroup).NetworkIndex
 		rows[i].Admin = objs[i].(*SGuestnetworksecgroup).Admin
 		rows[i].SecurityGroupResourceInfo = secgroupRows[i]
+		rows[i].GuestNetwork = path.Join(rows[i].GuestId, strconv.Itoa(rows[i].NetworkIndex))
 	}
 
 	return rows
