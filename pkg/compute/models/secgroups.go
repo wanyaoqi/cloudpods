@@ -1010,6 +1010,7 @@ func (sm *SSecurityGroupManager) TotalCnt(secIds []string) (map[string]api.SSecu
 	g1SQ := sm.query(GuestsecgroupManager, "secgroup_id", "guest1", secIds)
 	g2SQ := sm.query(GuestManager, "secgrp_id", "guest2", secIds)
 	g3SQ := sm.query(GuestManager, "admin_secgrp_id", "guest3", secIds)
+	g4SQ := sm.query(GuestnetworksecgroupManager, "secgroup_id", "guest4", secIds)
 
 	rdsSQ := sm.query(DBInstanceSecgroupManager, "secgroup_id", "rds", secIds)
 	redisSQ := sm.query(ElasticcachesecgroupManager, "secgroup_id", "redis", secIds)
@@ -1023,6 +1024,7 @@ func (sm *SSecurityGroupManager) TotalCnt(secIds []string) (map[string]api.SSecu
 		sqlchemy.SUM("rds_cnt", rdsSQ.Field("rds")),
 		sqlchemy.SUM("redis_cnt", redisSQ.Field("redis")),
 		sqlchemy.SUM("loadbalancer_cnt", lbSQ.Field("loadbalancer")),
+		sqlchemy.SUM("guest_nic_cnt", g4SQ.Field("guest4")),
 	)
 
 	secQ.AppendField(secQ.Field("id"))
@@ -1033,6 +1035,7 @@ func (sm *SSecurityGroupManager) TotalCnt(secIds []string) (map[string]api.SSecu
 	secQ = secQ.LeftJoin(rdsSQ, sqlchemy.Equals(secQ.Field("id"), rdsSQ.Field("secgroup_id")))
 	secQ = secQ.LeftJoin(redisSQ, sqlchemy.Equals(secQ.Field("id"), redisSQ.Field("secgroup_id")))
 	secQ = secQ.LeftJoin(lbSQ, sqlchemy.Equals(secQ.Field("id"), lbSQ.Field("secgroup_id")))
+	secQ = secQ.LeftJoin(g4SQ, sqlchemy.Equals(secQ.Field("id"), rdsSQ.Field("secgroup_id")))
 
 	secQ = secQ.Filter(sqlchemy.In(secQ.Field("id"), secIds)).GroupBy(secQ.Field("id"))
 

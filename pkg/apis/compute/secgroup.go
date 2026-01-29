@@ -395,11 +395,12 @@ type SSecurityGroupRef struct {
 	RdsCnt          int `json:"rds_cnt"`
 	RedisCnt        int `json:"redis_cnt"`
 	LoadbalancerCnt int `json:"loadbalancer_cnt"`
+	GuestNicCnt     int `json:"guest_nic_cnt"`
 	TotalCnt        int `json:"total_cnt"`
 }
 
 func (self *SSecurityGroupRef) Sum() {
-	self.TotalCnt = self.GuestCnt + self.AdminGuestCnt + self.RdsCnt + self.RedisCnt + self.LoadbalancerCnt
+	self.TotalCnt = self.GuestCnt + self.AdminGuestCnt + self.RdsCnt + self.RedisCnt + self.LoadbalancerCnt + self.GuestNicCnt
 }
 
 type SecurityGroupSyncstatusInput struct {

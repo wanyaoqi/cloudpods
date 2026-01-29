@@ -163,6 +163,7 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 		return nil
 	}
 	guestRows := manager.SGuestResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	log.Errorf("guestRows %s", jsonutils.Marshal(guestRows))
 
 	regionList := make([]interface{}, len(objs))
 	managerList := make([]interface{}, len(objs))
