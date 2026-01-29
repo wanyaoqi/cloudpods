@@ -20,7 +20,6 @@ import (
 	"gopkg.in/fatih/set.v0"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
@@ -152,24 +151,12 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 	rows := make([]api.GuestnetworksecgroupDetails, len(objs))
 
 	guestRows := manager.SGuestResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	secgroupIds := make([]string, len(rows))
+	secgroupRows := manager.SSecurityGroupResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	for i := range rows {
 		rows[i].GuestResourceInfo = guestRows[i]
 		rows[i].NetworkIndex = objs[i].(*SGuestnetworksecgroup).NetworkIndex
 		rows[i].Admin = objs[i].(*SGuestnetworksecgroup).Admin
-		secgroupIds[i] = objs[i].(*SGuestnetworksecgroup).SecgroupId
-	}
-
-	secgroupIdMaps, err := db.FetchIdNameMap2(SecurityGroupManager, secgroupIds)
-	if err != nil {
-		log.Errorf("FetchIdNameMap2 fail %s", err)
-		return rows
-	}
-
-	for i := range rows {
-		if name, ok := secgroupIdMaps[secgroupIds[i]]; ok {
-			rows[i].Secgroup = name
-		}
+		rows[i].SecurityGroupResourceInfo = secgroupRows[i]
 	}
 
 	return rows

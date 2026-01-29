@@ -399,6 +399,7 @@ func (manager *SSecurityGroupManager) FetchCustomizeColumns(
 	adminGuestMaps := map[string]int{}
 	systemGuestMaps := map[string]int{}
 	normalGuestMaps := map[string]int{}
+	guestNetworkMaps := map[string]int{}
 	for i := range guests {
 		if guests[i].IsSystem {
 			if _, ok := systemGuestMaps[guests[i].SecgrpId]; !ok {
@@ -445,6 +446,22 @@ func (manager *SSecurityGroupManager) FetchCustomizeColumns(
 		return rows
 	}
 
+	gnq := GuestnetworksecgroupManager.Query()
+	gq := GuestManager.Query().IsFalse("pending_deleted").SubQuery()
+	gnq = gnq.Join(gq, sqlchemy.Equals(gnq.Field("guest_id"), gq.Field("id")))
+	guestNetworkSecgroups := []SGuestnetworksecgroup{}
+	err = db.FetchModelObjects(GuestnetworksecgroupManager, gnq, &guestNetworkSecgroups)
+	if err != nil {
+		log.Errorf("db.FetchModelObjects error: %v", err)
+		return rows
+	}
+	for i := range guestNetworkSecgroups {
+		if _, ok := guestNetworkMaps[guestNetworkSecgroups[i].SecgroupId]; !ok {
+			guestNetworkMaps[guestNetworkSecgroups[i].SecgroupId] = 0
+		}
+		guestNetworkMaps[guestNetworkSecgroups[i].SecgroupId]++
+	}
+
 	totalCnt, err := manager.TotalCnt(secgroupIds)
 	if err != nil {
 		return rows
@@ -453,6 +470,7 @@ func (manager *SSecurityGroupManager) FetchCustomizeColumns(
 		rows[i].GuestCnt, _ = normalGuestMaps[secgroupIds[i]]
 		rows[i].AdminGuestCnt, _ = adminGuestMaps[secgroupIds[i]]
 		rows[i].SystemGuestCnt, _ = systemGuestMaps[secgroupIds[i]]
+		rows[i].GuestNicCnt, _ = guestNetworkMaps[secgroupIds[i]]
 		if cnt, ok := totalCnt[secgroupIds[i]]; ok {
 			rows[i].TotalCnt = cnt.TotalCnt
 			rows[i].LoadbalancerCnt = cnt.LoadbalancerCnt

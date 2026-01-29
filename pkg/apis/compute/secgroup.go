@@ -272,6 +272,9 @@ type SecgroupDetails struct {
 	// 关联云主机数量, 不包含回收站云主机
 	GuestCnt int `json:"guest_cnt,allowempty"`
 
+	// 关联云主机网卡数量, 不包含回收站云主机
+	GuestNicCnt int `json:"guest_nic_cnt,allowempty"`
+
 	// 关联此安全组的云主机is_system为true数量, , 不包含回收站云主机
 	SystemGuestCnt int `json:"system_guest_cnt,allowempty"`
 
@@ -293,6 +296,10 @@ type SecgroupDetails struct {
 type SecurityGroupResourceInfo struct {
 	// 安全组名称
 	Secgroup string `json:"secgroup"`
+
+	// VPC ID
+	VpcId string `json:"vpc_id"`
+	Vpc   string `json:"vpc"`
 
 	// VPC归属区域ID
 	CloudregionId string `json:"cloudregion_id"`
@@ -339,8 +346,7 @@ type GuestnetworksecgroupDetails struct {
 
 	SGuestsecgroup
 
-	// 安全组名称
-	Secgroup string `json:"secgroup"`
+	SecurityGroupResourceInfo
 
 	NetworkIndex int `json:"network_index"`
 

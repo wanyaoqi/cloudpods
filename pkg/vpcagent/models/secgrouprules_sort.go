@@ -42,15 +42,6 @@ func (el *Guest) OrderedSecurityGroupRules() []*SecurityGroupRule {
 				Action:    string(secrules.SecurityRuleAllow),
 			},
 		},
-		{
-			// allow in-bound icmp traffic
-			SSecurityGroupRule: compute_models.SSecurityGroupRule{
-				Priority:  3,
-				Direction: string(secrules.SecurityRuleIngress),
-				Protocol:  secrules.PROTO_ICMP,
-				Action:    string(secrules.SecurityRuleAllow),
-			},
-		},
 	}
 	for _, secgroup := range el.SecurityGroups {
 		rs = append(rs, secgroup.securityGroupRules(100)...)

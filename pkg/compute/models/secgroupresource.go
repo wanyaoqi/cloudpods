@@ -39,6 +39,7 @@ type SSecurityGroupResourceBase struct {
 type SSecurityGroupResourceBaseManager struct {
 	SCloudregionResourceBaseManager
 	SManagedResourceBaseManager
+	SVpcResourceBaseManager
 }
 
 func ValidateSecurityGroupResourceInput(ctx context.Context, userCred mcclient.TokenCredential, query api.SecgroupResourceInput) (*SSecurityGroup, api.SecgroupResourceInput, error) {
@@ -91,22 +92,32 @@ func (manager *SSecurityGroupResourceBaseManager) FetchCustomizeColumns(
 
 	regionList := make([]interface{}, len(rows))
 	managerList := make([]interface{}, len(rows))
+	vpcIds := make([]string, len(rows))
 	for i := range rows {
 		rows[i] = api.SecurityGroupResourceInfo{}
 		if group, ok := groups[secgrpIds[i]]; ok {
 			rows[i].Secgroup = group.Name
 			rows[i].CloudregionId = group.CloudregionId
 			rows[i].ManagerId = group.ManagerId
+			rows[i].VpcId = group.VpcId
 		}
 		regionList[i] = &SCloudregionResourceBase{rows[i].CloudregionId}
 		managerList[i] = &SManagedResourceBase{rows[i].ManagerId}
+		vpcIds[i] = rows[i].VpcId
 	}
 
 	regionRows := manager.SCloudregionResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, regionList, fields, isList)
 	managerRows := manager.SManagedResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, managerList, fields, isList)
+	vpcIdMaps, err := db.FetchIdNameMap2(VpcManager, vpcIds)
+	if err != nil {
+		log.Errorf("FetchIdNameMap2 fail %s", err)
+		return rows
+	}
+
 	for i := range rows {
 		rows[i].CloudregionResourceInfo = regionRows[i]
 		rows[i].ManagedResourceInfo = managerRows[i]
+		rows[i].Vpc, _ = vpcIdMaps[rows[i].VpcId]
 	}
 
 	return rows
