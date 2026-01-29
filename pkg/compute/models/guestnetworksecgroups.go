@@ -61,7 +61,7 @@ func init() {
 type SGuestnetworksecgroup struct {
 	db.SResourceBase
 
-	SGuestResourceBase         string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+	GuestId                    string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 	SSecurityGroupResourceBase `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required"`
 	NetworkIndex               int `nullable:"false" list:"user" update:"user"`
 
@@ -151,9 +151,11 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 	isList bool,
 ) []api.GuestnetworksecgroupDetails {
 	rows := make([]api.GuestnetworksecgroupDetails, len(objs))
+	guestList := make([]interface{}, len(objs))
 	secgrpIds := make([]string, len(objs))
 	for i := range objs {
 		secgrpIds[i] = objs[i].(*SGuestnetworksecgroup).SecgroupId
+		guestList[i] = &SGuestResourceBase{objs[i].(*SGuestnetworksecgroup).GuestId}
 	}
 
 	groups := make(map[string]SSecurityGroup)
