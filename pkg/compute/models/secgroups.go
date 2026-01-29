@@ -1035,7 +1035,7 @@ func (sm *SSecurityGroupManager) TotalCnt(secIds []string) (map[string]api.SSecu
 	secQ = secQ.LeftJoin(rdsSQ, sqlchemy.Equals(secQ.Field("id"), rdsSQ.Field("secgroup_id")))
 	secQ = secQ.LeftJoin(redisSQ, sqlchemy.Equals(secQ.Field("id"), redisSQ.Field("secgroup_id")))
 	secQ = secQ.LeftJoin(lbSQ, sqlchemy.Equals(secQ.Field("id"), lbSQ.Field("secgroup_id")))
-	secQ = secQ.LeftJoin(g4SQ, sqlchemy.Equals(secQ.Field("id"), rdsSQ.Field("secgroup_id")))
+	secQ = secQ.LeftJoin(g4SQ, sqlchemy.Equals(secQ.Field("id"), g4SQ.Field("secgroup_id")))
 
 	secQ = secQ.Filter(sqlchemy.In(secQ.Field("id"), secIds)).GroupBy(secQ.Field("id"))
 
