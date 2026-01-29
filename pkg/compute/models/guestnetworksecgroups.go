@@ -61,7 +61,7 @@ func init() {
 type SGuestnetworksecgroup struct {
 	db.SResourceBase
 
-	GuestId                    string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+	SGuestResourceBase         string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 	SSecurityGroupResourceBase `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required"`
 	NetworkIndex               int `nullable:"false" list:"user" update:"user"`
 
