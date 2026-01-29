@@ -164,10 +164,10 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 	}
 	guestRows := manager.SGuestResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 
-	regionList := make([]interface{}, 0)
-	managerList := make([]interface{}, 0)
-	vpcList := make([]interface{}, 0)
-	projectList := make([]interface{}, 0)
+	regionList := make([]interface{}, len(objs))
+	managerList := make([]interface{}, len(objs))
+	vpcList := make([]interface{}, len(objs))
+	projectList := make([]interface{}, len(objs))
 	for i := range rows {
 		secgroupId := objs[i].(*SGuestnetworksecgroup).SecgroupId
 		rows[i].GuestResourceInfo = guestRows[i]
