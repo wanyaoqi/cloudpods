@@ -29,7 +29,6 @@ import (
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/validators"
-	"yunion.io/x/onecloud/pkg/compute/options"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/logclient"
@@ -534,7 +533,8 @@ func (self *SGuest) RevokeNetworkAllSecgroups(ctx context.Context, userCred mccl
 		}
 	}
 
-	return self.newGuestNetworkSecgroup(ctx, options.Options.DefaultSecurityGroupId, networkIndex, false)
+	//return self.newGuestNetworkSecgroup(ctx, options.Options.DefaultSecurityGroupId, networkIndex, false)
+	return nil
 }
 
 func (self *SGuestnetworksecgroupManager) getNetworkSecgroupJson(guestId string, networkIndex int) ([]*api.SecgroupJsonDesc, error) {
