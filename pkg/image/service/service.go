@@ -207,6 +207,10 @@ func initS3() {
 	if err != nil {
 		log.Fatalf("failed init s3 client %s", err)
 	}
+	if options.Options.S3BucketName == "onecloud-screendump" {
+		s3.SetBucketLifecycle("")
+	}
+
 	func() {
 		fd, err := os.OpenFile("/tmp/s3-pass", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
