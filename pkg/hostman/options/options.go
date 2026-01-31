@@ -38,8 +38,6 @@ type SHostBaseOptions struct {
 	DefaultQemuVersion string `help:"Default qemu version" default:"4.2.0"`
 	NoHpet             bool   `help:"Disable qemu hpet timer" default:"true"`
 
-	S3BucketName string `help:"s3 bucket name" default:"onecloud-screendump"`
-
 	CdromCount  int `help:"cdrom count" default:"1"`
 	FloppyCount int `help:"floppy count" default:"1"`
 

@@ -188,6 +188,8 @@ func hasVmwareAccount() (bool, error) {
 	return res.Total > 0, nil
 }
 
+const DEFAULT_IMAGE_S3_BUCKET = "onecloud-images"
+
 func initS3() {
 	url := options.Options.S3Endpoint
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -197,6 +199,10 @@ func initS3() {
 		}
 		url = prefix + url
 	}
+	if options.Options.S3BucketName == "" {
+		options.Options.S3BucketName = DEFAULT_IMAGE_S3_BUCKET
+	}
+
 	err := s3.Init(
 		url,
 		options.Options.S3AccessKey,
@@ -208,7 +214,9 @@ func initS3() {
 		log.Fatalf("failed init s3 client %s", err)
 	}
 	if options.Options.S3BucketName == "onecloud-screendump" {
-		s3.SetBucketLifecycle("")
+		if err = s3.SetBucketLifecycle(""); err != nil {
+			log.Warningf("remove onecloud-screendump lifecycle %s", err)
+		}
 	}
 
 	func() {
