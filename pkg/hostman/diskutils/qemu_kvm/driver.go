@@ -36,6 +36,7 @@ import (
 	"yunion.io/x/onecloud/pkg/util/netutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/qemuimg"
+	"yunion.io/x/onecloud/pkg/util/seclib2"
 	"yunion.io/x/onecloud/pkg/util/qemutils"
 	"yunion.io/x/onecloud/pkg/util/ssh"
 	"yunion.io/x/onecloud/pkg/util/sysutils"
@@ -59,7 +60,59 @@ var (
 	DEPLOYER_BIN       = "/opt/yunion/bin/host-deployer --config /opt/yunion/host.conf"
 	DEPLOY_PARAMS_FILE = "/deploy_params"
 	YUNIONOS_PASSWD    = "mosbaremetal"
+
+	// 部署虚机默认添加一个 virtio-blk 的 swap 盘，在虚机内呈现为 vda（因数据盘均为 scsi，为 sda/sdb...）
+	DEFAULT_SWAP_SIZE_MB = 10240 // 10G
+	SWAP_DISK_DIR        = "swap"
 )
+
+var (
+	swapPoolMu   sync.Mutex
+	swapInUse    = make(map[int]bool)
+	swapNextIdx  int
+)
+
+func getSwapPath() (string, int, error) {
+	swapPoolMu.Lock()
+	defer swapPoolMu.Unlock()
+	idx := 0
+	for swapInUse[idx] {
+		idx++
+	}
+	swapInUse[idx] = true
+	if idx >= swapNextIdx {
+		swapNextIdx = idx + 1
+	}
+
+	swapDir := path.Join(RUN_ON_HOST_ROOT_PATH, SWAP_DISK_DIR)
+	if err := procutils.NewCommand("mkdir", "-p", swapDir).Run(); err != nil {
+		swapInUse[idx] = false
+		return "", -1, errors.Wrap(err, "mkdir swap dir")
+	}
+	swapPath := path.Join(swapDir, fmt.Sprintf("swap_%d.qcow2", idx))
+	if !fileutils2.Exists(swapPath) {
+		img, err := qemuimg.NewQemuImage(swapPath)
+		if err != nil {
+			swapInUse[idx] = false
+			return "", -1, errors.Wrap(err, "NewQemuImage swap")
+		}
+		if err = img.CreateQcow2(DEFAULT_SWAP_SIZE_MB, false, "", "", qemuimg.TEncryptFormat(""), seclib2.TSymEncAlg("")); err != nil {
+			swapInUse[idx] = false
+			return "", -1, errors.Wrap(err, "CreateQcow2 swap")
+		}
+		log.Infof("created swap disk %s size %dMB", swapPath, DEFAULT_SWAP_SIZE_MB)
+	}
+	return swapPath, idx, nil
+}
+
+func releaseSwapIndex(index int) {
+	if index < 0 {
+		return
+	}
+	swapPoolMu.Lock()
+	defer swapPoolMu.Unlock()
+	delete(swapInUse, index)
+}
 
 type QemuDeployManager struct {
 	cpuArch         string
@@ -272,6 +325,9 @@ type QemuKvmDriver struct {
 	partitions    []fsdriver.IDiskPartition
 	lvmPartitions []fsdriver.IDiskPartition
 	diskId        string
+
+	swapPath  string // virtio-blk swap 盘路径，虚机内为 /dev/vda
+	swapIndex int    // swap 池下标，Disconnect 时释放，-1 表示未使用
 }
 
 func NewQemuKvmDriver(imageInfo qemuimg.SImageInfo) *QemuKvmDriver {
@@ -292,13 +348,26 @@ func (d *QemuKvmDriver) Connect(desc *apis.GuestDesc, diskId string) error {
 	return nil
 }
 
-func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc, diskId string) error {
+func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc, diskId string) (err error) {
 	var (
 		ncpu      = 2
 		memSizeMB = manager.getMemSizeMb()
 		disks     = make([]string, 0)
 		diskIds   = make([]string, 0)
 	)
+
+	// 部署虚机均为 scsi 盘（sda/sdb...），添加一个 virtio-blk swap 盘以在虚机内呈现为 vda；按 connect 顺序复用 swap qcow2
+	swapPath, swapIndex, err := getSwapPath()
+	if err != nil {
+		return errors.Wrap(err, "getSwapPath")
+	}
+	d.swapPath, d.swapIndex = swapPath, swapIndex
+	defer func() {
+		if err != nil && d.swapIndex >= 0 {
+			releaseSwapIndex(d.swapIndex)
+			d.swapIndex = -1
+		}
+	}()
 
 	var sshport = manager.GetSshFreePort()
 	defer manager.unsetPort(sshport)
@@ -316,7 +385,7 @@ func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc, diskId string) error 
 		diskIds = append(diskIds, diskId)
 	}
 
-	err := d.qemuArchDriver.StartGuest(sshport, ncpu, memSizeMB, manager.hugepage, manager.hugepageSizeKB, d.imageInfo, disks, diskIds)
+	err = d.qemuArchDriver.StartGuest(sshport, ncpu, memSizeMB, manager.hugepage, manager.hugepageSizeKB, d.imageInfo, disks, diskIds, swapPath)
 	if err != nil {
 		return err
 	}
@@ -341,6 +410,21 @@ func (d *QemuKvmDriver) connect(guestDesc *apis.GuestDesc, diskId string) error 
 	if err != nil {
 		return errors.Wrapf(err, "failed mount iso /dev/sr0: %v", out)
 	}
+
+	// 在部署虚机内通过 SSH 激活 swap（vda 为 virtio-blk 盘）
+	if d.swapPath != "" {
+		waitVda := "for i in 1 2 3 4 5 6 7 8 9 10; do test -b /dev/vda && break; sleep 1; done"
+		if _, err = d.sshRun(waitVda); err != nil {
+			log.Warningf("wait /dev/vda: %v", err)
+		}
+		// mkswap 若已格式化会报错，忽略；swapon 激活
+		d.sshRun("mkswap -f /dev/vda 2>/dev/null || true")
+		if out, e := d.sshRun("swapon /dev/vda"); e != nil {
+			log.Warningf("swapon /dev/vda: %v, out: %v", e, out)
+		} else {
+			log.Infof("swap /dev/vda activated in deploy guest")
+		}
+	}
 	return nil
 }
 
@@ -349,6 +433,10 @@ func (d *QemuKvmDriver) Disconnect() error {
 		d.sshClient.Close()
 	}
 
+	if d.swapIndex >= 0 {
+		releaseSwapIndex(d.swapIndex)
+		d.swapIndex = -1
+	}
 	d.qemuArchDriver.CleanGuest()
 	d.qemuArchDriver = nil
 	return nil
@@ -622,7 +710,7 @@ func (d *QemuBaseDriver) CleanGuest() {
 
 func (d *QemuBaseDriver) startCmds(
 	sshPort, ncpu, memSizeMB int, imageInfo qemuimg.SImageInfo, disksPath, diskIds []string,
-	machineOpts, cdromDeviceOpts, fwOpts, socketPath, initrdPath, kernelPath string,
+	machineOpts, cdromDeviceOpts, fwOpts, socketPath, initrdPath, kernelPath, swapPath string,
 ) string {
 	cmd := manager.qemuCmd
 
@@ -676,6 +764,11 @@ func (d *QemuBaseDriver) startCmds(
 		cmd += diskDrive
 		cmd += __("-device scsi-hd,drive=drive_%d,bus=scsi.0,id=drive_%d,serial=%s", i, i, strings.ReplaceAll(diskIds[i], "-", ""))
 	}
+	// 添加 virtio-blk swap 盘，虚机内呈现为 vda（数据盘均为 scsi 为 sda/sdb...）
+	if swapPath != "" {
+		cmd += __("-drive file=%s,if=none,id=drive_swap,cache=none", swapPath)
+		cmd += __("-device virtio-blk-pci,drive=drive_swap")
+	}
 	cmd += __("-drive id=cd0,if=none,media=cdrom,file=%s", DEPLOY_ISO)
 	cmd += cdromDeviceOpts
 
@@ -686,7 +779,7 @@ type QemuX86Driver struct {
 	QemuBaseDriver
 }
 
-func (d *QemuX86Driver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, pageSizeKB int, imageInfo qemuimg.SImageInfo, disksPath, diskIds []string) error {
+func (d *QemuX86Driver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, pageSizeKB int, imageInfo qemuimg.SImageInfo, disksPath, diskIds []string, swapPath string) error {
 	uuid := stringutils.UUID4()
 	socketPath := fmt.Sprintf("/opt/cloud/host-deployer/hmp_%s.socket", uuid)
 	d.pidPath = fmt.Sprintf("/opt/cloud/host-deployer/%s.pid", uuid)
@@ -706,6 +799,7 @@ func (d *QemuX86Driver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, 
 		socketPath,
 		manager.GetX86InitrdPath(),
 		manager.GetX86KernelPath(),
+		swapPath,
 	)
 
 	log.Infof("start guest %s", cmd)
@@ -742,7 +836,7 @@ type QemuARMDriver struct {
 	QemuBaseDriver
 }
 
-func (d *QemuARMDriver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, pageSizeKB int, imageInfo qemuimg.SImageInfo, disksPath, diskIds []string) error {
+func (d *QemuARMDriver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, pageSizeKB int, imageInfo qemuimg.SImageInfo, disksPath, diskIds []string, swapPath string) error {
 	uuid := stringutils.UUID4()
 	socketPath := fmt.Sprintf("/opt/cloud/host-deployer/hmp_%s.socket", uuid)
 	d.pidPath = fmt.Sprintf("/opt/cloud/host-deployer/%s.pid", uuid)
@@ -769,6 +863,7 @@ func (d *QemuARMDriver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, 
 		socketPath,
 		manager.GetARMInitrdPath(),
 		manager.GetARMKernelPath(),
+		swapPath,
 	)
 
 	log.Infof("start guest %s", cmd)
@@ -802,7 +897,7 @@ func (d *QemuARMDriver) StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, 
 }
 
 type IQemuArchDriver interface {
-	StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, pageSizeKB int, imageInfo qemuimg.SImageInfo, disksPath, diskIds []string) error
+	StartGuest(sshPort, ncpu, memSizeMB int, hugePage bool, pageSizeKB int, imageInfo qemuimg.SImageInfo, disksPath, diskIds []string, swapPath string) error
 	CleanGuest()
 }
 
