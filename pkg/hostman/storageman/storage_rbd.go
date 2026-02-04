@@ -381,11 +381,11 @@ func (s *SRbdStorage) getSnapshotSize(diskId string, snapshotId string) (int64, 
 	if err != nil {
 		return -1, errors.Wrapf(err, "GetImage")
 	}
-	snap, err := img.GetSnapshot(snapshotId)
+	snapSize, err := img.GetSnapshotUsedSize(diskId, snapshotId)
 	if err != nil {
 		return -1, errors.Wrapf(err, "GetSnapshot")
 	}
-	return snap.Size, nil
+	return snapSize, nil
 }
 
 func (s *SRbdStorage) SyncStorageSize() (api.SHostStorageStat, error) {

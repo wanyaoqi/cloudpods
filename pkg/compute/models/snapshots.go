@@ -488,6 +488,7 @@ func (manager *SSnapshotManager) ValidateCreateData(
 
 	input.DiskType = disk.DiskType
 	input.Size = disk.DiskSize
+	input.VirtualSize = disk.DiskSize
 	input.OsArch = disk.OsArch
 
 	storage, _ := disk.GetStorage()
