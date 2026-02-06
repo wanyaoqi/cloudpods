@@ -677,7 +677,6 @@ func (n *SGuestNetworkSyncTask) syncNetworkConf() {
 	} else {
 		func() {
 			if len(n.addNicMacs) > 0 || n.delNicCnt > 0 {
-				log.Errorf("QgaDeployNicsConfigure ==== 1 ")
 				// redeploy nics config after add/del nics
 				if err := n.guest.QgaDeployNicsConfigure(n.guest.Desc.Nics); err != nil {
 					log.Errorf("failed do QgaDeployNicsConfigure %s", err)
@@ -685,9 +684,8 @@ func (n *SGuestNetworkSyncTask) syncNetworkConf() {
 				}
 			}
 			if len(n.addNicMacs) > 0 {
-				log.Errorf("QgaDeployNicsConfigure ==== 2 ")
 				// try restart added nics, wait for added nic ready
-				time.Sleep(3 * time.Second)
+				time.Sleep(6 * time.Second)
 				if err := n.qgaRestartAddedNics(); err != nil {
 					log.Errorf("failed qgaRestartAddedNics %s", err)
 					return
@@ -704,7 +702,6 @@ func (n *SGuestNetworkSyncTask) qgaRestartAddedNics() error {
 	if err != nil {
 		return err
 	}
-	log.Errorf("addNicConfs %s", jsonutils.Marshal(n.addNicConfs))
 	for i := range n.addNicConfs {
 		if n.addNicConfs[i].Device != "" {
 			err = n.guest.guestAgent.QgaRestartNetwork(n.addNicConfs[i])
@@ -721,7 +718,6 @@ func (n *SGuestNetworkSyncTask) qgaGetAddedNicDevs() error {
 	if err != nil {
 		return errors.Wrap(err, "QgaGetNetwork")
 	}
-	log.Errorf("qga networks %s", data)
 	var parsedData []api.IfnameDetail
 	ifnames, err := jsonutils.Parse(data)
 	if err != nil {
@@ -731,7 +727,6 @@ func (n *SGuestNetworkSyncTask) qgaGetAddedNicDevs() error {
 	if err != nil {
 		return errors.Wrap(err, "unmarshal ifnames")
 	}
-	log.Errorf("added macs %s", jsonutils.Marshal(n.addNicMacs))
 	for i := range n.addNicMacs {
 		for j := range parsedData {
 			if n.addNicMacs[i] == parsedData[j].HardwareAddress {
