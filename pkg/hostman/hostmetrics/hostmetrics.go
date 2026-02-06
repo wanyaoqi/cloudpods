@@ -389,7 +389,7 @@ func (d *GuestMetrics) toTelegrafData(tags map[string]string) []string {
 	mapToStatStr := func(m map[string]interface{}) string {
 		var statArr = []string{}
 		for k, v := range m {
-			if len(k) == 0 || len(v) == 0 {
+			if vs, ok := v.(string); ok && len(vs) == 0 {
 				continue
 			}
 			statArr = append(statArr, fmt.Sprintf("%s=%v", k, v))
@@ -404,7 +404,7 @@ func (d *GuestMetrics) toTelegrafData(tags map[string]string) []string {
 	for i := range d.VmNetio {
 		netTagMap := d.VmNetio[i].ToTag()
 		for k, v := range netTagMap {
-			if vs, ok := v.(string); ok && len(vs) == 0 {
+			if len(k) == 0 || len(v) == 0 {
 				continue
 			}
 			tagStr = fmt.Sprintf("%s,%s=%s", tagStr, k, v)
