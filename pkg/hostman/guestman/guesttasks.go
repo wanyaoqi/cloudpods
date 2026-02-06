@@ -653,6 +653,12 @@ func (n *SGuestNetworkSyncTask) Start(callback func(...error)) {
 		}
 		n.addNicMacs = addNicMacs
 		n.addNicConfs = addNicConfs
+
+		// deploy nics configure before do add nics
+		allNics := append(n.addNics, n.guest.Desc.Nics...)
+		if err := n.guest.QgaDeployNicsConfigure(allNics); err != nil {
+			log.Errorf("failed do QgaDeployNicsConfigure %s", err)
+		}
 	}
 
 	n.delNicCnt = len(n.delNics)
@@ -671,6 +677,7 @@ func (n *SGuestNetworkSyncTask) syncNetworkConf() {
 	} else {
 		func() {
 			if len(n.addNicMacs) > 0 || n.delNicCnt > 0 {
+				// redeploy nics config after add/del nics
 				if err := n.guest.QgaDeployNicsConfigure(n.guest.Desc.Nics); err != nil {
 					log.Errorf("failed do QgaDeployNicsConfigure %s", err)
 					return
