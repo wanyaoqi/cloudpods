@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 
@@ -81,10 +82,20 @@ func imageSpec(pool, image string) string {
 	return fmt.Sprintf("%s/%s", pool, image)
 }
 
+// rbdDeviceInfo 表示 rbd device list 输出的单个设备信息
+type rbdDeviceInfo struct {
+	Id        int    `json:"id"`
+	Pool      string `json:"pool"`
+	Namespace string `json:"namespace"`
+	Image     string `json:"image"`
+	Snap      string `json:"snap"`
+	Device    string `json:"device"`
+}
+
 // listMappedDevices 执行 rbd device list 并解析已映射的设备
 // 返回 map[pool/image]devicePath，如 map["rbd/disk0"]="/dev/rbd0"
 func (r rbd) listMappedDevices(confPath, keyringPath string) (map[string]string, error) {
-	args := []string{"device", "list", "--format", "plain"}
+	args := []string{"device", "list", "--format", "json"}
 	if confPath != "" {
 		args = append(args, "--conf", confPath)
 	}
@@ -95,48 +106,27 @@ func (r rbd) listMappedDevices(confPath, keyringPath string) (map[string]string,
 	if err != nil {
 		return nil, errors.Wrapf(err, "rbd device list: %s", string(out))
 	}
-	// 解析输出，格式示例:
-	// id  pool  namespace  image   snap  device
-	// 0   rbd              myimage  -    /dev/rbd0
+	// 解析 JSON 输出
+	jsonObj, err := jsonutils.Parse(out)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parse rbd device list json output: %s", string(out))
+	}
+	devices, err := jsonObj.GetArray()
+	if err != nil {
+		return nil, errors.Wrapf(err, "get devices array from json: %s", string(out))
+	}
 	result := make(map[string]string)
-	lines := strings.Split(string(out), "\n")
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	for _, devObj := range devices {
+		devInfo := rbdDeviceInfo{}
+		if err := devObj.Unmarshal(&devInfo); err != nil {
+			log.Warningf("failed to unmarshal device info: %v, skip", err)
 			continue
 		}
-		fields := strings.Fields(line)
-		if len(fields) < 4 {
+		if devInfo.Pool == "" || devInfo.Image == "" || devInfo.Device == "" {
 			continue
 		}
-		// 跳过表头
-		if i == 0 && (fields[0] == "id" || fields[0] == "dev_id") {
-			continue
-		}
-		// 最后一列是 device
-		devCol := -1
-		for j, f := range fields {
-			if strings.HasPrefix(f, "/dev/") {
-				devCol = j
-				break
-			}
-		}
-		if devCol < 0 {
-			continue
-		}
-		device := fields[devCol]
-		// pool 通常在 device 前几列，image 在 pool 后
-		// 列顺序: id, pool, [namespace], image, snap, device -> 至少 5 列
-		if devCol >= 2 && len(fields) > devCol {
-			poolName := fields[1]
-			// namespace 可能为空，image 在 pool 后一或两列
-			imageName := fields[2]
-			if devCol >= 4 && len(fields) > 3 && fields[3] != "-" {
-				imageName = fields[3]
-			}
-			spec := imageSpec(poolName, imageName)
-			result[spec] = device
-		}
+		spec := imageSpec(devInfo.Pool, devInfo.Image)
+		result[spec] = devInfo.Device
 	}
 	return result, nil
 }
