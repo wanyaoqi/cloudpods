@@ -126,6 +126,10 @@ func (s *SKVMGuestInstance) IsKvmSupport() bool {
 	return s.manager.GetHost().IsKvmSupport()
 }
 
+func (s *SKVMGuestInstance) IsCpuHotPlugSupport() bool {
+	return s.manager.host.IsX8664()
+}
+
 func (s *SKVMGuestInstance) IsNestedVirt() bool {
 	return s.manager.GetHost().IsNestedVirtualization()
 }
@@ -934,36 +938,38 @@ func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
 	var cpuEnd = numaCpus - 1
 
 	var mems = make([]desc.SMemDesc, 0)
-	for i := 0; i < len(s.Desc.CpuNumaPin); i++ {
-		if s.Desc.CpuNumaPin[i].SizeMB <= 0 {
-			continue
-		}
+	if s.IsCpuHotPlugSupport() {
+		for i := 0; i < len(s.Desc.CpuNumaPin); i++ {
+			if s.Desc.CpuNumaPin[i].SizeMB <= 0 {
+				continue
+			}
 
-		numaMems += s.Desc.CpuNumaPin[i].SizeMB
-		memId := "mem"
-		nodeId := uint16(i)
-		if i > 0 {
-			memId += strconv.Itoa(i - 1)
-		}
+			numaMems += s.Desc.CpuNumaPin[i].SizeMB
+			memId := "mem"
+			nodeId := uint16(i)
+			if i > 0 {
+				memId += strconv.Itoa(i - 1)
+			}
 
-		if i == 0 {
-			cpuEnd += leastCpus
-		}
-		vcpus := fmt.Sprintf("%d-%d", cpuStart, cpuEnd)
+			if i == 0 {
+				cpuEnd += leastCpus
+			}
+			vcpus := fmt.Sprintf("%d-%d", cpuStart, cpuEnd)
 
-		for j := range s.Desc.CpuNumaPin[i].VcpuPin {
-			s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = cpuStart + j
-		}
+			for j := range s.Desc.CpuNumaPin[i].VcpuPin {
+				s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = cpuStart + j
+			}
 
-		cpuStart = cpuEnd + 1
-		cpuEnd = cpuStart + numaCpus - 1
+			cpuStart = cpuEnd + 1
+			cpuEnd = cpuStart + numaCpus - 1
 
-		if s.Desc.CpuNumaPin[i].Unregular {
-			continue
+			if s.Desc.CpuNumaPin[i].Unregular {
+				continue
+			}
+			memDesc := desc.NewMemDesc(s.memObjectType(), memId, &nodeId, &vcpus)
+			memDesc.Options = s.getMemObjectOptions(s.Desc.CpuNumaPin[i].SizeMB, s.Desc.Uuid, s.Desc.CpuNumaPin[i].NodeId)
+			mems = append(mems, *memDesc)
 		}
-		memDesc := desc.NewMemDesc(s.memObjectType(), memId, &nodeId, &vcpus)
-		memDesc.Options = s.getMemObjectOptions(s.Desc.CpuNumaPin[i].SizeMB, s.Desc.Uuid, s.Desc.CpuNumaPin[i].NodeId)
-		mems = append(mems, *memDesc)
 	}
 	if len(mems) == 0 {
 		// numa mems not regular
