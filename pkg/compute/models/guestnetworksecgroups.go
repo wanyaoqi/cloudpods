@@ -214,6 +214,10 @@ func (manager *SGuestnetworksecgroupManager) FetchCustomizeColumns(
 			rows[i].IpAddr = gn.IpAddr
 			rows[i].Ip6Addr = gn.Ip6Addr
 			rows[i].Ifname = gn.Ifname
+			if network, _ := gn.GetNetwork(); network != nil {
+				rows[i].NetworkId = gn.NetworkId
+				rows[i].NetworkName = network.Name
+			}
 		}
 
 	}
