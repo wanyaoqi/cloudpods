@@ -27,6 +27,7 @@ var All = []SMeasurement{
 	netint,
 	nvidia,
 	processes,
+	procstat,
 	radeontop,
 	system,
 	vasmi,
