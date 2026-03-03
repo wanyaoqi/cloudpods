@@ -173,7 +173,8 @@ type SHostOptions struct {
 	SnapshotDirSuffix  string `help:"Snapshot dir name equal diskId concat snapshot dir suffix" default:"_snap"`
 	SnapshotRecycleDay int    `default:"1" help:"Snapshot Recycle delete Duration day"`
 
-	EnableTelegraf bool `default:"true" help:"enable send monitoring data to telegraf"`
+	EnableTelegraf         bool `default:"true" help:"enable send monitoring data to telegraf"`
+	EnableTelegrafProcStat bool `help:"enable telegraf collect proc stat"`
 
 	DisableSetCgroup bool `default:"false" help:"disable cgroup for guests"`
 

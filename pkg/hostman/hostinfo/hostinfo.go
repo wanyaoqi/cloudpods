@@ -2598,6 +2598,9 @@ func (h *SHostInfo) OnCatalogChanged(catalog mcclient.KeystoneServiceCatalogV3) 
 			"tsdb_type": tsdb.Type,
 		}
 	}
+	if options.HostOptions.EnableTelegrafProcStat {
+		conf["enable_procstat"] = struct{}{}
+	}
 	if !reflect.DeepEqual(telegraf.GetConf(), conf) || (!strings.Contains(svcs, "telegraf") && !telegraf.IsActive()) {
 		telegraf.SetConf(conf)
 		if !strings.Contains(svcs, "telegraf") {
