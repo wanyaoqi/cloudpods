@@ -86,6 +86,8 @@ func (*ARM) GenerateCpuDesc(cpus uint, cpuMax uint, s KVMGuestInstance) (*desc.S
 		accel = "tcg"
 		cpuType = "max"
 	}
+	cpuMax = cpus
+
 	return &desc.SGuestCpu{
 		Cpus:    cpus,
 		Sockets: ARM_SOCKETS,
