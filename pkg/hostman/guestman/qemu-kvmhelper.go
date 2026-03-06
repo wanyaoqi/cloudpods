@@ -126,7 +126,7 @@ func (s *SKVMGuestInstance) IsKvmSupport() bool {
 	return s.manager.GetHost().IsKvmSupport()
 }
 
-func (s *SKVMGuestInstance) IsCpuHotPlugSupport() bool {
+func (s *SKVMGuestInstance) IsSupportCpuHotplug() bool {
 	return s.manager.host.IsX8664()
 }
 
@@ -572,6 +572,8 @@ function nic_mtu() {
 		}
 	}
 
+	input.IsSupportCpuHotplug = s.IsSupportCpuHotplug()
+
 	// set rescue flag to input
 	if s.Desc.LightMode {
 		input.RescueInitrdPath = s.getRescueInitrdPath()
@@ -938,38 +940,36 @@ func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
 	var cpuEnd = numaCpus - 1
 
 	var mems = make([]desc.SMemDesc, 0)
-	if s.IsCpuHotPlugSupport() {
-		for i := 0; i < len(s.Desc.CpuNumaPin); i++ {
-			if s.Desc.CpuNumaPin[i].SizeMB <= 0 {
-				continue
-			}
-
-			numaMems += s.Desc.CpuNumaPin[i].SizeMB
-			memId := "mem"
-			nodeId := uint16(i)
-			if i > 0 {
-				memId += strconv.Itoa(i - 1)
-			}
-
-			if i == 0 {
-				cpuEnd += leastCpus
-			}
-			vcpus := fmt.Sprintf("%d-%d", cpuStart, cpuEnd)
-
-			for j := range s.Desc.CpuNumaPin[i].VcpuPin {
-				s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = cpuStart + j
-			}
-
-			cpuStart = cpuEnd + 1
-			cpuEnd = cpuStart + numaCpus - 1
-
-			if s.Desc.CpuNumaPin[i].Unregular {
-				continue
-			}
-			memDesc := desc.NewMemDesc(s.memObjectType(), memId, &nodeId, &vcpus)
-			memDesc.Options = s.getMemObjectOptions(s.Desc.CpuNumaPin[i].SizeMB, s.Desc.Uuid, s.Desc.CpuNumaPin[i].NodeId)
-			mems = append(mems, *memDesc)
+	for i := 0; i < len(s.Desc.CpuNumaPin); i++ {
+		if s.Desc.CpuNumaPin[i].SizeMB <= 0 {
+			continue
 		}
+
+		numaMems += s.Desc.CpuNumaPin[i].SizeMB
+		memId := "mem"
+		nodeId := uint16(i)
+		if i > 0 {
+			memId += strconv.Itoa(i - 1)
+		}
+
+		if i == 0 {
+			cpuEnd += leastCpus
+		}
+		vcpus := fmt.Sprintf("%d-%d", cpuStart, cpuEnd)
+
+		for j := range s.Desc.CpuNumaPin[i].VcpuPin {
+			s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = cpuStart + j
+		}
+
+		cpuStart = cpuEnd + 1
+		cpuEnd = cpuStart + numaCpus - 1
+
+		if s.Desc.CpuNumaPin[i].Unregular {
+			continue
+		}
+		memDesc := desc.NewMemDesc(s.memObjectType(), memId, &nodeId, &vcpus)
+		memDesc.Options = s.getMemObjectOptions(s.Desc.CpuNumaPin[i].SizeMB, s.Desc.Uuid, s.Desc.CpuNumaPin[i].NodeId)
+		mems = append(mems, *memDesc)
 	}
 	if len(mems) == 0 {
 		// numa mems not regular
