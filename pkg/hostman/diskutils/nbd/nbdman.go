@@ -59,6 +59,7 @@ func NewNBDManager() (*SNBDManager, error) {
 	}
 	ret.nbdChan = make(chan struct{}, len(ret.nbdDevs))
 
+	log.Errorf("nbdchan length %d", len(ret.nbdChan))
 	return ret, nil
 }
 
