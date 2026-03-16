@@ -59,7 +59,6 @@ func NewNBDManager() (*SNBDManager, error) {
 	}
 	ret.nbdChan = make(chan struct{}, len(ret.nbdDevs))
 
-	log.Errorf("nbdchan length %d", len(ret.nbdChan))
 	return ret, nil
 }
 
@@ -173,7 +172,7 @@ func (m *SNBDManager) findNbdDevices() error {
 }
 
 func (m *SNBDManager) AcquireNbddev() string {
-	if len(m.nbdChan) == 0 {
+	if len(m.nbdDevs) == 0 {
 		return ""
 	}
 
