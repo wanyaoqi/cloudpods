@@ -51,6 +51,10 @@ func GetQemuImg() string {
 	return getQemuCmd("qemu-img", "")
 }
 
+func GetQemuIo() string {
+	return getQemuCmd("qemu-io", "")
+}
+
 func getQemuCmd(cmd, version string) string {
 	if len(version) > 0 {
 		return getQemuCmdByVersion(cmd, version)

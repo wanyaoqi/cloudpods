@@ -24,6 +24,7 @@ import (
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/util/procutils"
+	"yunion.io/x/onecloud/pkg/util/qemutils"
 )
 
 type LvNames struct {
@@ -243,11 +244,12 @@ func LvResize(vg, lvPath string, size int64) error {
 
 // @param: lvPath string: should like /dev/<vg>/<lv>
 func LvRemove(lvPath string) error {
-	if out, err := procutils.NewCommand("dd", "if=/dev/zero", fmt.Sprintf("of=%s", lvPath), "bs=1M", "count=10").Output(); err != nil {
-		log.Errorf("failed dd zero to lv %s: %s %s", lvPath, out, err)
+	out, err := procutils.NewRemoteCommandAsFarAsPossible(qemutils.GetQemuIo(), "-f", "qcow2", lvPath, "-c", "write -z 0 10M").Output()
+	if err != nil {
+		log.Errorf("failed write zero to lv %s: %s %s", lvPath, out, err)
 	}
 
-	out, err := procutils.NewRemoteCommandAsFarAsPossible("lvm", "lvremove", lvPath, "-y").Output()
+	out, err = procutils.NewRemoteCommandAsFarAsPossible("lvm", "lvremove", lvPath, "-y").Output()
 	if err != nil {
 		return errors.Wrapf(err, "LvRemove failed %s", out)
 	}
