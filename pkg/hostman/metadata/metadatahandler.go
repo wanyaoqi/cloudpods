@@ -47,6 +47,10 @@ func Start(app *appsrv.Application, s *Service) {
 	app.ListenAndServeWithoutCleanup(addr, "", "")
 }
 
+// DescGetter resolves guest description by source IP (metadata DNAT client address).
+// For telegraf influx /write rewriting, the same concrete type may also implement
+// DescGetterByGuestId so vm_id tags can be checked against local guest desc; use
+// guestman.NewMetadataDescGetter when wiring metadata.Service.
 type DescGetter interface {
 	Get(ip string) (guestDesc *desc.SGuestDesc)
 }
@@ -343,6 +347,9 @@ func (s *Service) monitorReverseEndpoint() *proxy.SEndpointFactory {
 }
 
 func (s *Service) requestManipulator(ctx context.Context, r *http.Request) (*http.Request, error) {
+	if err := s.rewriteTelegrafInfluxBodyIfNeeded(ctx, r); err != nil {
+		return nil, err
+	}
 	path := r.URL.Path[len(s.monitorPrefix()):]
 	log.Debugf("Path: %s => %s", r.URL.Path, path)
 	r.URL = &url.URL{
