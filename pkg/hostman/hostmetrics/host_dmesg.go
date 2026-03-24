@@ -92,31 +92,53 @@ func (c *SHostDmesgCollector) Start() {
 
 	reader := bufio.NewReader(f)
 	for {
-		line, err := reader.ReadString('\n')
+		line1, err := reader.ReadString('\n')
 		if err != nil {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		line = strings.TrimSpace(line)
-		if line == "" {
+		line1 = strings.TrimSpace(line1)
+		if line1 == "" {
 			continue
 		}
+		var entry2 *compute.SKmsgEntry
+		for {
+			line2, err := reader.ReadString('\n')
+			if err != nil {
+				break
+			}
+			if len(line2) > 0 {
+				line2 = strings.TrimSpace(line2)
+				entry2, err = c.parseKmsgLine(line2, bootTime)
+				if err != nil {
+					line1 = line1 + line2
+				} else {
+					break
+				}
+			} else {
+				break
+			}
+		}
 
-		entry, err := c.parseKmsgLine(line, bootTime)
+		entry, err := c.parseKmsgLine(line1, bootTime)
 		if err != nil {
-			log.Debugf("failed parse kmsg line %s: %s", line, err)
+			log.Debugf("failed parse kmsg line %s: %s", line1, err)
 			continue
 		}
 		if entry.Seq <= lastSeq {
 			continue
 		}
+
 		// 只上传 warn 以上级别的日志
-		if entry.Level > 4 || c.isNoise(entry) {
+		if c.isNoise(entry) {
 			continue
 		}
 
 		c.mu.Lock()
 		c.buffer = append(c.buffer, *entry)
+		if entry2 != nil && !c.isNoise(entry2) {
+			c.buffer = append(c.buffer, *entry2)
+		}
 		if len(c.buffer) >= batchSize {
 			c.flushBuffer()
 		}
@@ -125,6 +147,9 @@ func (c *SHostDmesgCollector) Start() {
 }
 
 func (c *SHostDmesgCollector) isNoise(entry *compute.SKmsgEntry) bool {
+	if entry.Level > 4 {
+		return true
+	}
 	if strings.HasPrefix(entry.Message, "IPVS:") {
 		return true
 	}
