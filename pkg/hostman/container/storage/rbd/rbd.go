@@ -42,8 +42,6 @@ func (r rbd) GetType() storage.StorageType {
 	return storage.STORAGE_TYPE_RBD
 }
 
-// parseRbdPath 解析 diskPath，格式: "rbd:pool/image:conf=/path/to/ceph.conf"
-// 返回 pool, image, confPath, keyringPath
 func parseRbdPath(diskPath string) (pool, image, confPath, keyringPath string, err error) {
 	if !strings.HasPrefix(diskPath, "rbd:") {
 		return "", "", "", "", errors.Errorf("invalid rbd path: %s", diskPath)
@@ -77,12 +75,10 @@ func parseRbdPath(diskPath string) (pool, image, confPath, keyringPath string, e
 	return pool, image, confPath, keyringPath, nil
 }
 
-// imageSpec 返回 "pool/image" 用于 rbd 命令
 func imageSpec(pool, image string) string {
 	return fmt.Sprintf("%s/%s", pool, image)
 }
 
-// rbdDeviceInfo 表示 rbd device list 输出的单个设备信息
 type rbdDeviceInfo struct {
 	Id        int    `json:"id"`
 	Pool      string `json:"pool"`
@@ -92,8 +88,6 @@ type rbdDeviceInfo struct {
 	Device    string `json:"device"`
 }
 
-// listMappedDevices 执行 rbd device list 并解析已映射的设备
-// 返回 map[pool/image]devicePath，如 map["rbd/disk0"]="/dev/rbd0"
 func (r rbd) listMappedDevices(confPath, keyringPath string) (map[string]string, error) {
 	args := []string{"device", "list", "--format", "json"}
 	if confPath != "" {
@@ -106,7 +100,6 @@ func (r rbd) listMappedDevices(confPath, keyringPath string) (map[string]string,
 	if err != nil {
 		return nil, errors.Wrapf(err, "rbd device list: %s", string(out))
 	}
-	// 解析 JSON 输出
 	jsonObj, err := jsonutils.Parse(out)
 	if err != nil {
 		return nil, errors.Wrapf(err, "parse rbd device list json output: %s", string(out))
@@ -141,17 +134,17 @@ func (r rbd) CheckConnect(diskPath string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
+	log.Errorf("mapped %#v", mapped)
 	dev, ok := mapped[spec]
 	if !ok {
 		return "", false, nil
 	}
-	// 若存在分区则返回分区设备（与 local_raw 行为一致）
 	devPath := r.checkPartition(dev)
 	return devPath, true, nil
 }
 
 func (r rbd) checkPartition(devName string) string {
-	// /dev/rbd0 -> /dev/rbd0p1, /dev/rbd/pool/image -> /dev/rbd/pool/imagep1
+	// /dev/rbd0 -> /dev/rbd0p1
 	partPath := devName + "p1"
 	if fileutils2.Exists(partPath) {
 		return partPath
@@ -203,11 +196,9 @@ func (r rbd) DisconnectDisk(diskPath string, mountPoint string) error {
 		return err
 	}
 	spec := imageSpec(pool, image)
-	// 先尝试按设备 unmap（更可靠），否则按 image spec unmap
 	mapped, err := r.listMappedDevices(confPath, keyringPath)
 	if err != nil {
 		log.Warningf("rbd device list before unmap: %v", err)
-		// 仍尝试按 spec unmap
 		return r.unmapBySpec(spec, confPath, keyringPath)
 	}
 	dev, ok := mapped[spec]
