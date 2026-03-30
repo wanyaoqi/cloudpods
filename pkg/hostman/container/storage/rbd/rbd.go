@@ -115,10 +115,14 @@ func (r rbd) listMappedDevices(confPath, keyringPath string) (map[string]string,
 			log.Warningf("failed to unmarshal device info: %v, skip", err)
 			continue
 		}
-		if devInfo.Pool == "" || devInfo.Image == "" || devInfo.Device == "" {
+		image := devInfo.Image
+		if image == "" {
+			image = devInfo.Name
+		}
+		if devInfo.Pool == "" || image == "" || devInfo.Device == "" {
 			continue
 		}
-		spec := imageSpec(devInfo.Pool, devInfo.Image)
+		spec := imageSpec(devInfo.Pool, devInfo.image)
 		result[spec] = devInfo.Device
 	}
 	return result, nil
@@ -169,10 +173,8 @@ func (r rbd) ConnectDisk(diskPath string) (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "rbd device map %s: %s", spec, string(out))
 	}
-	// 输出可能是 "rbd0" 或 "/dev/rbd0"
 	devStr := strings.TrimSpace(string(out))
 	if devStr == "" {
-		// 部分版本不输出设备名，需要 list 再查一次
 		devPath, _, err := r.CheckConnect(diskPath)
 		if err != nil || devPath == "" {
 			return "", errors.Wrapf(err, "rbd map succeeded but device not found for %s", spec)
@@ -182,7 +184,6 @@ func (r rbd) ConnectDisk(diskPath string) (string, error) {
 	if !strings.HasPrefix(devStr, "/dev/") {
 		devStr = "/dev/" + devStr
 	}
-	// 去掉可能的后缀如 newline
 	devStr = strings.TrimSpace(devStr)
 	if idx := strings.Index(devStr, "\n"); idx > 0 {
 		devStr = devStr[:idx]
@@ -215,7 +216,6 @@ func (r rbd) DisconnectDisk(diskPath string, mountPoint string) error {
 		if strings.Contains(string(out), "not mapped") || strings.Contains(string(out), "No such device") {
 			return nil
 		}
-		// 回退为按 spec unmap（部分版本支持）
 		return r.unmapBySpec(spec, confPath, keyringPath)
 	}
 	log.Infof("rbd device unmap %s (image %s) ok", dev, spec)
