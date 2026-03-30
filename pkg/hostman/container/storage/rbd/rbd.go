@@ -84,6 +84,7 @@ type rbdDeviceInfo struct {
 	Pool      string `json:"pool"`
 	Namespace string `json:"namespace"`
 	Image     string `json:"image"`
+	Name      string `json:"name"`
 	Snap      string `json:"snap"`
 	Device    string `json:"device"`
 }
@@ -122,7 +123,7 @@ func (r rbd) listMappedDevices(confPath, keyringPath string) (map[string]string,
 		if devInfo.Pool == "" || image == "" || devInfo.Device == "" {
 			continue
 		}
-		spec := imageSpec(devInfo.Pool, devInfo.image)
+		spec := imageSpec(devInfo.Pool, image)
 		result[spec] = devInfo.Device
 	}
 	return result, nil
