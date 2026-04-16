@@ -26,7 +26,8 @@ import (
 func InitHandlers(app *appsrv.Application, isSlave bool) {
 	db.InitAllManagers()
 
-	app_common.ExportOptionsHandler(app, &options.Options)
+	opts := options.Get()
+	app_common.ExportOptionsHandler(app, opts)
 
 	db.RegisterModelManager(db.OpsLog)
 	db.RegisterModelManager(db.Metadata)
