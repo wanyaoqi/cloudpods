@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 
@@ -188,6 +189,7 @@ func getPassthroughUSBs() ([]*sUSBDevice, error) {
 		return nil, errors.Wrap(err, "parseLsusbTrees")
 	}
 
+	log.Errorf("trees %v", jsonutils.Marshal(trees))
 	// fitler linux root hub
 	retDev := make([]*sUSBDevice, 0)
 	for _, dev := range devs {
@@ -234,8 +236,12 @@ func checkIsUSBHubClassAndSetPortPath(dev *sUSBDevice, trees *sLsusbTrees) (bool
 	if treeDev == nil {
 		return false, errors.Errorf("not found dev %#v by bus %d, dev %d", dev.lsusbLine, busNum, devNum)
 	}
+	if utils.IsInStringArray(treeDev.Class, []string{"root_hub", "Hub"}) {
+		return true, nil
+	}
+
 	dev.SetPortPath(tree.GetPortPath(devNum))
-	return utils.IsInStringArray(treeDev.Class, []string{"root_hub", "Hub"}), nil
+	return false, nil
 }
 
 func parseLsusb(lines []string) ([]*sUSBDevice, error) {
