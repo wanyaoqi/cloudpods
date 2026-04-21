@@ -240,6 +240,7 @@ func checkIsUSBHubClassAndSetPortPath(dev *sUSBDevice, trees *sLsusbTrees) (bool
 		return true, nil
 	}
 
+	log.Errorf("portpath %s", tree.GetPortPath(devNum))
 	dev.SetPortPath(tree.GetPortPath(devNum))
 	return false, nil
 }
@@ -552,14 +553,15 @@ func (t *sLsusbTree) GetPortPath(devNum int) string {
 	}
 	found := false
 	for _, node := range t.Nodes {
-		if node.Dev == devNum {
-			found = true
-			break
-		}
 		if len(portPath) == 0 {
 			portPath = strconv.Itoa(node.Port)
 		} else {
 			portPath = fmt.Sprintf("%s.%d", portPath, node.Port)
+		}
+		log.Errorf("node %s", jsonutils.Marshal(node))
+		if node.Dev == devNum {
+			found = true
+			break
 		}
 	}
 	if !found {
