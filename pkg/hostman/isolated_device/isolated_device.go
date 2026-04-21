@@ -355,6 +355,13 @@ func (man *isolatedDeviceManager) GetDeviceByIdent(vendorDevId, addr, mdevId str
 		if dev.GetVendorDeviceId() == vendorDevId && dev.GetAddr() == addr && dev.GetMdevId() == mdevId {
 			return dev
 		}
+		if dev.GetDeviceType() == api.USB_TYPE {
+			raddrSplit := strings.Split(addr, ":")
+			saddrSplit := strings.Split(dev.GetAddr(), ":")
+			if len(raddrSplit) == 2 && raddrSplit[0] == saddrSplit[0] && raddrSplit[1] == saddrSplit[1] {
+				return dev
+			}
+		}
 	}
 	return nil
 }

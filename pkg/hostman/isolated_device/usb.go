@@ -32,6 +32,8 @@ import (
 type sUSBDevice struct {
 	*sBaseDevice
 	lsusbLine *sLsusbLine
+
+	PortPath string
 }
 
 // TODO: rename PCIDevice
@@ -39,6 +41,13 @@ func newUSBDevice(dev *PCIDevice, lsusbLine *sLsusbLine) *sUSBDevice {
 	return &sUSBDevice{
 		sBaseDevice: newBaseDevice(dev, api.USB_TYPE),
 		lsusbLine:   lsusbLine,
+	}
+}
+
+func (dev *sUSBDevice) SetPortPath(portPath string) {
+	dev.PortPath = portPath
+	if len(dev.PortPath) > 0 {
+		dev.dev.Addr = fmt.Sprintf("%s:%s", dev.dev.Addr, portPath)
 	}
 }
 
@@ -59,7 +68,7 @@ func GetUSBDevId(vendorId, devId, bus, addr string) string {
 	return fmt.Sprintf("dev_%s_%s-%s_%s", vendorId, devId, bus, addr)
 }
 
-func getUSBDevQemuOptions(vendorId, deviceId string, bus, addr string) (map[string]string, error) {
+func getUSBDevQemuOptions(vendorId, deviceId string, bus, addr, port string) (map[string]string, error) {
 	// id := GetUSBDevId(vendorId, deviceId, bus, addr)
 	busI, err := strconv.Atoi(bus)
 	if err != nil {
@@ -69,6 +78,13 @@ func getUSBDevQemuOptions(vendorId, deviceId string, bus, addr string) (map[stri
 	if err != nil {
 		return nil, errors.Wrapf(err, "parse addr to int %q", bus)
 	}
+	if len(port) > 0 {
+		return map[string]string{
+			"hostbus":  fmt.Sprintf("%d", busI),
+			"hostport": port,
+		}, nil
+	}
+
 	return map[string]string{
 		// "id": id,
 		// "bus":       "usb.0",
@@ -88,13 +104,17 @@ func GetUSBDevQemuOptions(vendorDevId string, addr string) (map[string]string, e
 	productId := parts[1]
 
 	addrParts := strings.Split(addr, ":")
-	if len(addrParts) != 2 {
+	if len(addrParts) != 2 || len(addrParts) != 3 {
 		return nil, fmt.Errorf("invalid addr %q", addr)
 	}
 	hostBus := addrParts[0]
 	hostAddr := addrParts[1]
+	hostPort := ""
+	if len(addrParts) == 3 {
+		hostPort = addrParts[3]
+	}
 
-	return getUSBDevQemuOptions(vendorId, productId, hostBus, hostAddr)
+	return getUSBDevQemuOptions(vendorId, productId, hostBus, hostAddr, hostPort)
 }
 
 func (dev *sUSBDevice) GetKernelDriver() (string, error) {
@@ -177,7 +197,7 @@ func getPassthroughUSBs() ([]*sUSBDevice, error) {
 		}
 
 		// check by trees
-		isHubClass, err := isUSBHubClass(dev, trees)
+		isHubClass, err := checkIsUSBHubClassAndSetPortPath(dev, trees)
 		if err != nil {
 			return nil, errors.Wrap(err, "check isUSBHubClass")
 		}
@@ -197,7 +217,7 @@ func isUSBLinuxRootHub(vendorId string, deviceId string) bool {
 	return false
 }
 
-func isUSBHubClass(dev *sUSBDevice, trees *sLsusbTrees) (bool, error) {
+func checkIsUSBHubClassAndSetPortPath(dev *sUSBDevice, trees *sLsusbTrees) (bool, error) {
 	busNum, err := dev.lsusbLine.GetBusNumber()
 	if err != nil {
 		return false, errors.Wrapf(err, "GetBusNumber of dev %#v", dev.lsusbLine)
@@ -214,7 +234,7 @@ func isUSBHubClass(dev *sUSBDevice, trees *sLsusbTrees) (bool, error) {
 	if treeDev == nil {
 		return false, errors.Errorf("not found dev %#v by bus %d, dev %d", dev.lsusbLine, busNum, devNum)
 	}
-
+	dev.SetPortPath(tree.GetPortPath(devNum))
 	return utils.IsInStringArray(treeDev.Class, []string{"root_hub", "Hub"}), nil
 }
 
@@ -514,6 +534,32 @@ func (t *sLsusbTree) GetContents() []string {
 		ret = append(ret, n.GetContents()...)
 	}
 	return ret
+}
+
+func (t *sLsusbTree) GetPortPath(devNum int) string {
+	var portPath string
+	if t.Dev == devNum {
+		if !t.IsRootBus && t.Port > 0 {
+			portPath = strconv.Itoa(t.Port)
+		}
+		return portPath
+	}
+	found := false
+	for _, node := range t.Nodes {
+		if node.Dev == devNum {
+			found = true
+			break
+		}
+		if len(portPath) == 0 {
+			portPath = strconv.Itoa(node.Port)
+		} else {
+			portPath = fmt.Sprintf("%s.%d", portPath, node.Port)
+		}
+	}
+	if !found {
+		return ""
+	}
+	return portPath
 }
 
 func (t *sLsusbTree) GetDevice(devNum int) *sLsusbTree {
