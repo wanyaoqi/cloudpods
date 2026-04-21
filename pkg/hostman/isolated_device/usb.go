@@ -559,6 +559,8 @@ func (t *sLsusbTree) GetPortPath(devNum int) string {
 			portPath = fmt.Sprintf("%s.%d", portPath, node.Port)
 		}
 		log.Errorf("node %s", jsonutils.Marshal(node))
+		log.Errorf("portpath %s", portPath)
+		log.Errorf("nodeDev %d devNum %d", node.Dev, devNum)
 		if node.Dev == devNum {
 			found = true
 			break
