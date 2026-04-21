@@ -105,7 +105,7 @@ func GetUSBDevQemuOptions(vendorDevId string, addr string) (map[string]string, e
 	productId := parts[1]
 
 	addrParts := strings.Split(addr, ":")
-	if len(addrParts) != 2 || len(addrParts) != 3 {
+	if len(addrParts) != 2 && len(addrParts) != 3 {
 		return nil, fmt.Errorf("invalid addr %q", addr)
 	}
 	hostBus := addrParts[0]
