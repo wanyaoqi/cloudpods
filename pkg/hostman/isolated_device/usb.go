@@ -112,7 +112,7 @@ func GetUSBDevQemuOptions(vendorDevId string, addr string) (map[string]string, e
 	hostAddr := addrParts[1]
 	hostPort := ""
 	if len(addrParts) == 3 {
-		hostPort = addrParts[3]
+		hostPort = addrParts[2]
 	}
 
 	return getUSBDevQemuOptions(vendorId, productId, hostBus, hostAddr, hostPort)
