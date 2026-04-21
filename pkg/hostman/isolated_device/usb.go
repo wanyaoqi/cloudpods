@@ -544,32 +544,33 @@ func (t *sLsusbTree) GetContents() []string {
 }
 
 func (t *sLsusbTree) GetPortPath(devNum int) string {
-	var portPath string
-	if t.Dev == devNum {
-		if !t.IsRootBus && t.Port > 0 {
-			portPath = strconv.Itoa(t.Port)
-		}
-		return portPath
-	}
-	found := false
-	for _, node := range t.Nodes {
-		if len(portPath) == 0 {
-			portPath = strconv.Itoa(node.Port)
-		} else {
-			portPath = fmt.Sprintf("%s.%d", portPath, node.Port)
-		}
-		log.Errorf("node %s", jsonutils.Marshal(node))
-		log.Errorf("portpath %s", portPath)
-		log.Errorf("nodeDev %d devNum %d", node.Dev, devNum)
-		if node.Dev == devNum {
-			found = true
-			break
-		}
-	}
+	portPath, found := t.GetDevicePortPath("", devNum)
 	if !found {
 		return ""
 	}
 	return portPath
+}
+
+func (t *sLsusbTree) GetDevicePortPath(portPath string, devNum int) (string, bool) {
+	if !t.IsRootBus {
+		if len(portPath) > 0 {
+			portPath = fmt.Sprintf("%s.%d", portPath, t.Port)
+		} else {
+			portPath = strconv.Itoa(t.Port)
+		}
+	}
+
+	if t.Dev == devNum {
+		return portPath, true
+	}
+
+	for _, node := range t.Nodes {
+		devPortPath, found := node.GetDevicePortPath(portPath, devNum)
+		if found {
+			return devPortPath, true
+		}
+	}
+	return "", false
 }
 
 func (t *sLsusbTree) GetDevice(devNum int) *sLsusbTree {
