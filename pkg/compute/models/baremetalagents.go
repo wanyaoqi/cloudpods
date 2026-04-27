@@ -22,13 +22,17 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/util/httputils"
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/sqlchemy"
 
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/llm/options"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/modules/compute"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
@@ -249,6 +253,16 @@ func (manager *SBaremetalagentManager) GetAgent(agentType api.TAgentType, zoneId
 		}
 	}
 	return &agents[0]
+}
+
+func (h *SBaremetalagent) GetDetailsAppOptions(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return h.Request(ctx, userCred, httputils.GET, "/app-options", nil, nil)
+}
+
+func (self *SBaremetalagent) Request(ctx context.Context, userCred mcclient.TokenCredential, method httputils.THttpMethod, url string, headers http.Header, body jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	s := auth.GetSession(ctx, userCred, "")
+	_, ret, err := s.JSONRequest(self.ManagerUri, "", method, url, headers, body)
+	return ret, err
 }
 
 func (cache *SBaremetalagent) getStorageCache() (*SStoragecache, error) {
