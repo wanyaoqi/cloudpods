@@ -79,7 +79,7 @@ func (s *SExsiAgentService) StartService() {
 	handler.InitHandlers(app)
 
 	mcesxi.InitEsxiConfig(options.Options.EsxiOptions)
-	app_common.ExportOptionsHandler(app, &options.Options.EsxiOptions)
+	app_common.ExportOptionsHandler(app, &options.Options)
 
 	s.startAgent(app)
 
