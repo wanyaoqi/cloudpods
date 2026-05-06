@@ -193,7 +193,7 @@ func getNvidiaMPSGpusByDevPath(cudaMPSReplicas int, devPath string) ([]isolated_
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", gpuPciAddr)
 		}
-		if pciOutput[0] != pDev.GetAddr() {
+		if pciOutput[0] != pDev.GetOriginAddr() {
 			continue
 		}
 

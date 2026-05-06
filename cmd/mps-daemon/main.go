@@ -74,7 +74,7 @@ func NewDaemon() (*Daemon, error) {
 			if devCfg.Devices[i].VirtualNumber <= 0 {
 				return nil, errors.Errorf("Mps replicas must >= 0")
 			}
-			mpsConfig[dev.GetAddr()] = devCfg.Devices[i].VirtualNumber
+			mpsConfig[dev.GetOriginAddr()] = devCfg.Devices[i].VirtualNumber
 		}
 	}
 	if len(mpsConfig) == 0 {
