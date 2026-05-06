@@ -157,7 +157,7 @@ func parseMemSize(memTotalStr string) (int, error) {
 func (d *Daemon) Start() error {
 	// nvidia-smi  --query-gpu=gpu_uuid,memory.total,compute_mode --format=csv
 	// GPU-76aef7ff-372d-2432-b4b4-beca4d8d3400, 23040 MiB, Exclusive_Process
-	out, err := exec.Command("nvidia-smi", "--query-gpu=index,memory.total,compute_mode,pci.bus_id", "--format=csv").CombinedOutput()
+	out, err := exec.Command("nvidia-smi", "--query-gpu=index,memory.total,compute_mode,gpu_bus_id", "--format=csv").CombinedOutput()
 	if err != nil {
 		return errors.Wrapf(err, "nvidia-smi failed %s", out)
 	}
