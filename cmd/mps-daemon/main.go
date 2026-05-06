@@ -283,11 +283,7 @@ func main() {
 		return
 	}
 
-	daemon, err := NewDaemon(
-		options.HostOptions.CudaMPSLogDirectory,
-		options.HostOptions.CudaMPSPipeDirectory,
-		mpsReplicas,
-	)
+	daemon, err := NewDaemon()
 	if err != nil {
 		log.Fatalf("NewDaemon %s", err)
 		return
