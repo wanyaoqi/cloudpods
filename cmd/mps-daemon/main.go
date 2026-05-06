@@ -162,7 +162,7 @@ func (d *Daemon) Start() error {
 		return errors.Wrapf(err, "nvidia-smi failed %s", out)
 	}
 
-	log.Errorf("mps config %#v", d.mpsConfig)
+	log.Infof("mps config %#v", d.mpsConfig)
 	var devices = map[string]int{}
 	var devicesReplicas = map[string]int{}
 	var minReplias = math.MaxInt32
@@ -182,7 +182,7 @@ func (d *Daemon) Start() error {
 			return fmt.Errorf("failed parse pciaddr %s", pciAddr)
 		}
 		pciAddr = pciAddrSegs[1]
-		log.Errorf("pciaddr %s", pciAddr)
+		log.Infof("start parse pciaddr %s", pciAddr)
 		if len(d.mpsConfig) > 0 {
 			replicas, ok := d.mpsConfig[pciAddr]
 			if !ok {

@@ -32,7 +32,7 @@ import (
 
 // The MPS /dev/shm is needed to allow MPS daemon health-checking
 var shmPath = "/dev/shm"
-var configured = false
+var configuredByDevPath = false
 
 func init() {
 	isolated_device.RegisterContainerDeviceManager(newNvidiaMPSManager())
@@ -154,9 +154,7 @@ func parseMemSize(memTotalStr string) (int, error) {
 }
 
 func getNvidiaMPSGpusByDevPath(cudaMPSReplicas int, devPath string) ([]isolated_device.IDevice, error) {
-	if configured {
-		return nil, nil
-	}
+	configuredByDevPath = true
 	pDev, err := NewPCIGPURenderBaseDevice(devPath, 0, isolated_device.ContainerDeviceTypeNvidiaMps)
 	if err != nil {
 		return nil, errors.Wrap(err, "new PCIGPURenderBaseDevice")
@@ -219,7 +217,9 @@ func getNvidiaMPSGpusByDevPath(cudaMPSReplicas int, devPath string) ([]isolated_
 }
 
 func getNvidiaMPSGpus(cudaMPSReplicas int) ([]isolated_device.IDevice, error) {
-	configured = true
+	if configuredByDevPath {
+		return nil, nil
+	}
 	devs := make([]isolated_device.IDevice, 0)
 	// nvidia-smi  --query-gpu=gpu_uuid,gpu_name,gpu_bus_id,memory.total,compute_mode --format=csv
 	// GPU-76aef7ff-372d-2432-b4b4-beca4d8d3400, Tesla P40, 00000000:00:08.0, 23040 MiB, Exclusive_Process
