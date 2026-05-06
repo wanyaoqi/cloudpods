@@ -162,6 +162,7 @@ func (d *Daemon) Start() error {
 		return errors.Wrapf(err, "nvidia-smi failed %s", out)
 	}
 
+	log.Errorf("mps config %#v", d.mpsConfig)
 	var devices = map[string]int{}
 	var devicesReplicas = map[string]int{}
 	var minReplias = math.MaxInt32
@@ -176,17 +177,12 @@ func (d *Daemon) Start() error {
 			continue
 		}
 		gpuIdx, memTotal, computeMode, pciAddr := strings.TrimSpace(segs[0]), strings.TrimSpace(segs[1]), strings.TrimSpace(segs[2]), strings.TrimSpace(segs[3])
-		if computeMode != "Exclusive_Process" {
-			output, err := exec.Command("nvidia-smi", "-i", gpuIdx, "-c", "EXCLUSIVE_PROCESS").CombinedOutput()
-			if err != nil {
-				return fmt.Errorf("error running nvidia-smi: %s %s", output, err)
-			}
-		}
 		pciAddrSegs := strings.SplitN(pciAddr, ":", 2)
 		if len(pciAddrSegs) != 2 {
 			return fmt.Errorf("failed parse pciaddr %s", pciAddr)
 		}
 		pciAddr = pciAddrSegs[1]
+		log.Errorf("pciaddr %s", pciAddr)
 		if len(d.mpsConfig) > 0 {
 			replicas, ok := d.mpsConfig[pciAddr]
 			if !ok {
@@ -199,6 +195,12 @@ func (d *Daemon) Start() error {
 		} else {
 			devicesReplicas[gpuIdx] = d.replicas
 			minReplias = d.replicas
+		}
+		if computeMode != "Exclusive_Process" {
+			output, err := exec.Command("nvidia-smi", "-i", gpuIdx, "-c", "EXCLUSIVE_PROCESS").CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("error running nvidia-smi: %s %s", output, err)
+			}
 		}
 
 		memSize, err := parseMemSize(memTotal)
