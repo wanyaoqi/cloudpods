@@ -159,6 +159,7 @@ func getNvidiaMPSGpusByDevPath(cudaMPSReplicas int, devPath string) ([]isolated_
 	if err != nil {
 		return nil, errors.Wrap(err, "new PCIGPURenderBaseDevice")
 	}
+	log.Errorf("pdev %s", pDev.GetOriginAddr())
 
 	devs := make([]isolated_device.IDevice, 0)
 	// nvidia-smi  --query-gpu=gpu_uuid,gpu_name,gpu_bus_id,memory.total,compute_mode --format=csv
@@ -191,6 +192,7 @@ func getNvidiaMPSGpusByDevPath(cudaMPSReplicas int, devPath string) ([]isolated_
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", gpuPciAddr)
 		}
+		log.Errorf("pciOoutput %s", pciOutput[0])
 		if pciOutput[0] != pDev.GetOriginAddr() {
 			continue
 		}
