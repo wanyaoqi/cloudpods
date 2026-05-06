@@ -188,13 +188,18 @@ func getNvidiaMPSGpusByDevPath(cudaMPSReplicas int, devPath string) ([]isolated_
 			return nil, errors.Wrapf(err, "failed parse memSize %s", memTotal)
 		}
 
+		pciAddrSegs := strings.SplitN(gpuPciAddr, ":", 2)
+		if len(pciAddrSegs) != 2 {
+			log.Errorf("failed parse pciaddr %s", gpuPciAddr)
+			continue
+		}
+		gpuPciAddr = pciAddrSegs[1]
+		if gpuPciAddr != pDev.GetOriginAddr() {
+			continue
+		}
 		pciOutput, err := isolated_device.GetPCIStrByAddr(gpuPciAddr)
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", gpuPciAddr)
-		}
-		log.Errorf("pciOoutput %s", pciOutput[0])
-		if pciOutput[0] != pDev.GetOriginAddr() {
-			continue
 		}
 
 		for i := 0; i < cudaMPSReplicas; i++ {
