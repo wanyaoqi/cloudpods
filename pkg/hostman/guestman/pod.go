@@ -1405,9 +1405,11 @@ func (s *sPodGuestInstance) StartContainer(ctx context.Context, userCred mcclien
 }
 
 func (s *sPodGuestInstance) allocateCpuNumaPin() error {
+	log.Errorf("start allocate cpu numa pin ================ %d %d", len(s.Desc.CpuNumaPin), len(s.Desc.VcpuPin))
 	if len(s.Desc.CpuNumaPin) != 0 || len(s.Desc.VcpuPin) != 0 {
 		return nil
 	}
+	log.Errorf("start allocate cpu numa pin 2 ================")
 
 	if scpuset, ok := s.Desc.Metadata[computeapi.VM_METADATA_CGROUP_CPUSET]; ok {
 		cpusetJson, err := jsonutils.ParseString(scpuset)
