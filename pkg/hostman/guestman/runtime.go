@@ -383,6 +383,7 @@ func SaveDesc(s GuestRuntimeInstance, guestDesc *desc.SGuestDesc) error {
 }
 
 func SaveLiveDesc(s GuestRuntimeInstance, guestDesc *desc.SGuestDesc) error {
+	log.Errorf("Guest %s save desc cpu_numa_pin %#v", s.GetId(), guestDesc.CpuNumaPin)
 	s.SetDesc(guestDesc)
 
 	defaultGwCnt := 0
