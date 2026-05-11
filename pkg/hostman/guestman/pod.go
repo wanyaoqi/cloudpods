@@ -1006,6 +1006,7 @@ func (s *sPodGuestInstance) startPod(ctx context.Context, userCred mcclient.Toke
 	s.startPodLock.Lock()
 	defer s.startPodLock.Unlock()
 
+	log.Errorf("start pod startPod ========================= %s", s.GetId())
 	retries := 3
 	sec := 5 * time.Second
 	var err error
@@ -1040,10 +1041,12 @@ func (s *sPodGuestInstance) updateGuestDesc() error {
 		return errors.Wrap(err, "unmarshal source desc")
 	}
 
+	log.Errorf("start pod updateGuestDesc ========================= %s", s.GetId())
 	return s.allocateCpuNumaPin()
 }
 
 func (s *sPodGuestInstance) _startPod(ctx context.Context, userCred mcclient.TokenCredential) (*computeapi.PodStartResponse, error) {
+	log.Errorf("start pod ========================= %s", s.GetId())
 	podInput, err := s.getPodCreateParams()
 	if err != nil {
 		return nil, errors.Wrap(err, "getPodCreateParams")
