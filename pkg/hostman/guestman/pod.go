@@ -1440,10 +1440,12 @@ func (s *sPodGuestInstance) allocateCpuNumaPin() error {
 		}
 	}
 
+	log.Infof("guest %s preferNumaNodes %#v", s.GetId(), preferNumaNodes)
 	nodeNumaCpus, err := s.manager.cpuSet.AllocCpuset(int(s.Desc.Cpu), s.Desc.Mem*1024, preferNumaNodes, s.GetId())
 	if err != nil {
 		return err
 	}
+	log.Infof("guest %s cpu_numa_pin %#v", s.GetId(), nodeNumaCpus)
 	for _, numaCpus := range nodeNumaCpus {
 		cpus = append(cpus, numaCpus.Cpuset...)
 	}
@@ -1891,6 +1893,7 @@ func (s *sPodGuestInstance) createContainer(ctx context.Context, userCred mcclie
 			}
 			cpuSetCpus = strings.Join(cpuSets.List(), ",")
 		}
+		log.Infof("guest %s cpuSets %s cpuMemSets %s", s.GetId(), cpuSetCpus, cpuSetMems)
 	}
 	procMountType := apis.ContainerDefaultProcMount
 	if spec.SecurityContext != nil && spec.SecurityContext.ProcMount == apis.ContainerUnmaskedProcMount {
