@@ -1571,6 +1571,7 @@ func (conf ServerChangeConfigSettings) AddedDisk() int {
 type ServerReleasedIsolatedDevice struct {
 	DevType string `json:"dev_type"`
 	Model   string `json:"model"`
+	GpuType string `json:"gpu_type"`
 }
 
 type ServerChangeBillingTypeInput struct {
