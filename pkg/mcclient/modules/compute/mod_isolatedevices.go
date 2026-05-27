@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	IsolatedDevices modulebase.ResourceManager
+	IsolatedDevices       modulebase.ResourceManager
+	ServerIsolatedDevices modulebase.JointResourceManager
 )
 
 func init() {
@@ -31,4 +32,15 @@ func init() {
 			"Guest_id", "Guest", "Guest_status", "Device_path", "Render_path", "PCIE_Info", "Index", "Device_minor"},
 		[]string{})
 	modules.RegisterCompute(&IsolatedDevices)
+
+	ServerIsolatedDevices = modules.NewJointComputeManager(
+		"guestisolateddevice",
+		"guestisolateddevices",
+		[]string{"Guest_ID", "Guest", "Isolated_device_ID", "Index",
+			"Device_memory_size", "Sm_util_limit", "Network_index", "Disk_index"},
+		[]string{},
+		&Servers,
+		&IsolatedDevices,
+	)
+	modules.RegisterCompute(&ServerIsolatedDevices)
 }

@@ -61,17 +61,19 @@ func (f *IsolatedDevicePredicate) PreExecute(ctx context.Context, u *core.Unit, 
 	return false, nil
 }
 
-func (f *IsolatedDevicePredicate) getIsolatedDeviceCountByType(getter core.CandidatePropertyGetter, devType string) int {
-	devs := getter.UnusedIsolatedDevicesByType(devType)
-	if devType != compute.CONTAINER_DEV_NVIDIA_MPS && devType != compute.CONTAINER_DEV_NVIDIA_GPU_SHARE {
-		return len(devs)
-	} else {
-		devMap := map[string]struct{}{}
-		for _, dev := range devs {
-			devMap[dev.DevicePath] = struct{}{}
+func (f *IsolatedDevicePredicate) getIsolatedDeviceCountBySharingMode(sharingMode string, devs []*core.IsolatedDeviceDesc) int {
+	if sharingMode == compute.DEVICE_SHARING_MODE_HAMI {
+		ret := 0
+		for i := range devs {
+			ret += devs[i].AvailableMemorySize()
 		}
-		return len(devMap)
+		return ret
 	}
+	ret := 0
+	for i := range devs {
+		ret += devs[i].AvailableNum()
+	}
+	return ret
 }
 
 // countDevicesWithMinMemory counts free devices of the given dev_type whose
@@ -79,18 +81,17 @@ func (f *IsolatedDevicePredicate) getIsolatedDeviceCountByType(getter core.Candi
 // are treated as "unknown" and pass through (so newly-introduced rows that
 // haven't been backfilled yet don't accidentally exclude every host).
 // For NVIDIA_MPS / NVIDIA_GPU_SHARE the count is deduplicated by DevicePath,
-// matching getIsolatedDeviceCountByType.
-func (f *IsolatedDevicePredicate) countDevicesWithMinMemory(getter core.CandidatePropertyGetter, devType string, minMemoryMb int) int {
-	devs := getter.UnusedIsolatedDevicesByType(devType)
-	isShared := devType == compute.CONTAINER_DEV_NVIDIA_MPS || devType == compute.CONTAINER_DEV_NVIDIA_GPU_SHARE
-	return countDevicesWithMinMemoryFromList(devs, isShared, minMemoryMb)
+// matching getIsolatedDeviceCountBySharingMode.
+func (f *IsolatedDevicePredicate) countDevicesWithMinMemory(getter core.CandidatePropertyGetter, devType, sharingMode string, minMemoryMb int) int {
+	devs := getter.AvailableIsolatedDevicesByTypeSharingMode(devType, sharingMode)
+	return countDevicesWithMinMemoryFromList(devs, sharingMode, minMemoryMb)
 }
 
 // countDevicesWithMinMemoryFromList is the pure-function core of the memory
 // fit count, factored out for unit testing. Callers pass an already-filtered
 // list (typically by dev_type).
-func countDevicesWithMinMemoryFromList(devs []*core.IsolatedDeviceDesc, isShared bool, minMemoryMb int) int {
-	if !isShared {
+func countDevicesWithMinMemoryFromList(devs []*core.IsolatedDeviceDesc, sharingMode string, minMemoryMb int) int {
+	if sharingMode != compute.DEVICE_SHARING_MODE_HAMI {
 		n := 0
 		for _, d := range devs {
 			if d.MemorySize > 0 && d.MemorySize < minMemoryMb {
@@ -102,7 +103,7 @@ func countDevicesWithMinMemoryFromList(devs []*core.IsolatedDeviceDesc, isShared
 	}
 	seen := map[string]struct{}{}
 	for _, d := range devs {
-		if d.MemorySize > 0 && d.MemorySize < minMemoryMb {
+		if d.MemorySize > 0 && (d.MemorySize-d.MemorySizeAllocated) < minMemoryMb {
 			continue
 		}
 		seen[d.DevicePath] = struct{}{}
@@ -131,6 +132,7 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 
 	getter := c.Getter()
 	minCapacity := int64(0xFFFFFFFF)
+	pendingUsage := getter.GetPendingUsage().IsolatedDevice
 
 	// check by specify device id
 	for _, dev := range reqIsoDevs {
@@ -138,8 +140,8 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 			continue
 		}
 		if fDev := getter.GetIsolatedDevice(dev.Id); fDev != nil {
-			if len(fDev.GuestID) != 0 {
-				h.Exclude(fmt.Sprintf("IsolatedDevice %q already used by guest %q", dev.Id, fDev.GuestID))
+			if fDev.IsUsedUp() {
+				h.Exclude(fmt.Sprintf("IsolatedDevice %q already used up", dev.Id))
 				return h.GetResult()
 			}
 		} else {
@@ -148,30 +150,28 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 		}
 		minCapacity = 1
 	}
-
-	reqCount := len(reqIsoDevs)
-	freeCount := len(getter.UnusedIsolatedDevices()) - getter.GetPendingUsage().IsolatedDevice
-	totalCount := len(getter.GetIsolatedDevices())
-
-	// check host isolated device count
-	if freeCount < reqCount {
-		h.AppendInsufficientResourceError(int64(reqCount), int64(totalCount), int64(freeCount))
-		h.Exclude(fmt.Sprintf(
-			"IsolatedDevice count not enough, request: %d, hostTotal: %d, hostFree: %d",
-			reqCount, totalCount, freeCount))
-		return h.GetResult()
+	type reqKey struct {
+		devType     string
+		sharingMode string
 	}
-
 	// check host device by type
-	devTypeRequest := make(map[string]int, 0)
+	devTypeRequest := make(map[reqKey]int, 0)
 	for _, dev := range reqIsoDevs {
 		if len(dev.DevType) != 0 {
-			devTypeRequest[dev.DevType] += 1
+			key := reqKey{devType: dev.DevType, sharingMode: dev.SharingMode}
+			if dev.SharingMode == compute.CONTAINER_DEV_NVIDIA_HAMI {
+				devTypeRequest[key] += dev.MemoryRequest
+			} else {
+				devTypeRequest[key] += 1
+			}
 		}
 	}
-	for devType, reqCount := range devTypeRequest {
-		freeCount := f.getIsolatedDeviceCountByType(getter, devType)
-		if freeCount < reqCount {
+	for key, reqCount := range devTypeRequest {
+		devType, sharingMode := key.devType, key.sharingMode
+		devs := getter.AvailableIsolatedDevicesByTypeSharingMode(devType, sharingMode)
+		pendingCnt := pendingUsage.Get(fmt.Sprintf("%s/%s", devType, sharingMode))
+		freeCount := f.getIsolatedDeviceCountBySharingMode(sharingMode, devs)
+		if freeCount < (reqCount - pendingCnt) {
 			h.Exclude(fmt.Sprintf("IsolatedDevice type %q not enough, request: %d, hostFree: %d", devType, reqCount, freeCount))
 			return h.GetResult()
 		}
@@ -189,8 +189,14 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 		}
 	}
 	for vendorModel, reqCount := range devVendorModelRequest {
-		freeCount := len(getter.UnusedIsolatedDevicesByVendorModel(vendorModel))
-		if freeCount < reqCount {
+		devs := getter.AvailableIsolatedDevicesByVendorModel(vendorModel)
+		if len(devs) == 0 {
+			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: 0", vendorModel, reqCount))
+			return h.GetResult()
+		}
+		pendingCnt := pendingUsage.Get(fmt.Sprintf("%s/%s", devs[0].DevType, devs[0].SharingMode))
+		freeCount := f.getIsolatedDeviceCountBySharingMode(devs[0].SharingMode, devs)
+		if freeCount < (reqCount - pendingCnt) {
 			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: %d", vendorModel, reqCount, freeCount))
 			return h.GetResult()
 		}
@@ -205,18 +211,23 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	// vram_claim_mb is honoured. Devices with memory_size == 0 are passed
 	// through as unknown (see countDevicesWithMinMemory).
 	type vramReqKey struct {
-		devType  string
-		minMemMb int
+		devType     string
+		sharingMode string
+		minMemMb    int
 	}
 	vramReq := make(map[vramReqKey]int)
 	for _, dev := range reqIsoDevs {
-		if dev.MemoryMb <= 0 {
+		if dev.MemoryMb <= 0 && dev.MemoryRequest <= 0 {
 			continue
 		}
-		vramReq[vramReqKey{dev.DevType, dev.MemoryMb}]++
+		memMb := dev.MemoryRequest
+		if dev.MemoryMb > 0 && dev.MemoryMb < dev.MemoryRequest {
+			memMb = dev.MemoryMb
+		}
+		vramReq[vramReqKey{dev.DevType, dev.SharingMode, memMb}]++
 	}
 	for k, reqCnt := range vramReq {
-		fit := f.countDevicesWithMinMemory(getter, k.devType, k.minMemMb)
+		fit := f.countDevicesWithMinMemory(getter, k.devType, k.sharingMode, k.minMemMb)
 		if fit < reqCnt {
 			h.Exclude(fmt.Sprintf(
 				"IsolatedDevice type %q with memory >= %d MiB not enough, request: %d, hostFree: %d",
@@ -237,9 +248,15 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 		}
 	}
 	for devPath, reqCnt := range devicePathReq {
-		freeCount := len(getter.UnusedIsolatedDevicesByDevicePath(devPath))
-		if freeCount < reqCount {
-			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: %d", devPath, reqCount, freeCount))
+		devs := getter.AvailableIsolatedDevicesByDevicePath(devPath)
+		if len(devs) == 0 {
+			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: 0", devPath, reqCnt))
+			return h.GetResult()
+		}
+		pendingCnt := pendingUsage.Get(devs[0].DevType)
+		freeCount := f.getIsolatedDeviceCountBySharingMode(devs[0].DevType, devs)
+		if freeCount < (reqCnt - pendingCnt) {
+			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: %d", devPath, reqCnt, freeCount))
 			return h.GetResult()
 		}
 		cap := freeCount / reqCnt

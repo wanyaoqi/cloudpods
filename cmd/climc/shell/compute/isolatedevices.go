@@ -30,4 +30,7 @@ func init() {
 	cmd.BatchPerform("purge", &compute.DevicePurgeOptions{})
 	cmd.Perform("public", &options.SharableResourcePublicOptions{})
 	cmd.Perform("private", &options.BaseIdOptions{})
+
+	scmd := shell.NewResourceCmd(&modules.ServerIsolatedDevices)
+	scmd.List(&compute.ServerDeviceListOptions{})
 }
