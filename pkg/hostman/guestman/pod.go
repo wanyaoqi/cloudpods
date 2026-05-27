@@ -296,6 +296,7 @@ func (s *sPodGuestInstance) ImportServer(pendingDelete bool) {
 	// TODO: 参考SKVMGuestInstance，可以做更多的事，比如同步状态
 	s.manager.SaveServer(s.Id, s)
 	s.manager.RemoveCandidateServer(s)
+	log.Errorf("%s is dirty shutdown %v", s.GetId(), s.IsDirtyShutdown())
 	if s.IsDaemon() || s.IsDirtyShutdown() {
 		ctx := context.Background()
 		cred := hostutils.GetComputeSession(ctx).GetToken()
@@ -967,6 +968,8 @@ func (t *localDirtyPodStartTask) Run() {
 			log.Errorf("start dirty pod(%s/%s) err: %s", t.pod.GetId(), t.pod.GetName(), err.Error())
 		}
 	}*/
+
+	log.Errorf("start localDirtyPodStartTask %s", t.pod.GetId())
 	for _, ctr := range t.pod.GetContainers() {
 		if t.pod.isContainerDirtyShutdown(ctr.Id) {
 			if !t.pod.IsRunning() {
