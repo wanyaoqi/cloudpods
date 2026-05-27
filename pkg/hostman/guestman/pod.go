@@ -1294,10 +1294,9 @@ func (s *sPodGuestInstance) SyncConfig(ctx context.Context, guestDesc *desc.SGue
 	s.UpdateLiveDesc(guestDesc)
 
 	// keep origin cpu numa pin
-	cpuNumaPin := s.Desc.CpuNumaPin
+	guestDesc.CpuNumaPin = s.Desc.CpuNumaPin
 	s.Desc.SGuestHardwareDesc = guestDesc.SGuestHardwareDesc
 	s.Desc.SGuestContainerDesc = guestDesc.SGuestContainerDesc
-	s.Desc.CpuNumaPin = cpuNumaPin
 
 	if err := SaveLiveDesc(s, s.Desc); err != nil {
 		return nil, errors.Wrap(err, "SaveLiveDesc")
