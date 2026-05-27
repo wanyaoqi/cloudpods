@@ -53,15 +53,11 @@ func (m *nvidiaGPUShareManager) NewDevices(dev *isolated_device.ContainerDevice)
 		return nil, err
 	}
 
-	gpuDevs := make([]isolated_device.IDevice, 0)
-	for i := 0; i < dev.VirtualNumber; i++ {
-		gpuDev, err := newNvidiaGpuShare(dev.Path, i)
-		if err != nil {
-			return nil, errors.Wrapf(err, "new CPH AMD GPU with index %d", i)
-		}
-		gpuDevs = append(gpuDevs, gpuDev)
+	gpuDev, err := newNvidiaGpuShare(dev.Path, dev.VirtualNumber)
+	if err != nil {
+		return nil, errors.Wrap(err, "new CPH AMD GPU")
 	}
-	return gpuDevs, nil
+	return []isolated_device.IDevice{gpuDev}, nil
 }
 
 type nvidiaGpuShareDev struct {
@@ -109,13 +105,13 @@ func getNvidiaGpuUsage() (map[string]*nvidiaGpuUsage, error) {
 	return nvidiaGpuUsages, nil
 }
 
-func newNvidiaGpuShare(devPath string, index int) (*nvidiaGpuShareDev, error) {
+func newNvidiaGpuShare(devPath string, virtualNumber int) (*nvidiaGpuShareDev, error) {
 	devUsages, err := getNvidiaGpuUsage()
 	if err != nil {
 		return nil, errors.Wrap(err, "getNvidiaGpuUsage")
 	}
 
-	dev, err := NewPCIGPURenderBaseDevice(devPath, index, isolated_device.ContainerDeviceTypeNvidiaGpuShare)
+	dev, err := NewPCIGPURenderBaseDevice(devPath, virtualNumber, isolated_device.ContainerDeviceTypeNvidiaGpuShare)
 	if err != nil {
 		return nil, errors.Wrap(err, "new PCIGPURenderBaseDevice")
 	}

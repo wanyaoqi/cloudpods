@@ -24,6 +24,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 
+	"yunion.io/x/onecloud/pkg/apis/compute"
 	schedapi "yunion.io/x/onecloud/pkg/apis/scheduler"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
@@ -512,7 +513,7 @@ type SPendingUsage struct {
 
 	// nodeId: memSizeMB
 	NumaMemPin     map[int]int
-	IsolatedDevice int
+	IsolatedDevice *SResourcePendingUsage
 	DiskUsage      *SResourcePendingUsage
 	NetUsage       *SResourcePendingUsage
 	// Lock is not need here
@@ -524,6 +525,7 @@ func NewPendingUsageBySchedInfo(hostId string, req *api.SchedInfo, candidate *sc
 		HostId:          hostId,
 		DiskUsage:       NewResourcePendingUsage(nil),
 		NetUsage:        NewResourcePendingUsage(nil),
+		IsolatedDevice:  NewResourcePendingUsage(nil),
 		PendingGuestIds: make(map[string]struct{}),
 	}
 
@@ -537,7 +539,6 @@ func NewPendingUsageBySchedInfo(hostId string, req *api.SchedInfo, candidate *sc
 	}
 	u.Cpu = req.Ncpu
 	u.Memory = req.Memory
-	u.IsolatedDevice = len(req.IsolatedDevices)
 
 	if candidate != nil && len(candidate.CpuNumaPin) > 0 {
 		for _, cpuNumaPin := range candidate.CpuNumaPin {
@@ -556,6 +557,18 @@ func NewPendingUsageBySchedInfo(hostId string, req *api.SchedInfo, candidate *sc
 					u.CpuPin[cpuNumaPin.CpuPin[i]] = 1
 				}
 			}
+		}
+	}
+
+	for _, dev := range req.IsolatedDevices {
+		devType := dev.DevType
+		if devType == compute.CONTAINER_DEV_NVIDIA_HAMI {
+			oSize := u.IsolatedDevice.Get(devType)
+			size := dev.MemoryRequest
+			u.IsolatedDevice.Set(devType, oSize+size)
+		} else {
+			oCnt := u.IsolatedDevice.Get(devType)
+			u.IsolatedDevice.Set(devType, oCnt+1)
 		}
 	}
 
@@ -608,7 +621,7 @@ func (self *SPendingUsage) ToMap() map[string]interface{} {
 	return map[string]interface{}{
 		"cpu":             self.Cpu,
 		"memory":          self.Memory,
-		"isolated_device": self.IsolatedDevice,
+		"isolated_device": self.IsolatedDevice.ToMap(),
 		"disk":            self.DiskUsage.ToMap(),
 		"net":             self.NetUsage.ToMap(),
 		"instance_groups": self.InstanceGroupUsage,
@@ -644,7 +657,7 @@ func (self *SPendingUsage) Add(sUsage *SPendingUsage, addGuestId string) {
 			self.NumaMemPin[k] = v1
 		}
 	}
-	self.IsolatedDevice = self.IsolatedDevice + sUsage.IsolatedDevice
+	self.IsolatedDevice.Add(sUsage.IsolatedDevice)
 	self.DiskUsage.Add(sUsage.DiskUsage)
 	self.NetUsage.Add(sUsage.NetUsage)
 	for id, cg := range sUsage.InstanceGroupUsage {
@@ -676,7 +689,7 @@ func (self *SPendingUsage) Sub(sUsage *SPendingUsage) {
 		}
 	}
 
-	self.IsolatedDevice = quotas.NonNegative(self.IsolatedDevice - sUsage.IsolatedDevice)
+	self.IsolatedDevice.Sub(sUsage.IsolatedDevice)
 	self.DiskUsage.Sub(sUsage.DiskUsage)
 	self.NetUsage.Sub(sUsage.NetUsage)
 	for id, cg := range sUsage.InstanceGroupUsage {
@@ -698,7 +711,7 @@ func (self *SPendingUsage) IsEmpty() bool {
 	if self.Memory > 0 {
 		return false
 	}
-	if self.IsolatedDevice > 0 {
+	if !self.IsolatedDevice.IsEmpty() {
 		return false
 	}
 	if !self.DiskUsage.IsEmpty() {

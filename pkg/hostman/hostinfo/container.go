@@ -137,7 +137,7 @@ func (h *SHostInfo) HasContainerNvidiaGpu() bool {
 	nvDevs := make([]isolated_device.IDevice, 0)
 	devs := h.IsolatedDeviceMan.GetDevices()
 	for i := range devs {
-		if utils.IsInStringArray(devs[i].GetDeviceType(), apis.NVIDIA_GPU_TYPES) {
+		if utils.IsInStringArray(devs[i].GetDeviceType(), apis.CONTAINER_NVIDIA_GPU_TYPES) {
 			hasNvidiaGpus = true
 			nvDevs = append(nvDevs, devs[i])
 		}

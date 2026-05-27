@@ -326,6 +326,9 @@ type IsolatedDeviceConfig struct {
 	// threshold; devices with memory_size == 0 are treated as unknown and
 	// allowed through to avoid penalising hosts that haven't reported yet.
 	MemoryMb int `json:"memory_mb,omitempty"`
+	// Memory request for Devices allocate by Memory size
+	MemoryRequest int `json:"memory_request,omitempty"`
+	SmUtilLimit   int `json:"sm_util_limit,omitempty"`
 }
 
 type BaremetalDiskConfig struct {

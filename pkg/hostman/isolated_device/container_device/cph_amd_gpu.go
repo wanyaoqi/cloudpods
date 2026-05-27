@@ -50,15 +50,11 @@ func (m *cphAMDGPUManager) NewDevices(dev *isolated_device.ContainerDevice) ([]i
 	if err := CheckVirtualNumber(dev); err != nil {
 		return nil, err
 	}
-	gpuDevs := make([]isolated_device.IDevice, 0)
-	for i := 0; i < dev.VirtualNumber; i++ {
-		gpuDev, err := newCphAMDGPU(dev.Path, i)
-		if err != nil {
-			return nil, errors.Wrapf(err, "new CPH AMD GPU with index %d", i)
-		}
-		gpuDevs = append(gpuDevs, gpuDev)
+	gpuDev, err := newCphAMDGPU(dev.Path, dev.VirtualNumber)
+	if err != nil {
+		return nil, errors.Wrapf(err, "new CPH AMD GPU with index %d", i)
 	}
-	return gpuDevs, nil
+	return []isolated_device.IDevice{gpuDev}, nil
 }
 
 func (m *cphAMDGPUManager) getDeviceHostPathByAddr(dev *hostapi.ContainerDevice) (string, error) {
@@ -86,8 +82,8 @@ type cphAMDGPU struct {
 	*BaseDevice
 }
 
-func newCphAMDGPU(devPath string, index int) (*cphAMDGPU, error) {
-	dev, err := NewPCIGPURenderBaseDevice(devPath, index, isolated_device.ContainerDeviceTypeCphAMDGPU)
+func newCphAMDGPU(devPath string, virtualNum int) (*cphAMDGPU, error) {
+	dev, err := NewPCIGPURenderBaseDevice(devPath, virtualNum, isolated_device.ContainerDeviceTypeCphAMDGPU)
 	if err != nil {
 		return nil, errors.Wrap(err, "new PCIGPURenderBaseDevice")
 	}

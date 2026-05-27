@@ -835,7 +835,7 @@ func (s *sPodGuestInstance) GetPodContainerCriIds() []string {
 
 func (s *sPodGuestInstance) HasContainerNvidiaGpu() bool {
 	for i := range s.Desc.IsolatedDevices {
-		if utils.IsInStringArray(s.Desc.IsolatedDevices[i].DevType, computeapi.NVIDIA_GPU_TYPES) {
+		if utils.IsInStringArray(s.Desc.IsolatedDevices[i].DevType, computeapi.CONTAINER_NVIDIA_GPU_TYPES) {
 			return true
 		}
 	}

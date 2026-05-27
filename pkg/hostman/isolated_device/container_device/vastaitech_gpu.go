@@ -146,15 +146,12 @@ func (v vastaitechGPUManager) NewDevices(dev *isolated_device.ContainerDevice) (
 	if err := CheckVirtualNumber(dev); err != nil {
 		return nil, err
 	}
-	gpuDevs := make([]isolated_device.IDevice, 0)
-	for i := 0; i < dev.VirtualNumber; i++ {
-		gpuDev, err := newVastaitechGPU(dev.Path, i)
-		if err != nil {
-			return nil, errors.Wrapf(err, "new CPH AMD GPU with index %d", i)
-		}
-		gpuDevs = append(gpuDevs, gpuDev)
+	gpuDev, err := newVastaitechGPU(dev.Path, dev.VirtualNumber)
+	if err != nil {
+		return nil, errors.Wrap(err, "new CPH AMD GPU")
 	}
-	return gpuDevs, nil
+
+	return []isolated_device.IDevice{gpuDev}, nil
 }
 
 func (v vastaitechGPUManager) getCommonDevices() []*runtimeapi.Device {
@@ -207,8 +204,8 @@ type vastaitechGPU struct {
 	*BaseDevice
 }
 
-func newVastaitechGPU(devPath string, index int) (*vastaitechGPU, error) {
-	dev, err := NewPCIGPURenderBaseDevice(devPath, index, isolated_device.ContainerDeviceTypeVastaitechGpu)
+func newVastaitechGPU(devPath string, virtualNum int) (*vastaitechGPU, error) {
+	dev, err := NewPCIGPURenderBaseDevice(devPath, virtualNum, isolated_device.ContainerDeviceTypeVastaitechGpu)
 	if err != nil {
 		return nil, errors.Wrap(err, "new PCIGPURenderBaseDevice")
 	}

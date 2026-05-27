@@ -35,9 +35,9 @@ type IsolateDeviceDetails struct {
 	SIsolatedDevice
 
 	// 云主机名称
-	Guest string `json:"guest"`
+	Guest []string `json:"guest"`
 	// 云主机状态
-	GuestStatus string `json:"guest_status"`
+	GuestStatus []string `json:"guest_status"`
 }
 
 type IsolatedDeviceListInput struct {
@@ -137,6 +137,17 @@ type IsolatedDeviceUpdateInput struct {
 	DeviceMinor int    `json:"device_minor"`
 }
 
+type SDelIsolatedDeviceInput struct {
+	Device string
+	Index  int
+}
+
+type SetIsolatedDeviceInput struct {
+	AddDevices []string
+	DelDevices []SDelIsolatedDeviceInput
+	AutoStart  bool
+}
+
 type IsolatedDeviceJsonDesc struct {
 	Id                  string `json:"id"`
 	DevType             string `json:"dev_type"`
@@ -152,6 +163,8 @@ type IsolatedDeviceJsonDesc struct {
 	MemorySize          int    `json:"memory_size"`
 	MdevId              string `json:"mdev_id"`
 	NumaNode            int8   `json:"numa_node"`
+	MemoryLimit         int    `json:"memory_limit"`
+	SmUtilLimit         int    `json:"sm_util_limit"`
 }
 
 type IsolatedDeviceModelCreateInput struct {
@@ -367,4 +380,15 @@ type HostIsolatedDeviceModelDetails struct {
 	DevType           string
 	HotPluggable      bool
 	DisableAutoDetect bool
+}
+
+type IsolatedDeviceFilterListInput struct {
+	IsolateDeviceIds []string `json:"isolate_device_ids"`
+}
+
+type GuestIsolatedDeviceListInput struct {
+	GuestJointsListInput
+
+	IsolatedDeviceListInput
+	IsolatedDeviceFilterListInput
 }

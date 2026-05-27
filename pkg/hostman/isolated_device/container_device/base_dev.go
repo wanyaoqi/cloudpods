@@ -29,13 +29,15 @@ import (
 
 type BaseDevice struct {
 	*isolated_device.SBaseDevice
-	Path string
+	Path       string
+	VirtualNum int
 }
 
-func NewBaseDevice(dev *isolated_device.PCIDevice, devType isolated_device.ContainerDeviceType, devPath string) *BaseDevice {
+func NewBaseDevice(dev *isolated_device.PCIDevice, devType isolated_device.ContainerDeviceType, devPath string, virtualNum int) *BaseDevice {
 	return &BaseDevice{
 		SBaseDevice: isolated_device.NewBaseDevice(dev, string(devType)),
 		Path:        devPath,
+		VirtualNum:  virtualNum,
 	}
 }
 
@@ -57,6 +59,10 @@ func (c BaseDevice) CustomProbe(idx int) error {
 
 func (c BaseDevice) GetDevicePath() string {
 	return c.Path
+}
+
+func (c BaseDevice) GetVirtualNum() int {
+	return c.VirtualNum
 }
 
 func (c *BaseDevice) SetDevicePath(devPath string) {
@@ -116,7 +122,7 @@ func getGPUPCIAddr(linkPartName string) (string, error) {
 	return fullAddr, nil
 }
 
-func NewPCIGPURenderBaseDevice(devPath string, index int, devType isolated_device.ContainerDeviceType) (*BaseDevice, error) {
+func NewPCIGPURenderBaseDevice(devPath string, virtualNum int, devType isolated_device.ContainerDeviceType) (*BaseDevice, error) {
 	dir := "/dev/dri/by-path/"
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -144,9 +150,9 @@ func NewPCIGPURenderBaseDevice(devPath string, index int, devType isolated_devic
 				return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", pciAddr)
 			}
 			dev := isolated_device.NewPCIDevice2(pciOutput[0])
-			devAddr := dev.Addr
-			baseDev := NewBaseDevice(dev, devType, devPath)
-			baseDev.SetAddr(fmt.Sprintf("%s-%d", devAddr, index), devAddr)
+			// devAddr := dev.Addr
+			baseDev := NewBaseDevice(dev, devType, devPath, virtualNum)
+			//baseDev.SetAddr(fmt.Sprintf("%s-%d", devAddr, index), devAddr)
 
 			return baseDev, nil
 		}

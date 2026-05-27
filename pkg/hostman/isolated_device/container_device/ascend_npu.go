@@ -188,7 +188,7 @@ func getAscendNpus() ([]isolated_device.IDevice, error) {
 		}
 		dev := isolated_device.NewPCIDevice2(pciOutput[0])
 		npuDev := &ascnedNPU{
-			BaseDevice: NewBaseDevice(dev, isolated_device.ContainerDeviceTypeAscendNpu, devPath),
+			BaseDevice: NewBaseDevice(dev, isolated_device.ContainerDeviceTypeAscendNpu, devPath, 0),
 		}
 		npuDev.SetModelName(npuName)
 

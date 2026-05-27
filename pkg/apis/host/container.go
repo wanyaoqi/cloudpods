@@ -95,6 +95,8 @@ type ContainerIsolatedDevice struct {
 	DeviceType  string                                 `json:"device_type"`
 	CardPath    string                                 `json:"card_path"`
 	RenderPath  string                                 `json:"render_path"`
+	MemoryLimit int                                    `json:"memory_limit"`
+	SmUtilLimit int                                    `json:"sm_util_limit"`
 	Index       int                                    `json:"index"`
 	DeviceMinor int                                    `json:"device_minor"`
 	OnlyEnv     []*apis.ContainerIsolatedDeviceOnlyEnv `json:"only_env"`

@@ -101,6 +101,10 @@ func (dev *sNVIDIAVgpuDevice) GetDevicePath() string {
 	return ""
 }
 
+func (dev *sNVIDIAVgpuDevice) GetVirtualNum() int {
+	return 0
+}
+
 func (dev *sNVIDIAVgpuDevice) GetNvidiaMpsMemoryLimit() int {
 	return -1
 }

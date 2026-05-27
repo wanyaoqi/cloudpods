@@ -62,6 +62,7 @@ type CloudDeviceInfo struct {
 	MpsThreadPercentage int                         `json:"mps_thread_percentage"`
 	NumaNode            int                         `json:"numa_node"`
 	PcieInfo            *api.IsolatedDevicePCIEInfo `json:"pcie_info"`
+	VirtualNum          int                         `json:"virtual_num"`
 
 	// The frame rate limiter (FRL) configuration in frames per second
 	FRL string `json:"frl"`
@@ -114,6 +115,7 @@ type IDevice interface {
 	CustomProbe(idx int) error
 	SetDeviceInfo(info CloudDeviceInfo)
 	DetectByAddr() error
+	GetVirtualNum() int
 
 	GetPassthroughOptions() map[string]string
 	GetPassthroughCmd(index int) string
@@ -161,7 +163,7 @@ type IsolatedDeviceManager interface {
 	GetDevices() []IDevice
 	GetDeviceByIdent(vendorDevId, addr, mdevId string) IDevice
 	GetDeviceByAddr(addr string) IDevice
-	ProbePCIDevices(skipGPUs, skipUSBs, skipCustomDevs bool, sriovNics, ovsOffloadNics []HostNic, nvmePciDisks, amdVgpuPFs, nvidiaVgpuPFs []string, enableCudaMps, enableContainerNPU, enableWhitelist bool)
+	ProbePCIDevices(opts *SIsolatedDeviceProbeOptions)
 	StartDetachTask()
 	BatchCustomProbe()
 	AppendDetachedDevice(dev *CloudDeviceInfo)
@@ -233,10 +235,12 @@ func (man *isolatedDeviceManager) probeContainerDevices() {
 	}
 }
 
-func (man *isolatedDeviceManager) probeContainerNvidiaGPUs(enableCudaMps bool) {
+func (man *isolatedDeviceManager) probeContainerNvidiaGPUs(enableCudaHAMI, enableCudaMps bool) {
 	devType := ContainerDeviceTypeNvidiaGpu
 	if enableCudaMps {
 		devType = ContainerDeviceTypeNvidiaMps
+	} else if enableCudaHAMI {
+		devType = ContainerDeviceTypeNvidiaHAMI
 	}
 
 	devman, err := GetContainerDeviceManager(devType)
@@ -441,12 +445,27 @@ func (man *isolatedDeviceManager) probeNVIDIAVgpus(nvidiaVgpuPFs []string) {
 	}
 }
 
-func (man *isolatedDeviceManager) ProbePCIDevices(skipGPUs, skipUSBs, skipCustomDevs bool, sriovNics, ovsOffloadNics []HostNic, nvmePciDisks, amdVgpuPFs, nvidiaVgpuPFs []string, enableCudaMps, enableContainerNPU, enableWhitelist bool) {
+type SIsolatedDeviceProbeOptions struct {
+	SkipGPUs       bool
+	SkipUSBs       bool
+	SkipCustomDevs bool
+
+	EnableCudaHAMI     bool
+	EnableCudaMps      bool
+	EnableContainerNPU bool
+	EnableWhitelist    bool
+
+	SriovNics, OvsOffloadNics []HostNic
+
+	NvmePciDisks, AmdVgpuPFs, NvidiaVgpuPFs []string
+}
+
+func (man *isolatedDeviceManager) ProbePCIDevices(opts *SIsolatedDeviceProbeOptions) {
 	man.devices = make([]IDevice, 0)
 	if man.host.IsContainerHost() {
 		man.probeContainerDevices()
-		man.probeContainerNvidiaGPUs(enableCudaMps)
-		man.probeContainerAscendNPUs(enableContainerNPU)
+		man.probeContainerNvidiaGPUs(opts.EnableCudaHAMI, opts.EnableCudaMps)
+		man.probeContainerAscendNPUs(opts.EnableContainerNPU)
 	} else {
 		devModels, err := man.getCustomIsolatedDeviceModels()
 		if err != nil {
@@ -454,13 +473,13 @@ func (man *isolatedDeviceManager) ProbePCIDevices(skipGPUs, skipUSBs, skipCustom
 			man.host.AppendError(fmt.Sprintf("get custom isolated device devModels %s", err.Error()), "isolated_devices", "", "")
 			return
 		}
-		man.probeUSBs(skipUSBs)
-		man.probeCustomPCIDevs(skipCustomDevs, devModels, GpuClassCodes)
-		man.probeSRIOVNics(sriovNics)
-		man.probeOffloadNICS(ovsOffloadNics)
-		man.probeAMDVgpus(amdVgpuPFs)
-		man.probeNVIDIAVgpus(nvidiaVgpuPFs)
-		man.probeGPUS(skipGPUs, amdVgpuPFs, nvidiaVgpuPFs, enableWhitelist, devModels)
+		man.probeUSBs(opts.SkipUSBs)
+		man.probeCustomPCIDevs(opts.SkipCustomDevs, devModels, GpuClassCodes)
+		man.probeSRIOVNics(opts.SriovNics)
+		man.probeOffloadNICS(opts.OvsOffloadNics)
+		man.probeAMDVgpus(opts.AmdVgpuPFs)
+		man.probeNVIDIAVgpus(opts.NvidiaVgpuPFs)
+		man.probeGPUS(opts.SkipGPUs, opts.AmdVgpuPFs, opts.NvidiaVgpuPFs, opts.EnableWhitelist, devModels)
 	}
 }
 
@@ -570,6 +589,9 @@ func (man *isolatedDeviceManager) CheckDevIsNeedUpdate(dev IDevice, devInfo *Clo
 		if val, _ := profile["max_instance"]; val != devInfo.MaxInstance {
 			return true
 		}
+	}
+	if dev.GetVirtualNum() != devInfo.VirtualNum {
+		return true
 	}
 	return false
 }
@@ -820,6 +842,10 @@ func (dev *SBaseDevice) SetModelName(modelName string) {
 
 func (dev *SBaseDevice) GetGuestId() string {
 	return dev.guestId
+}
+
+func (dev *SBaseDevice) GetVirtualNum() int {
+	return 0
 }
 
 func (dev *SBaseDevice) GetNvidiaMpsMemoryLimit() int {

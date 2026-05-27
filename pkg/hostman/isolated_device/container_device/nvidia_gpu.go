@@ -45,7 +45,7 @@ func (m *nvidiaGPUManager) GetType() isolated_device.ContainerDeviceType {
 }
 
 func (m *nvidiaGPUManager) ProbeDevices() ([]isolated_device.IDevice, error) {
-	return probeNvidiaGpus()
+	return probeNvidiaGpus(isolated_device.ContainerDeviceTypeNvidiaGpu)
 }
 
 func (m *nvidiaGPUManager) NewDevices(dev *isolated_device.ContainerDevice) ([]isolated_device.IDevice, error) {
@@ -114,7 +114,7 @@ func (dev *nvidiaGPU) GetDeviceMinor() int {
 	return dev.deviceMinor
 }
 
-func probeNvidiaGpus() ([]isolated_device.IDevice, error) {
+func probeNvidiaGpus(devType isolated_device.ContainerDeviceType) ([]isolated_device.IDevice, error) {
 	if nvidiaGpuUsages != nil {
 		res := make([]isolated_device.IDevice, 0)
 		for pciAddr, dev := range nvidiaGpuUsages {
@@ -127,7 +127,7 @@ func probeNvidiaGpus() ([]isolated_device.IDevice, error) {
 		return res, nil
 	}
 
-	devs, err := getNvidiaGPUs()
+	devs, err := getNvidiaGPUs(devType)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func probeNvidiaGpus() ([]isolated_device.IDevice, error) {
 	return res, nil
 }
 
-func getNvidiaGPUs() ([]*nvidiaGPU, error) {
+func getNvidiaGPUs(devType isolated_device.ContainerDeviceType) ([]*nvidiaGPU, error) {
 	devs := make([]*nvidiaGPU, 0)
 	// nvidia-smi --query-gpu=gpu_uuid,gpu_name,gpu_bus_id --format=csv
 	// uuid, name, pci.bus_id
@@ -190,7 +190,7 @@ func getNvidiaGPUs() ([]*nvidiaGPU, error) {
 		}
 
 		gpuDev := &nvidiaGPU{
-			BaseDevice:  NewBaseDevice(dev, isolated_device.ContainerDeviceTypeNvidiaGpu, gpuId),
+			BaseDevice:  NewBaseDevice(dev, devType, gpuId, 0),
 			memSize:     memSize,
 			gpuIndex:    indexInt,
 			deviceMinor: driverInfo.DeviceMinor,

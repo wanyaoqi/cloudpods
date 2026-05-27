@@ -15,7 +15,6 @@
 package container_device
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -200,21 +199,16 @@ func getNvidiaMPSGpusByDevPath(cudaMPSReplicas int, devPath string) ([]isolated_
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", gpuPciAddr)
 		}
-
-		for i := 0; i < cudaMPSReplicas; i++ {
-			dev := isolated_device.NewPCIDevice2(pciOutput[0])
-			gpuDev := &nvidiaMPS{
-				BaseDevice:       NewBaseDevice(dev, isolated_device.ContainerDeviceTypeNvidiaMps, gpuId),
-				MemSizeMB:        memSize / cudaMPSReplicas,
-				MemTotalMB:       memSize,
-				ThreadPercentage: 100 / cudaMPSReplicas,
-				gpuIndex:         index,
-			}
-			gpuDev.SetModelName(gpuName)
-			devAddr := gpuDev.GetAddr()
-			gpuDev.SetAddr(fmt.Sprintf("%s-%d", devAddr, i), devAddr)
-			devs = append(devs, gpuDev)
+		dev := isolated_device.NewPCIDevice2(pciOutput[0])
+		gpuDev := &nvidiaMPS{
+			BaseDevice:       NewBaseDevice(dev, isolated_device.ContainerDeviceTypeNvidiaMps, gpuId, cudaMPSReplicas),
+			MemSizeMB:        memSize / cudaMPSReplicas,
+			MemTotalMB:       memSize,
+			ThreadPercentage: 100 / cudaMPSReplicas,
+			gpuIndex:         index,
 		}
+		gpuDev.SetModelName(gpuName)
+		devs = append(devs, gpuDev)
 	}
 	if len(devs) == 0 {
 		return nil, nil
@@ -257,20 +251,16 @@ func getNvidiaMPSGpus(cudaMPSReplicas int) ([]isolated_device.IDevice, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "GetPCIStrByAddr %s", gpuPciAddr)
 		}
-		for i := 0; i < cudaMPSReplicas; i++ {
-			dev := isolated_device.NewPCIDevice2(pciOutput[0])
-			gpuDev := &nvidiaMPS{
-				BaseDevice:       NewBaseDevice(dev, isolated_device.ContainerDeviceTypeNvidiaMps, gpuId),
-				MemSizeMB:        memSize / cudaMPSReplicas,
-				MemTotalMB:       memSize,
-				ThreadPercentage: 100 / cudaMPSReplicas,
-				gpuIndex:         index,
-			}
-			gpuDev.SetModelName(gpuName)
-			devAddr := gpuDev.GetAddr()
-			gpuDev.SetAddr(fmt.Sprintf("%s-%d", devAddr, i), devAddr)
-			devs = append(devs, gpuDev)
+		dev := isolated_device.NewPCIDevice2(pciOutput[0])
+		gpuDev := &nvidiaMPS{
+			BaseDevice:       NewBaseDevice(dev, isolated_device.ContainerDeviceTypeNvidiaMps, gpuId, cudaMPSReplicas),
+			MemSizeMB:        memSize / cudaMPSReplicas,
+			MemTotalMB:       memSize,
+			ThreadPercentage: 100 / cudaMPSReplicas,
+			gpuIndex:         index,
 		}
+		gpuDev.SetModelName(gpuName)
+		devs = append(devs, gpuDev)
 	}
 	if len(devs) == 0 {
 		return nil, nil
