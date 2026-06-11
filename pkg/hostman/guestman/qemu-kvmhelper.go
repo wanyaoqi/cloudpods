@@ -471,6 +471,7 @@ func (s *SKVMGuestInstance) generateStartScript(data *jsonutils.JSONDict) (strin
 	}
 
 	cmd += fmt.Sprintf("DEFAULT_QEMU_CMD='%s'\n", qemuCmd)
+	cmd += fmt.Sprintf("RUNAS_ARG0='%s'\n", qemuCmd)
 	/*
 	 * cmd += "if [ -n \"$STATE_FILE\" ]; then\n"
 	 * cmd += "    QEMU_VER=`echo $STATE_FILE" +
