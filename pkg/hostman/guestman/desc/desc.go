@@ -36,6 +36,8 @@ type SGuestCpu struct {
 	Accel string
 	// emulate, passthrough, disable
 	// CpuCacheMode string
+
+	PhysBits *uint
 }
 
 type SCpuPin struct {

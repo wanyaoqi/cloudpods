@@ -134,6 +134,7 @@ func (x86 *X86) GenerateCpuDesc(cpus uint, cpuMax uint, s KVMGuestInstance) (*de
 	var isCPUIntel = sysutils.IsProcessorIntel()
 	var isCPUAMD = sysutils.IsProcessorAmd()
 
+	var physBits uint = 46
 	var accel, cpuType, vendor, level string
 	var features = make(map[string]bool, 0)
 	if s.IsKvmSupport() {
@@ -193,5 +194,6 @@ func (x86 *X86) GenerateCpuDesc(cpus uint, cpuMax uint, s KVMGuestInstance) (*de
 		Level:    level,
 		Features: features,
 		Accel:    accel,
+		PhysBits: &physBits,
 	}, nil
 }

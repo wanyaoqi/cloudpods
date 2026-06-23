@@ -229,6 +229,9 @@ func generateCPUOption(cpu *desc.SGuestCpu) string {
 	if len(cpu.Level) > 0 {
 		cmd += fmt.Sprintf(",level=%s", cpu.Level)
 	}
+	if cpu.PhysBits != nil {
+		cmd += fmt.Sprintf(",phys-bits=%d", *cpu.PhysBits)
+	}
 	return cmd
 }
 
