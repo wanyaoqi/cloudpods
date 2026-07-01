@@ -44,9 +44,11 @@ type SGuestIsolatedDevice struct {
 	SIsolatedDeviceResourceBase
 
 	// guest isolated device memory size limit
-	DeviceMemorySize int `nullable:"true" default:"0" list:"domain" update:"domain" create:"domain_optional"`
+	DeviceMemorySize int `nullable:"true" default:"0" list:"user" update:"user" create:"optional"`
 	// guest isolated device  Streaming Multiprocessor Utilization limit
-	SmUtilLimit int `nullable:"true" default:"0" list:"domain" update:"domain" create:"domain_optional"`
+	SmUtilLimit int `nullable:"true" default:"0" list:"user" update:"user" create:"optional"`
+	// gpu device work type: HPC VGA
+	GpuType string `width:"16" charset:"ascii" nullable:"true" default:"" index:"true" list:"user" create:"optional" update:"user"`
 
 	// guest network index
 	NetworkIndex int `nullable:"true" default:"-1" list:"user" update:"user"`

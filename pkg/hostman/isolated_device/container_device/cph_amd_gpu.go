@@ -52,7 +52,7 @@ func (m *cphAMDGPUManager) NewDevices(dev *isolated_device.ContainerDevice) ([]i
 	}
 	gpuDev, err := newCphAMDGPU(dev.Path, dev.VirtualNumber)
 	if err != nil {
-		return nil, errors.Wrapf(err, "new CPH AMD GPU with index %d", i)
+		return nil, errors.Wrapf(err, "new CPH AMD GPU with virtual num %d", dev.VirtualNumber)
 	}
 	return []isolated_device.IDevice{gpuDev}, nil
 }
