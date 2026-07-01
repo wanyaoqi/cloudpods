@@ -2069,7 +2069,7 @@ type isolatedDeviceMergeKey struct {
 }
 
 func (manager *SIsolatedDeviceManager) migrateGuestIsolatedDevices() error {
-	rows, err := sqlchemy.GetDB().Query("SELECT id, guest_id, network_index, disk_index FROM %s WHERE deleted = 0 AND guest_id IS NOT NULL AND LENGTH(guest_id) > 0", manager.TableSpec().Name())
+	rows, err := sqlchemy.GetDB().Query(fmt.Sprintf("SELECT id, guest_id, network_index, disk_index FROM %s WHERE deleted = 0 AND guest_id IS NOT NULL AND LENGTH(guest_id) > 0", manager.TableSpec().Name()))
 	if err != nil && errors.Cause(err) != sql.ErrNoRows {
 		return errors.Wrap(err, "migrateGuestIsolatedDevices QueryRows")
 	}
