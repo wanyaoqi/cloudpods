@@ -111,10 +111,6 @@ type SIsolatedDevice struct {
 	// # Specific device name read from lspci command, e.g. `Tesla K40m` ...
 	Model string `width:"512" charset:"ascii" nullable:"false" default:"" index:"true" list:"domain" create:"domain_required" update:"domain"`
 
-	// 云主机Id
-	GuestId string `width:"36" charset:"ascii" nullable:"true" index:"true" list:"domain"`
-	// guest network index
-	NetworkIndex int `nullable:"true" default:"-1" list:"user" update:"user"`
 	// Nic wire id
 	WireId string `width:"36" charset:"ascii" nullable:"true" index:"true" list:"domain" update:"domain" create:"domain_optional"`
 	// Offload interface name
@@ -123,8 +119,6 @@ type SIsolatedDevice struct {
 	IsInfinibandNic bool `nullable:"false" default:"false" list:"user" create:"optional"`
 	// NVME disk size
 	NvmeSizeMB int `nullable:"true" list:"domain" update:"domain" create:"domain_optional"`
-	// guest disk index
-	DiskIndex int8 `nullable:"true" default:"-1" list:"user" update:"user"`
 
 	// # pci address of `Bus:Device.Function` format, or usb bus address of `bus:addr:port`
 	Addr       string `width:"16" charset:"ascii" nullable:"true" list:"domain" update:"domain" create:"domain_optional"`
@@ -2075,65 +2069,62 @@ type isolatedDeviceMergeKey struct {
 }
 
 func (manager *SIsolatedDeviceManager) migrateGuestIsolatedDevices() error {
-	devs := make([]SIsolatedDevice, 0)
-	q := manager.Query().IsNotEmpty("guest_id")
-	err := db.FetchModelObjects(manager, q, &devs)
-	if err != nil {
-		return errors.Wrap(err, "FetchModelObjects")
+	q := manager.Query("id", "guest_id", "network_index", "disk_index").IsNotEmpty("guest_id")
+	rows, err := q.Rows()
+	if err != nil && errors.Cause(err) != sql.ErrNoRows {
+		return errors.Wrap(err, "migrateGuestIsolatedDevices QueryRows")
 	}
-	if len(devs) == 0 {
+	if err != nil && errors.Cause(err) == sql.ErrNoRows {
 		return nil
 	}
+	defer rows.Close()
 
 	ctx := context.Background()
-	guestIndexMap := map[string]int8{}
 	migrated := 0
-	for i := range devs {
-		dev := &devs[i]
+	guestIndexMap := map[string]int8{}
+	for rows.Next() {
+		var devId, guestId string
+		var networkIndex int
+		var diskIndex int8
+		if err = rows.Scan(&devId, &guestId, &networkIndex, &diskIndex); err != nil {
+			return errors.Wrap(err, "migrateGuestIsolatedDevices Scan")
+		}
 		cnt, err := GuestIsolatedDeviceManager.Query().
-			Equals("guest_id", dev.GuestId).
-			Equals("isolated_device_id", dev.Id).
+			Equals("guest_id", guestId).
+			Equals("isolated_device_id", devId).
 			CountWithError()
 		if err != nil {
-			return errors.Wrapf(err, "count guest isolated device for device %s", dev.Id)
+			return errors.Wrapf(err, "count guest isolated device for device %s", devId)
 		}
 		if cnt == 0 {
-			idx, ok := guestIndexMap[dev.GuestId]
+			idx, ok := guestIndexMap[guestId]
 			if !ok {
-				maxIdx, err := manager.getGuestIsolatedDeviceMaxIndex(dev.GuestId)
+				maxIdx, err := manager.getGuestIsolatedDeviceMaxIndex(guestId)
 				if err != nil {
-					return errors.Wrapf(err, "getGuestIsolatedDeviceMaxIndex guest %s", dev.GuestId)
+					return errors.Wrapf(err, "getGuestIsolatedDeviceMaxIndex guest %s", guestId)
 				}
 				idx = maxIdx + 1
 			}
-			guestIndexMap[dev.GuestId] = idx + 1
+			guestIndexMap[guestId] = idx + 1
 
 			guestIsolatedDevice := SGuestIsolatedDevice{}
 			guestIsolatedDevice.SetModelManager(GuestIsolatedDeviceManager, &guestIsolatedDevice)
-			guestIsolatedDevice.GuestId = dev.GuestId
-			guestIsolatedDevice.IsolatedDeviceId = dev.Id
+			guestIsolatedDevice.GuestId = guestId
+			guestIsolatedDevice.IsolatedDeviceId = devId
 			guestIsolatedDevice.Index = idx
-			if dev.NetworkIndex >= 0 {
-				guestIsolatedDevice.NetworkIndex = dev.NetworkIndex
+			if networkIndex >= 0 {
+				guestIsolatedDevice.NetworkIndex = networkIndex
 			}
-			if dev.DiskIndex >= 0 {
-				guestIsolatedDevice.DiskIndex = dev.DiskIndex
+			if diskIndex >= 0 {
+				guestIsolatedDevice.DiskIndex = diskIndex
 			}
 			if err := GuestIsolatedDeviceManager.TableSpec().Insert(ctx, &guestIsolatedDevice); err != nil {
-				return errors.Wrapf(err, "insert guest isolated device for device %s guest %s", dev.Id, dev.GuestId)
+				return errors.Wrapf(err, "insert guest isolated device for device %s guest %s", devId, guestId)
 			}
 			migrated++
 		}
-
-		//if _, err := db.Update(dev, func() error {
-		//	dev.GuestId = ""
-		//	dev.NetworkIndex = -1
-		//	dev.DiskIndex = -1
-		//	return nil
-		//}); err != nil {
-		//	return errors.Wrapf(err, "clear legacy guest_id on device %s", dev.Id)
-		//}
 	}
+
 	log.Infof("migrated %d legacy isolated device guest assign to guest_isolated_devices_tbl", migrated)
 	return nil
 }
