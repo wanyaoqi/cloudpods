@@ -81,14 +81,6 @@ func (m *cphAOSPBinderManager) NewDevices(dev *isolated_device.ContainerDevice) 
 	return []isolated_device.IDevice{binderDev}, nil
 }
 
-func (m *cphAOSPBinderManager) newDeviceByIndex(index int) (isolated_device.IDevice, error) {
-	dev, err := newCphAOSPBinder(index, m.controlDevicePath)
-	if err != nil {
-		return nil, errors.Wrap(err, "newCphAOSPBinder")
-	}
-	return dev, nil
-}
-
 func (m *cphAOSPBinderManager) initialize(dev *isolated_device.ContainerDevice) error {
 	if m.initialized {
 		return errors.Errorf("cphAOSPBinderManager already initialized")
@@ -171,20 +163,4 @@ func (m *cphAOSPBinderManager) ensureBinderDevice(ctrName string, dev *hostapi.C
 type cphAOSPBinder struct {
 	*BaseDevice
 	ControlPath string
-}
-
-func newCphAOSPBinder(idx int, ctrPath string) (*cphAOSPBinder, error) {
-	id := fmt.Sprintf("aosp_binder_%d", idx)
-	dev := &isolated_device.PCIDevice{
-		Addr:      fmt.Sprintf("%d", idx),
-		VendorId:  CPH_AOSP_VENDOR_ID,
-		DeviceId:  CPH_AOSP_DEVICE_ID,
-		ModelName: CPH_AOSP_BINDER_MODEL_NAME,
-	}
-	devPath := fmt.Sprintf("/dev/%s", id)
-	binderDev := &cphAOSPBinder{
-		BaseDevice:  NewBaseDevice(dev, isolated_device.ContainerDeviceTypeCphASOPBinder, devPath),
-		ControlPath: ctrPath,
-	}
-	return binderDev, nil
 }
