@@ -43,6 +43,7 @@ func init() {
 type cphAOSPBinderManager struct {
 	controlDevicePath string
 	controlName       string
+	initialized       bool
 }
 
 func newCphAOSPBinderManager() *cphAOSPBinderManager {
@@ -64,15 +65,20 @@ func (m *cphAOSPBinderManager) NewDevices(dev *isolated_device.ContainerDevice) 
 	if err := m.initialize(dev); err != nil {
 		return nil, errors.Wrap(err, "initialize")
 	}
-	devs := make([]isolated_device.IDevice, 0)
-	for i := 0; i < dev.VirtualNumber; i++ {
-		newDev, err := m.newDeviceByIndex(i)
-		if err != nil {
-			return nil, errors.Wrapf(err, "new device by index %d", i)
-		}
-		devs = append(devs, newDev)
+
+	id := "aosp_binder"
+	ndev := &isolated_device.PCIDevice{
+		Addr:      m.controlName,
+		VendorId:  CPH_AOSP_VENDOR_ID,
+		DeviceId:  CPH_AOSP_DEVICE_ID,
+		ModelName: CPH_AOSP_BINDER_MODEL_NAME,
 	}
-	return devs, nil
+	devPath := fmt.Sprintf("/dev/%s", id)
+	binderDev := &cphAOSPBinder{
+		BaseDevice:  NewBaseDevice(ndev, isolated_device.ContainerDeviceTypeCphASOPBinder, devPath, dev.VirtualNumber),
+		ControlPath: m.controlDevicePath,
+	}
+	return []isolated_device.IDevice{binderDev}, nil
 }
 
 func (m *cphAOSPBinderManager) newDeviceByIndex(index int) (isolated_device.IDevice, error) {
@@ -84,6 +90,9 @@ func (m *cphAOSPBinderManager) newDeviceByIndex(index int) (isolated_device.IDev
 }
 
 func (m *cphAOSPBinderManager) initialize(dev *isolated_device.ContainerDevice) error {
+	if m.initialized {
+		return errors.Errorf("cphAOSPBinderManager already initialized")
+	}
 	ctrlPath := CPH_AOSP_BINDER_CONTROL_DEV_PATH
 	info, err := os.Stat(ctrlPath)
 	if err != nil {
@@ -91,6 +100,7 @@ func (m *cphAOSPBinderManager) initialize(dev *isolated_device.ContainerDevice) 
 	}
 	m.controlDevicePath = ctrlPath
 	m.controlName = info.Name()
+	m.initialized = true
 	return nil
 }
 

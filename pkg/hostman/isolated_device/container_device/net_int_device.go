@@ -159,33 +159,24 @@ func (m *netintDeviceManager) NewDevices(dev *isolated_device.ContainerDevice) (
 	}
 	result := make([]isolated_device.IDevice, 0)
 	for _, nvmeDev := range nvmeDevs {
-		for i := 0; i < dev.VirtualNumber; i++ {
-			newDev, err := m.newDeviceByIndex(nvmeDev, i)
-			if err != nil {
-				return nil, errors.Wrapf(err, "newDeviceByIndex %#v %d", nvmeDev, i)
-			}
-			result = append(result, newDev)
+		devIdx, err := nvmeDev.GetIndex()
+		if err != nil {
+			return nil, err
 		}
+		devInfo := &isolated_device.PCIDevice{
+			Addr:      strconv.Itoa(devIdx),
+			VendorId:  NETINT_VENDOR_ID,
+			DeviceId:  NETINT_DEVICE_ID,
+			ModelName: nvmeDev.ModelNumber,
+		}
+		newDev := &netintDevice{
+			BaseDevice: NewBaseDevice(devInfo, m.devType, nvmeDev.DevicePath, dev.VirtualNumber),
+			info:       nvmeDev,
+		}
+
+		result = append(result, newDev)
 	}
 	return result, nil
-}
-
-func (m *netintDeviceManager) newDeviceByIndex(dev *NetintDeviceInfo, idx int) (*netintDevice, error) {
-	devIdx, err := dev.GetIndex()
-	if err != nil {
-		return nil, errors.Wrap(err, "dev.GetIndex")
-	}
-	devInfo := &isolated_device.PCIDevice{
-		Addr:      fmt.Sprintf("%d-%d", devIdx, idx),
-		VendorId:  NETINT_VENDOR_ID,
-		DeviceId:  NETINT_DEVICE_ID,
-		ModelName: dev.ModelNumber,
-	}
-	nvmeDev := &netintDevice{
-		BaseDevice: NewBaseDevice(devInfo, m.devType, dev.DevicePath),
-		info:       dev,
-	}
-	return nvmeDev, nil
 }
 
 func (m *netintDeviceManager) NewContainerDevices(_ *hostapi.ContainerCreateInput, input *hostapi.ContainerDevice) ([]*runtimeapi.Device, []*runtimeapi.Device, error) {

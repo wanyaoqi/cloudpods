@@ -87,7 +87,7 @@ func getNvidiaGpuUsage() (map[string]*nvidiaGpuUsage, error) {
 	if nvidiaGpuUsages != nil {
 		return nvidiaGpuUsages, nil
 	}
-	devs, err := getNvidiaGPUs()
+	devs, err := getNvidiaGPUs(isolated_device.ContainerDeviceTypeNvidiaGpuShare)
 	if err != nil {
 		return nil, err
 	}

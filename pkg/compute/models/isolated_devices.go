@@ -80,7 +80,6 @@ const (
 	isolatedDeviceInitializeDataObjType = "system"
 	isolatedDeviceInitializeDataObjId   = "compute_isolated_device_initialize_data"
 	isolatedDeviceInitializeDataKey     = "__initialized"
-	isolatedDeviceInitializeDataValue   = "true"
 )
 
 func init() {
