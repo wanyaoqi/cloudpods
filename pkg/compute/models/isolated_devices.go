@@ -2290,7 +2290,7 @@ func (manager *SIsolatedDeviceManager) doMergeGuestIsolatedDevices(keeperId, kee
 
 	virtualNum := 1 + len(originIds)
 	sql := fmt.Sprintf(
-		"update %s set virtual_number = ?, addr = ? where id = ?",
+		"update %s set virtual_num = ?, addr = ? where id = ?",
 		IsolatedDeviceManager.TableSpec().Name(),
 	)
 	res, err = tx.Exec(sql, virtualNum, keeperNewAddr, keeperId)
