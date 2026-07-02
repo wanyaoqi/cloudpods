@@ -2198,6 +2198,7 @@ func (manager *SIsolatedDeviceManager) mergeVirtualIsolatedDevices() error {
 }
 
 func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeperId string, originIds []string) error {
+	log.Infof("start replace contaienr isolated device id, originIds %v, keeper %s", originIds, keeperId)
 	gdevs := make([]SGuestIsolatedDevice, 0)
 	q := GuestIsolatedDeviceManager.Query().In("isolated_device_id", originIds)
 	err := db.FetchModelObjects(GuestIsolatedDeviceManager, q, &gdevs)

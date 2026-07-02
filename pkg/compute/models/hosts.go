@@ -4430,6 +4430,13 @@ func (hh *SHost) GetDetailsIpmi(ctx context.Context, userCred mcclient.TokenCred
 }
 
 func (hh *SHost) GetDetailsGuestIsolatedDevicesInitialized(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	inited, err := IsolatedDeviceManager.isInitializeDataDone()
+	if err != nil {
+		return nil, err
+	}
+	if !inited {
+		return nil, httperrors.NewResourceNotReadyError("isolated device not isitialized")
+	}
 	ret := jsonutils.NewDict()
 	ret.Set("initialized", jsonutils.NewString("ok"))
 	return ret, nil
