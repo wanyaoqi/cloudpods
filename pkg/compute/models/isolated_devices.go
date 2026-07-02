@@ -2207,7 +2207,6 @@ func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeper
 	if err != nil {
 		return errors.Wrap(err, "GuestIsolatedDeviceManager.FetchModelObjects")
 	}
-	idSet := sets.NewString(originIds...)
 	for i := range gdevs {
 		ctrs, err := GetContainerManager().GetContainersByPod(gdevs[i].GuestId)
 		if err != nil {
@@ -2221,12 +2220,14 @@ func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeper
 				return errors.Wrap(err, "deep copy spec")
 			}
 			log.Infof("start replace container %s", ctrPtr.Name)
+			log.Infof("xxxxxxxx spec: %s", jsonutils.Marshal(spec))
+
 			updated := false
 			for k := range spec.Devices {
 				if spec.Devices[k].IsolatedDevice != nil {
 					continue
 				}
-				if !idSet.Has(spec.Devices[k].IsolatedDevice.Id) {
+				if !utils.IsInStringArray(spec.Devices[k].IsolatedDevice.Id, ids) {
 					continue
 				}
 				spec.Devices[k].IsolatedDevice.Id = keeperId
