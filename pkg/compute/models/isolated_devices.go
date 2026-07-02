@@ -2199,8 +2199,10 @@ func (manager *SIsolatedDeviceManager) mergeVirtualIsolatedDevices() error {
 
 func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeperId string, originIds []string) error {
 	log.Infof("start replace contaienr isolated device id, originIds %v, keeper %s", originIds, keeperId)
+	ids := []string{keeperId}
+	ids = append(ids, originIds...)
 	gdevs := make([]SGuestIsolatedDevice, 0)
-	q := GuestIsolatedDeviceManager.Query().In("isolated_device_id", originIds)
+	q := GuestIsolatedDeviceManager.Query().In("isolated_device_id", ids)
 	err := db.FetchModelObjects(GuestIsolatedDeviceManager, q, &gdevs)
 	if err != nil {
 		return errors.Wrap(err, "GuestIsolatedDeviceManager.FetchModelObjects")
@@ -2212,21 +2214,30 @@ func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeper
 			return errors.Wrapf(err, "GetContainerManager().GetContainersByPod")
 		}
 		for j := range ctrs {
-			ctr := &ctrs[j]
-			log.Infof("start replace container %s", ctr.Name)
-			_, err = db.Update(ctr, func() error {
-				for k := range ctr.Spec.Devices {
-					if ctr.Spec.Devices[k].IsolatedDevice == nil {
-						log.Infof("IsolatedDevice is nil %v", ctr.Spec.Devices[k].IsolatedDevice)
-						continue
-					}
-					if !idSet.Has(ctr.Spec.Devices[k].IsolatedDevice.Id) {
-						log.Infof("idset not has %s", ctr.Spec.Devices[k].IsolatedDevice.Id)
-						continue
-					}
-					ctr.Spec.Devices[k].IsolatedDevice.Id = keeperId
-					ctr.Spec.Devices[k].IsolatedDevice.GuestIsolatedDeviceIndex = int(gdevs[i].Index)
+			ctrPtr := &ctrs[j]
+
+			spec := new(api.ContainerSpec)
+			if err := jsonutils.Marshal(ctrPtr.Spec).Unmarshal(spec); err != nil {
+				return errors.Wrap(err, "deep copy spec")
+			}
+			log.Infof("start replace container %s", ctrPtr.Name)
+			updated := false
+			for k := range spec.Devices {
+				if spec.Devices[k].IsolatedDevice != nil {
+					continue
 				}
+				if !idSet.Has(spec.Devices[k].IsolatedDevice.Id) {
+					continue
+				}
+				spec.Devices[k].IsolatedDevice.Id = keeperId
+				spec.Devices[k].IsolatedDevice.GuestIsolatedDeviceIndex = int(gdevs[i].Index)
+				updated = true
+			}
+			if !updated {
+				continue
+			}
+			_, err = db.Update(ctrPtr, func() error {
+				ctrPtr.Spec = spec
 				return nil
 			})
 			if err != nil {
