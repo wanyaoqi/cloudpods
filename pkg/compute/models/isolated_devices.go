@@ -2213,12 +2213,15 @@ func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeper
 		}
 		for j := range ctrs {
 			ctr := &ctrs[j]
+			log.Infof("start replace container %s", ctr.Name)
 			_, err = db.Update(ctr, func() error {
 				for k := range ctr.Spec.Devices {
 					if ctr.Spec.Devices[k].IsolatedDevice == nil {
+						log.Infof("IsolatedDevice is nil %v", ctr.Spec.Devices[k].IsolatedDevice)
 						continue
 					}
 					if !idSet.Has(ctr.Spec.Devices[k].IsolatedDevice.Id) {
+						log.Infof("idset not has %s", ctr.Spec.Devices[k].IsolatedDevice.Id)
 						continue
 					}
 					ctr.Spec.Devices[k].IsolatedDevice.Id = keeperId
