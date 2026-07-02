@@ -2224,7 +2224,7 @@ func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeper
 
 			updated := false
 			for k := range spec.Devices {
-				if spec.Devices[k].IsolatedDevice != nil {
+				if spec.Devices[k].IsolatedDevice == nil {
 					continue
 				}
 				if !utils.IsInStringArray(spec.Devices[k].IsolatedDevice.Id, ids) {
