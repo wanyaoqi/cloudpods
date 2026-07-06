@@ -1702,7 +1702,7 @@ func (self *SGuest) RebalanceVirtualIsolatedDevices(ctx context.Context, userCre
 	originDevConfigs := make([]api.IsolatedDeviceConfig, 0)
 	for i := range guestDevs {
 		dev := guestDevs[i].GetIsolatedDevice()
-		if dev.DevType != api.CONTAINER_DEV_NVIDIA_HAMI && utils.IsInStringArray(dev.DevType, api.VITRUAL_DEVICE_TYPES) {
+		if dev.SharingMode == api.DEVICE_SHARING_MODE_UNLIMITED {
 			originDevConfigs = append(originDevConfigs, api.IsolatedDeviceConfig{
 				Model:         dev.Model,
 				DevType:       dev.DevType,
@@ -1710,7 +1710,7 @@ func (self *SGuest) RebalanceVirtualIsolatedDevices(ctx context.Context, userCre
 				SmUtilLimit:   guestDevs[i].SmUtilLimit,
 			})
 			detachDevs = append(detachDevs, guestDevs[i])
-			isBalance, err := host.VirtualDeviceNumaBalance(dev.DevType, dev.NumaNode)
+			isBalance, err := host.VirtualDeviceNumaBalance(dev.Model, dev.NumaNode)
 			if err != nil {
 				return errors.Wrap(err, "VirtualDeviceNumaBalance")
 			}
@@ -2374,7 +2374,7 @@ func (self *SGuest) DetachIsolatedDevices(ctx context.Context, userCred mcclient
 	for i := 0; i < len(devs); i++ {
 		// check first
 		dev := devs[i].GetIsolatedDevice()
-		if !utils.IsInStringArray(dev.DevType, api.VALID_ATTACH_TYPES) {
+		if !dev.IsValidAttachDev() {
 			if devModel, err := IsolatedDeviceModelManager.GetByDevType(dev.DevType); err != nil {
 				msg := fmt.Sprintf("Can't separately detach dev type %s", dev.DevType)
 				logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
@@ -2544,29 +2544,24 @@ func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient
 			return httperrors.NewBadRequestError("require %d %s isolated device of host %s is not enough", count, devModel, host.GetName())
 		}
 		dev := devs[0]
-		if !utils.IsInStringArray(dev.DevType, api.VALID_ATTACH_TYPES) {
-			if devModel, err := IsolatedDeviceModelManager.GetByDevType(dev.DevType); err != nil {
-				return httperrors.NewBadRequestError("Can't separately attach dev type %s", dev.DevType)
-			} else {
-				if !devModel.HotPluggable.Bool() && self.GetStatus() == api.VM_RUNNING {
-					return httperrors.NewBadRequestError("dev type %s model %s unhotpluggable", dev.DevType, devModel.Model)
-				}
-			}
+		if !dev.HotPluggable && self.GetStatus() == api.VM_RUNNING {
+			return httperrors.NewBadRequestError("dev type %s model %s unhotpluggable", dev.DevType, dev.Model)
+
 		}
-		if dev.DevType == api.LEGACY_VGPU_TYPE {
+		if dev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
 			attachedGpus, err := self.GetGuestIsolatedDevices()
 			if err != nil {
 				return errors.Wrap(err, "get isolated devices")
 			}
 			for i := range attachedGpus {
 				dev := attachedGpus[i].GetIsolatedDevice()
-				if dev.DevType == api.LEGACY_VGPU_TYPE {
+				if dev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
 					return httperrors.NewBadRequestError("Nvidia vgpu count exceed > 1")
-				} else if utils.IsInStringArray(dev.DevType, api.VALID_GPU_TYPES) {
+				} else if dev.DevType == api.GPU_TYPE {
 					return httperrors.NewBadRequestError("Nvidia vgpu can't passthrough with other gpus")
 				}
 			}
-		} else if dev.DevType == api.CONTAINER_DEV_NVIDIA_MPS {
+		} else if utils.IsInStringArray(dev.SharingMode, []string{api.DEVICE_SHARING_MODE_MPS, api.DEVICE_SHARING_MODE_HAMI, api.DEVICE_SHARING_MODE_UNLIMITED}) {
 			allDevs, err := IsolatedDeviceManager.GetUnusedDevsOnHost(host.Id, devModel, -1)
 			if err != nil {
 				return httperrors.NewInternalServerError("fetch gpu failed %s", err)
@@ -2626,29 +2621,24 @@ func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred 
 		return httperrors.NewBadRequestError(msgFmt, device)
 	}
 	dev := iDev.(*SIsolatedDevice)
-	if !utils.IsInStringArray(dev.DevType, api.VALID_ATTACH_TYPES) {
-		if devModel, err := IsolatedDeviceModelManager.GetByDevType(dev.DevType); err != nil {
-			return httperrors.NewBadRequestError("Can't separately attach dev type %s", dev.DevType)
-		} else {
-			if !devModel.HotPluggable.Bool() && self.GetStatus() == api.VM_RUNNING {
-				return httperrors.NewBadRequestError("dev type %s model %s unhotpluggable", dev.DevType, devModel.Model)
-			}
-		}
-	}
-	if !utils.IsInStringArray(self.GetStatus(), []string{api.VM_READY, api.VM_RUNNING}) {
-		return httperrors.NewInvalidStatusError("Can't attach GPU when status is %q", self.GetStatus())
+	if !dev.HotPluggable && self.GetStatus() == api.VM_RUNNING {
+		return httperrors.NewBadRequestError("dev type %s model %s unhotpluggable", dev.DevType, dev.Model)
 	}
 
-	if dev.DevType == api.LEGACY_VGPU_TYPE {
+	if !utils.IsInStringArray(self.GetStatus(), []string{api.VM_READY, api.VM_RUNNING}) {
+		return httperrors.NewInvalidStatusError("Can't attach isolated device when status is %q", self.GetStatus())
+	}
+
+	if dev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
 		devs, err := self.GetGuestIsolatedDevices()
 		if err != nil {
 			return errors.Wrap(err, "get isolated devices")
 		}
 		for i := range devs {
 			gdev := devs[i].GetIsolatedDevice()
-			if gdev.DevType == api.LEGACY_VGPU_TYPE {
+			if gdev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
 				return httperrors.NewBadRequestError("Nvidia vgpu count exceed > 1")
-			} else if utils.IsInStringArray(gdev.DevType, api.VALID_GPU_TYPES) {
+			} else if gdev.DevType == api.GPU_TYPE {
 				return httperrors.NewBadRequestError("Nvidia vgpu can't passthrough with other gpus")
 			}
 		}

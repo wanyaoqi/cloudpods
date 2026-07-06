@@ -916,7 +916,7 @@ func getIsolatedDeviceInfo(ctx context.Context, userCred mcclient.TokenCredentia
 	devices := devicesQ.SubQuery()
 	hosts := hostQuery.SubQuery()
 
-	q := devices.Query(hosts.Field("host_type"), devices.Field("model"), devices.Field("dev_type"), devices.Field("nvme_size_mb"))
+	q := devices.Query(hosts.Field("host_type"), devices.Field("model"), devices.Field("dev_type"), devices.Field("sharing_mode"), devices.Field("nvme_size_mb"))
 	q = q.Filter(sqlchemy.NotIn(devices.Field("dev_type"), []string{api.USB_TYPE, api.NIC_TYPE}))
 	if zone != nil {
 		q = q.Join(hosts, sqlchemy.Equals(devices.Field("host_id"), hosts.Field("id")))
@@ -946,20 +946,20 @@ func getIsolatedDeviceInfo(ctx context.Context, userCred mcclient.TokenCredentia
 	gpus := make([]PCIDevModelTypes, 0)
 	gpuModels := make([]string, 0)
 	for rows.Next() {
-		var m, t string
+		var m, t, sharingMode string
 		var sizeMB int
 		var vdev bool
 		var hypervisor string
 		var hostType string
-		rows.Scan(&hostType, &m, &t, &sizeMB)
+		rows.Scan(&hostType, &m, &t, &sharingMode, &sizeMB)
 
 		if m == "" {
 			continue
 		}
-		if utils.IsInStringArray(t, api.VITRUAL_DEVICE_TYPES) {
+		if utils.IsInStringArray(sharingMode, api.VIRTUAL_SHARING_MODES) {
 			vdev = true
 		}
-		if utils.IsInStringArray(t, api.VALID_CONTAINER_DEVICE_TYPES) {
+		if hostType == api.HOST_TYPE_CONTAINER {
 			hypervisor = api.HYPERVISOR_POD
 		} else {
 			hypervisor = api.HYPERVISOR_KVM

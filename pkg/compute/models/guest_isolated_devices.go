@@ -257,6 +257,7 @@ func (self *SGuestIsolatedDevice) getDesc() *api.IsolatedDeviceJsonDesc {
 	devDesc.NetworkIndex = self.NetworkIndex
 	devDesc.MemoryLimit = self.DeviceMemorySize
 	devDesc.SmUtilLimit = self.SmUtilLimit
+	devDesc.GpuType = self.GpuType
 	return devDesc
 }
 

@@ -22,6 +22,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 
+	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/hostman/guestman/desc"
 	"yunion.io/x/onecloud/pkg/hostman/guestman/qemu"
 	"yunion.io/x/onecloud/pkg/hostman/monitor"
@@ -352,7 +353,7 @@ func (s *SKVMGuestInstance) initIsolatedDevices(pciRoot, pciBridge *desc.PCICont
 			id := dev.GetQemuId()
 			s.Desc.IsolatedDevices[i].VfioDevs = make([]*desc.VFIODevice, 0)
 			vfioDev := desc.NewVfioDevice(
-				*cType, "vfio-pci", id, dev.GetAddr(), s.Desc.IsolatedDevices[i].DevType == api.GPU_VGA_TYPE,
+				*cType, "vfio-pci", id, dev.GetAddr(), s.Desc.IsolatedDevices[i].GpuType == compute.GPU_VGA,
 			)
 			s.Desc.IsolatedDevices[i].VfioDevs = append(s.Desc.IsolatedDevices[i].VfioDevs, vfioDev)
 

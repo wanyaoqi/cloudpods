@@ -30,11 +30,12 @@ import (
 )
 
 type sNVIDIAVgpuDevice struct {
-	pfDev   *PCIDevice
-	cloudId string
-	hostId  string
-	guestId string
-	devType string
+	pfDev       *PCIDevice
+	cloudId     string
+	hostId      string
+	guestId     string
+	devType     string
+	sharingMode string
 
 	mdevId  string
 	model   string
@@ -83,6 +84,10 @@ func (dev *sNVIDIAVgpuDevice) GetAddr() string {
 
 func (dev *sNVIDIAVgpuDevice) GetDeviceType() string {
 	return dev.devType
+}
+
+func (dev *sNVIDIAVgpuDevice) GetSharingMode() string {
+	return dev.sharingMode
 }
 
 func (dev *sNVIDIAVgpuDevice) GetModelName() string {
@@ -269,13 +274,14 @@ func (dev *sNVIDIAVgpuDevice) GetPCIEInfo() *compute.IsolatedDevicePCIEInfo {
 	return dev.pfDev.PCIEInfo
 }
 
-func NewNvidiaVgpuDevice(dev *PCIDevice, devType, mdevId, model string, profile map[string]string) *sNVIDIAVgpuDevice {
+func NewNvidiaVgpuDevice(dev *PCIDevice, devType, sharingMode, mdevId, model string, profile map[string]string) *sNVIDIAVgpuDevice {
 	return &sNVIDIAVgpuDevice{
-		pfDev:   dev,
-		devType: devType,
-		mdevId:  mdevId,
-		model:   model,
-		profile: profile,
+		pfDev:       dev,
+		devType:     devType,
+		sharingMode: sharingMode,
+		mdevId:      mdevId,
+		model:       model,
+		profile:     profile,
 	}
 }
 
@@ -322,7 +328,7 @@ func getNvidiaVGpus(gpuPF string) ([]*sNVIDIAVgpuDevice, error) {
 				profile[key] = strings.TrimSpace(value)
 			}
 		}
-		mdev := NewNvidiaVgpuDevice(pfDev, compute.LEGACY_VGPU_TYPE, files[i].Name(), model, profile)
+		mdev := NewNvidiaVgpuDevice(pfDev, compute.GPU_TYPE, compute.DEVICE_SHARING_MODE_MDEV, files[i].Name(), model, profile)
 		nvidiaVgpus = append(nvidiaVgpus, mdev)
 	}
 	return nvidiaVgpus, nil

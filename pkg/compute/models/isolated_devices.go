@@ -31,7 +31,6 @@ import (
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/util/rbacscope"
-	"yunion.io/x/pkg/util/sets"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
@@ -47,25 +46,6 @@ import (
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
-
-const (
-//DIRECT_PCI_TYPE = api.DIRECT_PCI_TYPE
-//GPU_HPC_TYPE = api.GPU_HPC_TYPE // # for compute
-//GPU_VGA_TYPE = api.GPU_VGA_TYPE // # for display
-//USB_TYPE        = api.USB_TYPE
-//NIC_TYPE        = api.NIC_TYPE
-
-// NVIDIA_VENDOR_ID = api.NVIDIA_VENDOR_ID
-// AMD_VENDOR_ID    = api.AMD_VENDOR_ID
-)
-
-var VALID_GPU_TYPES = api.VALID_GPU_TYPES
-
-var VALID_PASSTHROUGH_TYPES = api.VALID_PASSTHROUGH_TYPES
-
-var ID_VENDOR_MAP = api.ID_VENDOR_MAP
-
-var VENDOR_ID_MAP = api.VENDOR_ID_MAP
 
 type SIsolatedDeviceManager struct {
 	db.SStandaloneResourceBaseManager
@@ -104,10 +84,13 @@ type SIsolatedDevice struct {
 	db.SSharableBaseResource `"is_public->create":"domain_optional" "public_scope->create":"domain_optional"`
 	SHostResourceBase        `width:"36" charset:"ascii" nullable:"false" default:"" index:"true" list:"domain" create:"domain_required"`
 
-	// # PCI / GPU-HPC / GPU-VGA / USB / NIC
+	// # PCI / GPU / USB / NIC ...
 	// 设备类型
 	DevType string `width:"128" charset:"ascii" nullable:"false" default:"" index:"true" list:"domain" create:"domain_required" update:"domain"`
-
+	// EXCLUSIVE / SRIOV / MPS / HAMI / SHARE / MIG
+	SharingMode string `width:"36" charset:"ascii" nullable:"true" index:"true" list:"domain" update:"domain" create:"domain_required"`
+	// Device is hot pluggable
+	HotPluggable bool `default:"false" list:"domain" create:"domain_optional" update:"domain"`
 	// # Specific device name read from lspci command, e.g. `Tesla K40m` ...
 	Model string `width:"512" charset:"ascii" nullable:"false" default:"" index:"true" list:"domain" create:"domain_required" update:"domain"`
 
@@ -215,7 +198,7 @@ func (manager *SIsolatedDeviceManager) ValidateCreateData(ctx context.Context,
 	if input.DevType == "" {
 		return input, httperrors.NewNotEmptyError("dev_type is empty")
 	}
-	if !utils.IsInStringArray(input.DevType, api.VALID_PASSTHROUGH_TYPES) {
+	if !utils.IsInStringArray(input.DevType, api.VALID_TYPES) {
 		if _, err := IsolatedDeviceModelManager.GetByDevType(input.DevType); err != nil {
 			return input, httperrors.NewInputParameterError("device type %q not supported", input.DevType)
 		}
@@ -236,7 +219,7 @@ func (manager *SIsolatedDeviceManager) ValidateCreateData(ctx context.Context,
 
 	// validate reserverd resource
 	// inject default reserverd resource for gpu:
-	if utils.IsInStringArray(input.DevType, []string{api.GPU_HPC_TYPE, api.GPU_VGA_TYPE}) {
+	if host.HostType == api.HOST_TYPE_KVM && input.SharingMode == api.DEVICE_SHARING_MODE_EXCLUSIVE && input.DevType == api.GPU_TYPE {
 		defaultCPU := 8        // 8
 		defaultMem := 8192     // 8g
 		defaultStore := 102400 // 100g
@@ -281,18 +264,6 @@ func (self *SIsolatedDevice) ValidateUpdateData(
 	if input.ReservedStorage != nil && *input.ReservedStorage < 0 {
 		return input, httperrors.NewInputParameterError("reserved storage must >= 0")
 	}
-	if input.DevType != "" && input.DevType != self.DevType {
-		if !utils.IsInStringArray(input.DevType, api.VALID_GPU_TYPES) {
-			if _, err := IsolatedDeviceModelManager.GetByDevType(input.DevType); err != nil {
-				return input, httperrors.NewInputParameterError("device type %q not support update", input.DevType)
-			}
-		} else {
-			if !self.IsGPU() {
-				return input, httperrors.NewInputParameterError("Can't update for device %q", self.DevType)
-			}
-		}
-	}
-
 	return input, nil
 }
 
@@ -476,13 +447,16 @@ func (self *SIsolatedDevice) getDetailedString() string {
 	return fmt.Sprintf("%s:%s/%s/%s", self.Addr, self.Model, self.VendorDeviceId, self.DevType)
 }
 
-func (manager *SIsolatedDeviceManager) fuzzyMatchModel(fuzzyStr string, devType string) *SIsolatedDevice {
+func (manager *SIsolatedDeviceManager) fuzzyMatchModel(fuzzyStr, devType, sharingMode string) *SIsolatedDevice {
 	dev := SIsolatedDevice{}
 	dev.SetModelManager(manager, &dev)
 
 	q := manager.Query()
 	if devType != "" {
 		q = q.Equals("dev_type", devType)
+	}
+	if sharingMode != "" {
+		q = q.Equals("sharing_mode", sharingMode)
 	}
 
 	if fuzzyStr != "" {
@@ -508,7 +482,7 @@ func (self *SIsolatedDevice) getVendorId() string {
 
 func (self *SIsolatedDevice) getVendor() string {
 	vendorId := self.getVendorId()
-	vendor, ok := ID_VENDOR_MAP[vendorId]
+	vendor, ok := api.ID_VENDOR_MAP[vendorId]
 	if ok {
 		return vendor
 	} else {
@@ -519,7 +493,7 @@ func (self *SIsolatedDevice) getVendor() string {
 func GetVendorByVendorDeviceId(vendorDeviceId string) string {
 	parts := strings.Split(vendorDeviceId, ":")
 	vendorId := parts[0]
-	vendor, ok := ID_VENDOR_MAP[vendorId]
+	vendor, ok := api.ID_VENDOR_MAP[vendorId]
 	if ok {
 		return vendor
 	} else {
@@ -528,7 +502,7 @@ func GetVendorByVendorDeviceId(vendorDeviceId string) string {
 }
 
 func (self *SIsolatedDevice) IsGPU() bool {
-	return strings.HasPrefix(self.DevType, "GPU") || sets.NewString(api.CONTAINER_GPU_TYPES...).Has(self.DevType)
+	return self.DevType == api.GPU_TYPE
 }
 
 func (manager *SIsolatedDeviceManager) parseDeviceInfo(userCred mcclient.TokenCredential, devConfig *api.IsolatedDeviceConfig) (*api.IsolatedDeviceConfig, error) {
@@ -536,7 +510,7 @@ func (manager *SIsolatedDeviceManager) parseDeviceInfo(userCred mcclient.TokenCr
 	var matchDev *SIsolatedDevice
 
 	devId = devConfig.Id
-	matchDev = manager.fuzzyMatchModel(devConfig.Model, devConfig.DevType)
+	matchDev = manager.fuzzyMatchModel(devConfig.Model, devConfig.DevType, devConfig.SharingMode)
 	devVendor = devConfig.Vendor
 	devType = devConfig.DevType
 
@@ -545,14 +519,10 @@ func (manager *SIsolatedDeviceManager) parseDeviceInfo(userCred mcclient.TokenCr
 			return nil, httperrors.NewNotFoundError("Not found matched device by model: %q, dev_type: %q", devConfig.Model, devConfig.DevType)
 		}
 		devConfig.Model = matchDev.Model
-		if matchDev.DevType == api.CONTAINER_DEV_NVIDIA_HAMI {
-			if devConfig.MemoryRequest <= 0 {
-				return nil, httperrors.NewBadRequestError("dev_type %s must give memory request", matchDev.DevType)
-			}
-		}
+		devConfig.SharingMode = matchDev.SharingMode
 
 		if len(devVendor) > 0 {
-			vendorId, ok := VENDOR_ID_MAP[devVendor]
+			vendorId, ok := api.VENDOR_ID_MAP[devVendor]
 			if ok {
 				devConfig.Vendor = vendorId
 			} else {
@@ -571,20 +541,19 @@ func (manager *SIsolatedDeviceManager) parseDeviceInfo(userCred mcclient.TokenCr
 		devConfig.Id = dev.Id
 		devConfig.Model = dev.Model
 		devConfig.DevType = dev.DevType
+		devConfig.SharingMode = dev.SharingMode
 		devConfig.Vendor = dev.getVendor()
 		devConfig.WireId = dev.WireId
-		if dev.IsGPU() && len(devType) > 0 {
-			if !utils.IsInStringArray(devType, VALID_GPU_TYPES) {
-				return nil, fmt.Errorf("%s not valid for GPU device", devType)
-			}
+		if devType != "" && devType != dev.DevType {
+			return nil, fmt.Errorf("request dev_type %s not match dev %s type %s", devType, dev.Id, dev.DevType)
 		}
 	}
 	if len(devType) > 0 {
 		devConfig.DevType = devType
 	}
-	if devConfig.DevType == api.CONTAINER_DEV_NVIDIA_HAMI {
+	if devConfig.SharingMode == api.DEVICE_SHARING_MODE_HAMI {
 		if devConfig.MemoryRequest <= 0 {
-			return nil, httperrors.NewBadRequestError("dev_type %s must give memory request", matchDev.DevType)
+			return nil, httperrors.NewBadRequestError("dev sharing_mode %s must give memory request", devConfig.SharingMode)
 		}
 	}
 	return devConfig, nil
@@ -1120,10 +1089,7 @@ func (manager *SIsolatedDeviceManager) FindAvailableNicWiresByModel(modelName st
 func (manager *SIsolatedDeviceManager) FindAvailableGpusOnHost(hostId string) ([]SIsolatedDevice, error) {
 	devs := make([]SIsolatedDevice, 0)
 	q := manager.GetAvailableIsolatedDeviceQuery()
-	q = q.Filter(sqlchemy.OR(
-		sqlchemy.Equals(q.Field("dev_type"), api.GPU_HPC_TYPE),
-		sqlchemy.Equals(q.Field("dev_type"), api.GPU_VGA_TYPE)))
-	q = q.Equals("host_id", hostId)
+	q = q.Equals("dev_type", api.GPU_TYPE).Equals("host_id", hostId)
 	err := db.FetchModelObjects(manager, q, &devs)
 	if err != nil {
 		return nil, err
@@ -1188,7 +1154,7 @@ func (manager *SIsolatedDeviceManager) ReleaseGPUDevicesOfGuest(ctx context.Cont
 	}
 	for _, gdev := range gdevs {
 		dev := gdev.GetIsolatedDevice()
-		if !utils.IsInStringArray(dev.DevType, api.VALID_GPU_TYPES) {
+		if !dev.IsKvmExclusiveGPU() {
 			continue
 		}
 		err := gdev.Detach(ctx, userCred)
@@ -1336,12 +1302,12 @@ func (manager *SIsolatedDeviceManager) TotalCount(
 	}
 	for _, s := range stat {
 		ret.Devices += s.Count
-		if utils.IsInStringArray(s.DevType, VALID_GPU_TYPES) {
+		if s.DevType == api.GPU_TYPE {
 			ret.Gpus += s.Count
 		}
 		if len(s.GuestId) > 0 {
 			ret.DevicesUsed += s.Count
-			if utils.IsInStringArray(s.DevType, VALID_GPU_TYPES) {
+			if s.DevType == api.GPU_TYPE {
 				ret.GpusUsed += s.Count
 			}
 		}
@@ -1354,6 +1320,7 @@ func (self *SIsolatedDevice) getDesc() *api.IsolatedDeviceJsonDesc {
 		Id:                  self.Id,
 		DevType:             self.DevType,
 		Model:               self.Model,
+		SharingMode:         self.SharingMode,
 		Addr:                self.Addr,
 		VendorDeviceId:      self.VendorDeviceId,
 		Vendor:              self.getVendor(),
@@ -1371,7 +1338,7 @@ func (man *SIsolatedDeviceManager) GetSpecShouldCheckStatus(query *jsonutils.JSO
 
 func (man *SIsolatedDeviceManager) BatchGetModelSpecs(statusCheck bool) (jsonutils.JSONObject, error) {
 	hostQ := HostManager.Query()
-	q := man.Query("vendor_device_id", "model", "dev_type")
+	q := man.Query("vendor_device_id", "model", "dev_type", "sharing_mode")
 	if statusCheck {
 		q = man.queryWithoutGuest(q)
 		hostQ = hostQ.Equals("status", api.BAREMETAL_RUNNING).IsTrue("enabled").
@@ -1392,34 +1359,34 @@ func (man *SIsolatedDeviceManager) BatchGetModelSpecs(statusCheck bool) (jsonuti
 	res := jsonutils.NewDict()
 
 	for rows.Next() {
-		var hostType, vendorDeviceId, m, t string
+		var hostType, vendorDeviceId, m, t, s string
 		var count int
-		if err := rows.Scan(&vendorDeviceId, &m, &t, &hostType, &count); err != nil {
+		if err := rows.Scan(&vendorDeviceId, &m, &t, &s, &hostType, &count); err != nil {
 			return nil, errors.Wrap(err, "get model spec scan rows")
 		}
 		vendor := GetVendorByVendorDeviceId(vendorDeviceId)
 		specKeys := man.getSpecKeys(vendor, m, t)
 		specKey := GetSpecIdentKey(specKeys)
-		spec := man.getSpecByRows(hostType, vendorDeviceId, m, t, &count)
+		spec := man.getSpecByRows(hostType, vendorDeviceId, m, t, s, &count)
 		res.Set(specKey, spec)
 	}
 
 	return res, nil
 }
 
-func (man *SIsolatedDeviceManager) getSpecByRows(hostType, vendorDeviceId, model, devType string, count *int) *jsonutils.JSONDict {
+func (man *SIsolatedDeviceManager) getSpecByRows(hostType, vendorDeviceId, model, devType, sharingMode string, count *int) *jsonutils.JSONDict {
 	var vdev bool
 	var hypervisor string
-	if utils.IsInStringArray(devType, api.VITRUAL_DEVICE_TYPES) {
+	if utils.IsInStringArray(sharingMode, api.VIRTUAL_SHARING_MODES) {
 		vdev = true
 	}
-	if utils.IsInStringArray(devType, api.VALID_CONTAINER_DEVICE_TYPES) {
+	switch hostType {
+	case api.HOST_TYPE_CONTAINER:
 		hypervisor = api.HYPERVISOR_POD
-	} else {
-		hypervisor = api.HYPERVISOR_KVM
-	}
-	if hostType == api.HOST_TYPE_ZETTAKIT {
+	case api.HOST_TYPE_ZETTAKIT:
 		hypervisor = api.HYPERVISOR_ZETTAKIT
+	default:
+		hypervisor = api.HYPERVISOR_KVM
 	}
 
 	ret := jsonutils.NewDict()
@@ -1456,7 +1423,7 @@ func (self *SIsolatedDevice) GetSpec(statusCheck bool) *jsonutils.JSONDict {
 			return nil
 		}
 	}
-	return IsolatedDeviceManager.getSpecByRows(host.HostType, self.VendorDeviceId, self.Model, self.DevType, nil)
+	return IsolatedDeviceManager.getSpecByRows(host.HostType, self.VendorDeviceId, self.Model, self.DevType, self.SharingMode, nil)
 }
 
 func (self *SIsolatedDevice) GetGpuSpec() *GpuSpec {
@@ -1822,11 +1789,10 @@ type HostIsolatedDevicesNumaStat struct {
 	NumaNodeDevCount int
 }
 
-// done
-func (manager *SIsolatedDeviceManager) GetHostAllocatedIsolatedDeviceNumaStats(devType, hostId string) ([]HostIsolatedDevicesNumaStat, error) {
+func (manager *SIsolatedDeviceManager) GetHostAllocatedIsolatedDeviceNumaStats(devModel, hostId string) ([]HostIsolatedDevicesNumaStat, error) {
 	q := GuestIsolatedDeviceManager.Query()
 	guestQ := GuestManager.Query().NotEquals("status", api.VM_READY).SubQuery()
-	isq := manager.Query().Equals("host_id", hostId).Equals("dev_type", devType).SubQuery()
+	isq := manager.Query().Equals("host_id", hostId).Equals("model", devModel).SubQuery()
 
 	q = q.Join(isq, sqlchemy.Equals(q.Field("isolated_device_id"), isq.Field("id")))
 	q = q.Join(guestQ, sqlchemy.Equals(q.Field("guest_id"), guestQ.Field("id")))
@@ -1843,11 +1809,11 @@ func (manager *SIsolatedDeviceManager) GetHostAllocatedIsolatedDeviceNumaStats(d
 	return stats, nil
 }
 
-func (host *SHost) VirtualDeviceNumaBalance(devType string, numaNode int8) (bool, error) {
+func (host *SHost) VirtualDeviceNumaBalance(devModel string, numaNode int8) (bool, error) {
 	if numaNode < 0 {
 		return true, nil
 	}
-	stats, err := IsolatedDeviceManager.GetHostAllocatedIsolatedDeviceNumaStats(devType, host.Id)
+	stats, err := IsolatedDeviceManager.GetHostAllocatedIsolatedDeviceNumaStats(devModel, host.Id)
 	if err != nil {
 		return true, err
 	}
@@ -1878,11 +1844,11 @@ func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceQuery() *sqlche
 	isq := manager.Query()
 	isq = isq.LeftJoin(guestIsQ, sqlchemy.Equals(isq.Field("id"), guestIsQ.Field("isolated_device_id")))
 	cond1 := sqlchemy.AND(
-		sqlchemy.Equals(isq.Field("dev_type"), api.CONTAINER_DEV_NVIDIA_HAMI),
+		sqlchemy.Equals(isq.Field("sharing_mode"), api.DEVICE_SHARING_MODE_HAMI),
 		sqlchemy.GT(isq.Field("memory_size"), guestIsQ.Field("device_memory_size")),
 	)
 	cond2 := sqlchemy.AND(
-		sqlchemy.NotEquals(isq.Field("dev_type"), api.CONTAINER_DEV_NVIDIA_HAMI),
+		sqlchemy.NotEquals(isq.Field("sharing_mode"), api.DEVICE_SHARING_MODE_HAMI),
 		sqlchemy.GT(isq.Field("virtual_num"), guestIsQ.Field("guest_count")),
 	)
 
@@ -1990,6 +1956,7 @@ func (manager *SIsolatedDeviceManager) InitializeData() error {
 	if inited {
 		return nil
 	}
+
 	if err := manager.migrateGuestIsolatedDevices(); err != nil {
 		return errors.Wrap(err, "migrateGuestIsolatedDevices")
 	}
@@ -1998,6 +1965,9 @@ func (manager *SIsolatedDeviceManager) InitializeData() error {
 	}
 	if err := manager.initVirtualNum(); err != nil {
 		return errors.Wrap(err, "initVirtualNum")
+	}
+	if err := manager.migrateDevType(); err != nil {
+		return errors.Wrap(err, "migrateDevType")
 	}
 	if err := manager.markInitializeDataDone(ctx); err != nil {
 		return errors.Wrap(err, "markInitializeDataDone")
@@ -2069,7 +2039,7 @@ type isolatedDeviceMergeKey struct {
 }
 
 func (manager *SIsolatedDeviceManager) migrateGuestIsolatedDevices() error {
-	rows, err := sqlchemy.GetDB().Query(fmt.Sprintf("SELECT id, guest_id, network_index, disk_index FROM %s WHERE deleted = 0 AND guest_id IS NOT NULL AND LENGTH(guest_id) > 0", manager.TableSpec().Name()))
+	rows, err := sqlchemy.GetDB().Query(fmt.Sprintf("SELECT id, guest_id, dev_type, network_index, disk_index FROM %s WHERE deleted = 0 AND guest_id IS NOT NULL AND LENGTH(guest_id) > 0", manager.TableSpec().Name()))
 	if err != nil && errors.Cause(err) != sql.ErrNoRows {
 		return errors.Wrap(err, "migrateGuestIsolatedDevices QueryRows")
 	}
@@ -2082,10 +2052,10 @@ func (manager *SIsolatedDeviceManager) migrateGuestIsolatedDevices() error {
 	migrated := 0
 	guestIndexMap := map[string]int8{}
 	for rows.Next() {
-		var devId, guestId string
+		var devId, guestId, devType string
 		var networkIndex int
 		var diskIndex int8
-		if err = rows.Scan(&devId, &guestId, &networkIndex, &diskIndex); err != nil {
+		if err = rows.Scan(&devId, &guestId, &devType, &networkIndex, &diskIndex); err != nil {
 			return errors.Wrap(err, "migrateGuestIsolatedDevices Scan")
 		}
 		cnt, err := GuestIsolatedDeviceManager.Query().
@@ -2111,6 +2081,11 @@ func (manager *SIsolatedDeviceManager) migrateGuestIsolatedDevices() error {
 			guestIsolatedDevice.GuestId = guestId
 			guestIsolatedDevice.IsolatedDeviceId = devId
 			guestIsolatedDevice.Index = idx
+			if devType == api.GPU_VGA_TYPE {
+				guestIsolatedDevice.GpuType = api.GPU_VGA
+			} else if utils.IsInStringArray(devType, api.GPU_TYPES) {
+				guestIsolatedDevice.GpuType = api.GPU_HPC
+			}
 			if networkIndex >= 0 {
 				guestIsolatedDevice.NetworkIndex = networkIndex
 			}
@@ -2219,8 +2194,6 @@ func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeper
 			if err := jsonutils.Marshal(ctrPtr.Spec).Unmarshal(spec); err != nil {
 				return errors.Wrap(err, "deep copy spec")
 			}
-			log.Infof("start replace container %s", ctrPtr.Name)
-			log.Infof("xxxxxxxx spec: %s", jsonutils.Marshal(spec))
 
 			updated := false
 			for k := range spec.Devices {
@@ -2244,6 +2217,7 @@ func (manager *SIsolatedDeviceManager) doReplaceContainerIsolatedDeviceId(keeper
 			if err != nil {
 				return errors.Wrap(err, "update ctr isolated device id")
 			}
+			log.Infof("replace container isolated device id %s to %s", ctrPtr.Id, keeperId)
 		}
 	}
 	return nil
@@ -2356,4 +2330,78 @@ func (manager *SIsolatedDeviceManager) initVirtualNum() error {
 	}
 	log.Infof("initialized virtual_num for %d isolated devices", updated)
 	return nil
+}
+
+func (manager *SIsolatedDeviceManager) migrateDevType() error {
+	hotPluggableDevTypes := []string{
+		api.DIRECT_PCI_TYPE, api.USB_TYPE, api.GPU_VGA_TYPE, api.GPU_HPC_TYPE,
+		api.SRIOV_VGPU_TYPE, api.LEGACY_VGPU_TYPE,
+	}
+
+	for _, devType := range api.VALID_PASSTHROUGH_TYPES {
+		var sharingMode string
+		switch devType {
+		case api.DIRECT_PCI_TYPE, api.USB_TYPE, api.GPU_VGA_TYPE, api.GPU_HPC_TYPE:
+			sharingMode = api.DEVICE_SHARING_MODE_EXCLUSIVE
+		case api.SRIOV_VGPU_TYPE:
+			sharingMode = api.DEVICE_SHARING_MODE_SRIOV
+		case api.CONTAINER_DEV_NVIDIA_MPS:
+			sharingMode = api.DEVICE_SHARING_MODE_MPS
+		case api.CONTAINER_DEV_NVIDIA_HAMI:
+			sharingMode = api.DEVICE_SHARING_MODE_HAMI
+		case api.LEGACY_VGPU_TYPE:
+			sharingMode = api.DEVICE_SHARING_MODE_MDEV
+		default:
+			sharingMode = api.DEVICE_SHARING_MODE_UNLIMITED
+		}
+		var hotPluggable = 0
+		if utils.IsInStringArray(devType, hotPluggableDevTypes) {
+			hotPluggable = 1
+		}
+		var targetDevType string
+		switch {
+		case utils.IsInStringArray(devType, api.GPU_TYPES):
+			targetDevType = api.GPU_TYPE
+		case utils.IsInStringArray(devType, api.NETINT_TYPES):
+			targetDevType = api.NETINT_TYPE
+		case devType == api.CONTAINER_DEV_CPH_AOSP_BINDER:
+			targetDevType = api.BINDER_TYPE
+		default:
+			targetDevType = devType
+		}
+
+		sql := fmt.Sprintf(
+			"update %s set dev_type = %s, sharing_mode = %s, hot_pluggable = %d where dev_type = %s and deleted = 0",
+			manager.TableSpec().Name(), targetDevType, sharingMode, hotPluggable, devType,
+		)
+		res, err := sqlchemy.GetDB().Exec(sql)
+		if err != nil {
+			return errors.Wrapf(err, "update dev_type from %v to %s", devType, targetDevType)
+		}
+		effects, _ := res.RowsAffected()
+		log.Infof("updated dev_type from %v to %s, effects: %d", devType, targetDevType, effects)
+		return nil
+	}
+	return nil
+}
+
+func (dev *SIsolatedDevice) IsValidAttachDev() bool {
+	if dev.DevType == api.NIC_TYPE || dev.DevType == api.NVME_PT_TYPE {
+		return false
+	}
+	return true
+}
+
+func (dev *SIsolatedDevice) IsKvmExclusiveGPU() bool {
+	if dev.DevType != api.GPU_TYPE {
+		return false
+	}
+	if dev.SharingMode != api.DEVICE_SHARING_MODE_EXCLUSIVE {
+		return false
+	}
+	host := dev.GetHost()
+	if host.HostType != api.HOST_TYPE_KVM {
+		return false
+	}
+	return true
 }

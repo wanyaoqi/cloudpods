@@ -2655,9 +2655,17 @@ func (h *SHostInfo) injectTelegrafDeviceConfig(conf map[string]interface{}) {
 	hasVasmi := false
 	hasNvidiasmi := false
 	for _, dev := range devs {
-		devType := dev.GetDeviceType()
-		switch devType {
-		case string(isolated_device.ContainerDeviceTypeCphAMDGPU):
+		if !utils.IsInStringArray(dev.GetSharingMode(), api.VIRTUAL_SHARING_MODES) {
+			continue
+		}
+		if dev.GetDeviceType() == api.NETINT_TYPE {
+			hasNetint = true
+			continue
+		}
+
+		vendorId := strings.Split(dev.GetVendorDeviceId(), ":")[0]
+		switch vendorId {
+		case api.AMD_VENDOR_ID:
 			confMap, ok := conf[system_service.TELEGRAF_INPUT_RADEONTOP].(map[string]interface{})
 			if !ok {
 				conf[system_service.TELEGRAF_INPUT_RADEONTOP] = map[string]interface{}{
@@ -2671,13 +2679,9 @@ func (h *SHostInfo) injectTelegrafDeviceConfig(conf map[string]interface{}) {
 					confMap[system_service.TELEGRAF_INPUT_RADEONTOP_DEV_PATHS] = devPaths
 				}
 			}
-		case string(isolated_device.ContainerNetintCAQuadra), string(isolated_device.ContainerNetintCAASIC):
-			hasNetint = true
-			continue
-		case string(isolated_device.ContainerDeviceTypeVastaitechGpu):
+		case api.VASTAITECH_VENDOR_ID:
 			hasVasmi = true
-			continue
-		case string(isolated_device.ContainerDeviceTypeNvidiaGpu), string(isolated_device.ContainerDeviceTypeNvidiaMps), string(isolated_device.ContainerDeviceTypeNvidiaGpuShare):
+		case api.NVIDIA_VENDOR_ID:
 			hasNvidiasmi = true
 		}
 	}

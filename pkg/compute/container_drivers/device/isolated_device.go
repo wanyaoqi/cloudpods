@@ -18,15 +18,13 @@ import (
 	"context"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/pkg/errors"
-	"yunion.io/x/pkg/util/sets"
-
 	"yunion.io/x/onecloud/pkg/apis"
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 )
 
 func init() {
@@ -109,9 +107,9 @@ func (i isolatedDevice) ValidateCreateData(ctx context.Context, userCred mcclien
 			if d.GetId() == isoDev.Id || d.GetName() == isoDev.Id {
 				isoDev.Id = d.GetId()
 				foundDisk = true
-				devType := d.DevType
-				if !sets.NewString(api.VALID_CONTAINER_DEVICE_TYPES...).Has(devType) {
-					return nil, httperrors.NewInputParameterError("device type %s is not supported by container", devType)
+				host := d.GetHost()
+				if host.HostType != api.HOST_TYPE_CONTAINER {
+					return nil, httperrors.NewInputParameterError("device %s is not supported by container", isoDev.Id)
 				}
 				break
 			}

@@ -315,11 +315,13 @@ type IsolatedDeviceConfig struct {
 	Id           string `json:"id"`
 	DevType      string `json:"dev_type"`
 	Model        string `json:"model"`
+	SharingMode  string `json:"sharing_mode"`
 	Vendor       string `json:"vendor"`
 	NetworkIndex *int   `json:"network_index"`
 	WireId       string `json:"wire_id"`
 	DiskIndex    *int8  `json:"disk_index"`
 	DevicePath   string `json:"device_path"`
+	GpuMode      string `json:"gpu_mode"`
 	// MemoryMb is the minimum on-device memory in MiB required from the
 	// candidate isolated_device (e.g. NVIDIA GPU VRAM). 0 means no constraint.
 	// The scheduler excludes devices whose memory_size > 0 and is below this

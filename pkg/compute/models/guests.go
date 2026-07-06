@@ -1908,7 +1908,7 @@ func (manager *SGuestManager) validateCreateData(
 
 		hasGpuVga := func() bool {
 			for i := 0; i < len(input.IsolatedDevices); i++ {
-				if input.IsolatedDevices[i].DevType == api.GPU_VGA_TYPE {
+				if input.IsolatedDevices[i].GpuMode == api.GPU_VGA {
 					return true
 				}
 			}
@@ -2214,9 +2214,9 @@ func (manager *SGuestManager) validateCreateData(
 	nvidiaVgpuCnt := 0
 	gpuCnt := 0
 	for i := 0; i < len(input.IsolatedDevices); i++ {
-		if input.IsolatedDevices[i].DevType == api.LEGACY_VGPU_TYPE {
+		if input.IsolatedDevices[i].SharingMode == api.DEVICE_SHARING_MODE_MDEV {
 			nvidiaVgpuCnt += 1
-		} else if utils.IsInStringArray(input.IsolatedDevices[i].DevType, api.VALID_GPU_TYPES) {
+		} else if input.IsolatedDevices[i].DevType == api.GPU_TYPE {
 			gpuCnt += 1
 		}
 	}
@@ -5935,7 +5935,7 @@ func (self *SGuest) GetSpec(checkStatus bool) *jsonutils.JSONDict {
 	gpuSpecs := []GpuSpec{}
 	for i := range guestgpus {
 		guestgpu := guestgpus[i].GetIsolatedDevice()
-		if strings.HasPrefix(guestgpu.DevType, "GPU") {
+		if guestgpu.DevType == api.GPU_TYPE {
 			gs := guestgpu.GetGpuSpec()
 			gpuSpecs = append(gpuSpecs, *gs)
 		}

@@ -111,6 +111,7 @@ type IDevice interface {
 	GetVendorDeviceId() string
 	GetAddr() string
 	GetDeviceType() string
+	GetSharingMode() string
 	GetModelName() string
 	CustomProbe(idx int) error
 	SetDeviceInfo(info CloudDeviceInfo)
@@ -167,7 +168,7 @@ type IsolatedDeviceManager interface {
 	StartDetachTask()
 	BatchCustomProbe()
 	AppendDetachedDevice(dev *CloudDeviceInfo)
-	GetQemuParams(devAddrs []string) *QemuParams
+	//GetQemuParams(devAddrs []string) *QemuParams
 	CheckDevIsNeedUpdate(dev IDevice, devInfo *CloudDeviceInfo) bool
 }
 
@@ -305,7 +306,7 @@ func (man *isolatedDeviceManager) probeGPUS(skipGPUs bool, amdVgpuPFs, nvidiaVgp
 			}
 		}
 		for idx, gpu := range gpus {
-			man.devices = append(man.devices, NewGPUHPCDevice(gpu))
+			man.devices = append(man.devices, NewGPUHPCDevice(gpu, api.DEVICE_SHARING_MODE_EXCLUSIVE))
 			log.Infof("Add GPU device: %d => %#v", idx, gpu)
 		}
 	}
@@ -683,10 +684,6 @@ func (man *isolatedDeviceManager) StartDetachTask() {
 	}()
 }
 
-func (man *isolatedDeviceManager) GetQemuParams(devAddrs []string) *QemuParams {
-	return getQemuParams(man, devAddrs)
-}
-
 type SBaseDevice struct {
 	dev            *PCIDevice
 	originAddr     string
@@ -694,13 +691,15 @@ type SBaseDevice struct {
 	hostId         string
 	guestId        string
 	devType        string
+	sharingMode    string
 	detectedOnHost bool
 }
 
-func NewBaseDevice(dev *PCIDevice, devType string) *SBaseDevice {
+func NewBaseDevice(dev *PCIDevice, devType, sharingMode string) *SBaseDevice {
 	return &SBaseDevice{
-		dev:     dev,
-		devType: devType,
+		dev:         dev,
+		devType:     devType,
+		sharingMode: sharingMode,
 	}
 }
 
@@ -783,6 +782,10 @@ func (dev *SBaseDevice) SetAddr(addr, originAddr string) {
 
 func (dev *SBaseDevice) GetDeviceType() string {
 	return dev.devType
+}
+
+func (dev *SBaseDevice) GetSharingMode() string {
+	return dev.sharingMode
 }
 
 func (dev *SBaseDevice) GetPfName() string {
@@ -1108,53 +1111,4 @@ func bashOutput(cmd string) ([]string, error) {
 
 func bashRawOutput(cmd string) ([]string, error) {
 	return bashCmdOutput(cmd, false)
-}
-
-type QemuParams struct {
-	Cpu     string
-	Vga     string
-	Devices []string
-}
-
-func getQemuParams(man *isolatedDeviceManager, devAddrs []string) *QemuParams {
-	if len(devAddrs) == 0 {
-		return nil
-	}
-	devCmds := []string{}
-	cpuCmd := DEFAULT_CPU_CMD
-	vgaCmd := DEFAULT_VGA_CMD
-	// group by device type firstly
-	devices := make(map[string][]IDevice, 0)
-	for _, addr := range devAddrs {
-		dev := man.GetDeviceByAddr(addr)
-		if dev == nil {
-			log.Warningf("IsolatedDeviceManager not found dev %#v, ignore it!", addr)
-			continue
-		}
-		devType := dev.GetDeviceType()
-		if _, ok := devices[devType]; !ok {
-			devices[devType] = []IDevice{dev}
-		} else {
-			devices[devType] = append(devices[devType], dev)
-		}
-	}
-
-	for devType, devs := range devices {
-		log.Debugf("get devices %s command", devType)
-		for idx, dev := range devs {
-			devCmds = append(devCmds, getDeviceCmd(dev, idx))
-			if dev.GetVGACmd() != vgaCmd && dev.GetDeviceType() == api.GPU_VGA_TYPE {
-				vgaCmd = dev.GetVGACmd()
-			}
-			if dev.GetCPUCmd() != cpuCmd {
-				cpuCmd = dev.GetCPUCmd()
-			}
-		}
-	}
-
-	return &QemuParams{
-		Cpu:     cpuCmd,
-		Vga:     vgaCmd,
-		Devices: devCmds,
-	}
 }

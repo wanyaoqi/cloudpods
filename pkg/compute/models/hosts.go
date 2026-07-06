@@ -4099,7 +4099,7 @@ func (hh *SHost) GetDevsReservedResource(devs []SIsolatedDevice) *api.IsolatedDe
 		ReservedCpu:     &reservedCpu,
 	}
 	for _, dev := range devs {
-		if !utils.IsInStringArray(dev.DevType, api.VALID_GPU_TYPES) {
+		if !dev.IsKvmExclusiveGPU() {
 			continue
 		}
 		reservedCpu += dev.ReservedCpu
@@ -4117,7 +4117,7 @@ func (hh *SHost) GetDevsReservedResourceByDevStats(devs []IsolatedDeviceAllocate
 		ReservedCpu:     &reservedCpu,
 	}
 	for _, dev := range devs {
-		if !utils.IsInStringArray(dev.DevType, api.VALID_GPU_TYPES) {
+		if !dev.IsKvmExclusiveGPU() {
 			continue
 		}
 		reservedCpu += dev.ReservedCpu
@@ -8198,10 +8198,10 @@ func (h *SHost) GetDetailsWorkerStats(ctx context.Context, userCred mcclient.Tok
 }
 
 func (hh *SHost) GetDetailsIsolatedDeviceNumaStats(ctx context.Context, userCred mcclient.TokenCredential, input *api.HostIsolatedDeviceNumaStatsInput) (jsonutils.JSONObject, error) {
-	if !utils.IsInStringArray(input.DevType, api.VALID_PASSTHROUGH_TYPES) {
-		return nil, httperrors.NewInputParameterError("dev_type %s is invalid", input.DevType)
+	if input.Model == "" {
+		return nil, httperrors.NewMissingParameterError("model")
 	}
-	stats, err := IsolatedDeviceManager.GetHostAllocatedIsolatedDeviceNumaStats(input.DevType, hh.Id)
+	stats, err := IsolatedDeviceManager.GetHostAllocatedIsolatedDeviceNumaStats(input.Model, hh.Id)
 	if err != nil {
 		return nil, err
 	}

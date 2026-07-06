@@ -146,7 +146,8 @@ func (m PodCphAmdGpuMetrics) GetUniformName() string {
 func (m PodCphAmdGpuMetrics) GetTag() map[string]string {
 	return map[string]string{
 		"dev_id":   m.DevId,
-		"dev_type": apis.CONTAINER_DEV_CPH_AMD_GPU,
+		"dev_type": apis.GPU_TYPE,
+		"vendor":   apis.ID_VENDOR_MAP[apis.AMD_VENDOR_ID],
 	}
 }
 

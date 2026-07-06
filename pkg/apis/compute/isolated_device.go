@@ -95,6 +95,9 @@ type IsolatedDeviceCreateInput struct {
 	// example: GPU
 	DevType string `json:"dev_type"`
 
+	// DEVICE sharing mode
+	SharingMode string `json:"sharing_mode"`
+
 	// 设备型号
 	// # Specific device name read from lspci command, e.g. `Tesla K40m` ...
 	Model string `json:"model"`
@@ -151,6 +154,8 @@ type SetIsolatedDeviceInput struct {
 type IsolatedDeviceJsonDesc struct {
 	Id                  string `json:"id"`
 	DevType             string `json:"dev_type"`
+	GpuType             string `json:"gpu_type"`
+	SharingMode         string `json:"sharing_mode"`
 	Model               string `json:"model"`
 	Addr                string `json:"addr"`
 	VendorDeviceId      string `json:"vendor_device_id"`
