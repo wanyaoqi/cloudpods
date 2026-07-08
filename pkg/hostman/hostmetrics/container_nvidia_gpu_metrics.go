@@ -159,10 +159,14 @@ func (s *SGuestMonitorCollector) collectGpuPodsProcesses() map[string]map[string
 		podDesc := pod.GetDesc()
 		hasGpu := false
 		for i := range podDesc.IsolatedDevices {
-			if utils.IsInStringArray(podDesc.IsolatedDevices[i].DevType, compute.CONTAINER_GPU_TYPES) {
-				hasGpu = true
-				break
+			if podDesc.IsolatedDevices[i].DevType != compute.GPU_TYPE {
+				continue
 			}
+			if !utils.IsInStringArray(podDesc.IsolatedDevices[i].SharingMode, compute.VIRTUAL_SHARING_MODES) {
+				continue
+			}
+			hasGpu = true
+			break
 		}
 		if !hasGpu {
 			return true

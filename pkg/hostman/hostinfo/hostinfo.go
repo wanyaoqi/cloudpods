@@ -59,7 +59,6 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/hostutils/hardware"
 	"yunion.io/x/onecloud/pkg/hostman/hostutils/kubelet"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
-	_ "yunion.io/x/onecloud/pkg/hostman/isolated_device/container_device"
 	"yunion.io/x/onecloud/pkg/hostman/monitor"
 	"yunion.io/x/onecloud/pkg/hostman/options"
 	"yunion.io/x/onecloud/pkg/hostman/storageman"
@@ -2384,11 +2383,14 @@ func (h *SHostInfo) probeSyncIsolatedDevices() (*jsonutils.JSONArray, error) {
 				log.Errorf("Sync deviceInfo %s error: %v", dev.String(), err)
 				return errors.Wrapf(err, "Sync device %s", dev.String())
 			} else {
-				if obj != nil {
-					mtx.Lock()
-					updateDevs.Add(obj)
-					mtx.Unlock()
+				mtx.Lock()
+				updateDevs.Add(obj)
+				mtx.Unlock()
+				info := isolated_device.CloudDeviceInfo{}
+				if err := obj.Unmarshal(&info); err != nil {
+					return errors.Wrapf(err, "unmarshal isolated device %s to cloud device info", obj)
 				}
+				dev.SetDeviceInfo(info)
 				return nil
 			}
 		})

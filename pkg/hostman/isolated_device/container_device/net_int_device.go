@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"yunion.io/x/onecloud/pkg/apis/compute"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/errors"
@@ -93,7 +94,7 @@ func newNetintDeviceManager(devType isolated_device.ContainerDeviceType, reg *re
 	}
 }
 
-func (m *netintDeviceManager) GetType() isolated_device.ContainerDeviceType {
+func (m *netintDeviceManager) GetRegisterType() isolated_device.ContainerDeviceType {
 	return m.devType
 }
 
@@ -170,7 +171,8 @@ func (m *netintDeviceManager) NewDevices(dev *isolated_device.ContainerDevice) (
 			ModelName: nvmeDev.ModelNumber,
 		}
 		newDev := &netintDevice{
-			BaseDevice: NewBaseDevice(devInfo, m.devType, nvmeDev.DevicePath, dev.VirtualNumber),
+			manager:    m,
+			BaseDevice: NewBaseDevice(devInfo, compute.NETINT_TYPE, nvmeDev.DevicePath, compute.DEVICE_SHARING_MODE_UNLIMITED, dev.VirtualNumber),
 			info:       nvmeDev,
 		}
 
@@ -208,10 +210,15 @@ func (m *netintDeviceManager) GetContainerExtraConfigures(devs []*hostapi.Contai
 }
 
 type netintDevice struct {
+	manager *netintDeviceManager
 	*BaseDevice
 	info *NetintDeviceInfo
 }
 
 func (d netintDevice) GetNVMESizeMB() int {
 	return d.info.PhysicalSize / 1024 / 1024
+}
+
+func (dev *netintDevice) GetContainerDeviceManager() isolated_device.IContainerDeviceManager {
+	return dev.manager
 }

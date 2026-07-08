@@ -33,9 +33,11 @@ type BaseDevice struct {
 	VirtualNum int
 }
 
-func NewBaseDevice(dev *isolated_device.PCIDevice, devType isolated_device.ContainerDeviceType, devPath string, virtualNum int) *BaseDevice {
+func NewBaseDevice(
+	dev *isolated_device.PCIDevice, devType, devPath, sharingMode string, virtualNum int,
+) *BaseDevice {
 	return &BaseDevice{
-		SBaseDevice: isolated_device.NewBaseDevice(dev, string(devType)),
+		SBaseDevice: isolated_device.NewBaseDevice(dev, string(devType), sharingMode),
 		Path:        devPath,
 		VirtualNum:  virtualNum,
 	}
@@ -63,6 +65,10 @@ func (c BaseDevice) GetDevicePath() string {
 
 func (c BaseDevice) GetVirtualNum() int {
 	return c.VirtualNum
+}
+
+func (c BaseDevice) HotPluggable() bool {
+	return false
 }
 
 func (c *BaseDevice) SetDevicePath(devPath string) {
@@ -122,7 +128,7 @@ func getGPUPCIAddr(linkPartName string) (string, error) {
 	return fullAddr, nil
 }
 
-func NewPCIGPURenderBaseDevice(devPath string, virtualNum int, devType isolated_device.ContainerDeviceType) (*BaseDevice, error) {
+func NewPCIGPURenderBaseDevice(devPath string, virtualNum int, devType, sharingMode string) (*BaseDevice, error) {
 	dir := "/dev/dri/by-path/"
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -151,7 +157,7 @@ func NewPCIGPURenderBaseDevice(devPath string, virtualNum int, devType isolated_
 			}
 			dev := isolated_device.NewPCIDevice2(pciOutput[0])
 			// devAddr := dev.Addr
-			baseDev := NewBaseDevice(dev, devType, devPath, virtualNum)
+			baseDev := NewBaseDevice(dev, devType, devPath, sharingMode, virtualNum)
 			//baseDev.SetAddr(fmt.Sprintf("%s-%d", devAddr, index), devAddr)
 
 			return baseDev, nil

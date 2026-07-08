@@ -181,10 +181,7 @@ func (guest *SGuest) GetGuestGpuIsolatedDevices() ([]SGuestIsolatedDevice, error
 	q := guest.GetIsolatedDevicesQuery()
 	isq := IsolatedDeviceManager.Query()
 
-	cond := sqlchemy.OR(
-		sqlchemy.Startswith(isq.Field("dev_type"), "GPU"),
-		sqlchemy.In(isq.Field("dev_type"), api.CONTAINER_GPU_TYPES),
-	)
+	cond := sqlchemy.Equals(isq.Field("dev_type"), api.GPU_TYPE)
 	isq = isq.Filter(cond)
 	sidq := isq.SubQuery()
 	q = q.Join(sidq, sqlchemy.Equals(q.Field("isolated_device_id"), sidq.Field("id")))

@@ -16,6 +16,7 @@ package device
 
 import (
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"yunion.io/x/onecloud/pkg/hostman/hostinfo"
 
 	"yunion.io/x/pkg/errors"
 
@@ -42,28 +43,26 @@ func (i isolatedDevice) GetRuntimeDevices(input *hostapi.ContainerCreateInput, d
 	if len(devs) == 0 {
 		return nil, nil
 	}
-	devsMap := map[string][]*hostapi.ContainerDevice{}
+	devsMap := map[isolated_device.IContainerDeviceManager][]*hostapi.ContainerDevice{}
 	for _, dev := range devs {
-		if mapDevs, ok := devsMap[dev.IsolatedDevice.DeviceType]; ok {
-			devsMap[dev.IsolatedDevice.DeviceType] = append(mapDevs, dev)
+		iDev := hostinfo.Instance().IsolatedDeviceMan.GetDeviceByCloudId(dev.IsolatedDevice.Id)
+		devMan := iDev.GetContainerDeviceManager()
+
+		if mapDevs, ok := devsMap[devMan]; ok {
+			devsMap[devMan] = append(mapDevs, dev)
 		} else {
-			devsMap[dev.IsolatedDevice.DeviceType] = []*hostapi.ContainerDevice{dev}
+			devsMap[devMan] = []*hostapi.ContainerDevice{dev}
 		}
 	}
 
 	ret := make([]*runtimeapi.Device, 0)
-	for devType, mappedDevs := range devsMap {
-		man, err := isolated_device.GetContainerDeviceManager(isolated_device.ContainerDeviceType(devType))
-		if err != nil {
-			return nil, errors.Wrapf(err, "GetContainerDeviceManager by type %q", devType)
-		}
-
+	for devMan, mappedDevs := range devsMap {
 		for idx := range mappedDevs {
 			mDev := mappedDevs[idx]
 			if mDev.IsolatedDevice != nil && mDev.IsolatedDevice.OnlyEnv != nil {
 				continue
 			}
-			ctrDevs, commonDevs, err := man.NewContainerDevices(input, mappedDevs[idx])
+			ctrDevs, commonDevs, err := devMan.NewContainerDevices(input, mappedDevs[idx])
 			if err != nil {
 				return nil, errors.Wrapf(err, "NewContainerDevices with %#v", devs)
 			}

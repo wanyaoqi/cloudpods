@@ -562,13 +562,14 @@ func NewPendingUsageBySchedInfo(hostId string, req *api.SchedInfo, candidate *sc
 
 	for _, dev := range req.IsolatedDevices {
 		devType := dev.DevType
-		if devType == compute.CONTAINER_DEV_NVIDIA_HAMI {
+		sharingMode := dev.SharingMode
+		if sharingMode == compute.DEVICE_SHARING_MODE_HAMI {
 			oSize := u.IsolatedDevice.Get(devType)
 			size := dev.MemoryRequest
-			u.IsolatedDevice.Set(devType, oSize+size)
+			u.IsolatedDevice.Set(fmt.Sprintf("%s/%s", devType, sharingMode), oSize+size)
 		} else {
 			oCnt := u.IsolatedDevice.Get(devType)
-			u.IsolatedDevice.Set(devType, oCnt+1)
+			u.IsolatedDevice.Set(fmt.Sprintf("%s/%s", devType, sharingMode), oCnt+1)
 		}
 	}
 

@@ -93,6 +93,7 @@ type ContainerIsolatedDevice struct {
 	Addr        string                                 `json:"addr"`
 	Path        string                                 `json:"path"`
 	DeviceType  string                                 `json:"device_type"`
+	SharingMode string                                 `json:"sharing_mode"`
 	CardPath    string                                 `json:"card_path"`
 	RenderPath  string                                 `json:"render_path"`
 	MemoryLimit int                                    `json:"memory_limit"`

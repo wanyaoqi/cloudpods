@@ -1912,7 +1912,7 @@ func (manager *SIsolatedDeviceManager) GetHostsGuestIsolatedDevices(hostIds []st
 }
 
 func (dev *SIsolatedDevice) IsEnough(memoryRequest int) bool {
-	if dev.DevType != api.CONTAINER_DEV_NVIDIA_HAMI {
+	if dev.SharingMode != api.DEVICE_SHARING_MODE_HAMI {
 		cnt, err := dev.getAllocatedCount()
 		if err != nil {
 			log.Errorf("failed getAllocatedCount %s", err)
@@ -1930,7 +1930,7 @@ func (dev *SIsolatedDevice) IsEnough(memoryRequest int) bool {
 }
 
 func (dev *SIsolatedDevice) IsFull() bool {
-	if dev.DevType != api.CONTAINER_DEV_NVIDIA_HAMI {
+	if dev.SharingMode != api.DEVICE_SHARING_MODE_HAMI {
 		cnt, err := dev.getAllocatedCount()
 		if err != nil {
 			log.Errorf("failed getAllocatedCount %s", err)
@@ -2027,7 +2027,7 @@ func getIsolatedDeviceBaseAddr(addr string) string {
 }
 
 func isMergeableVirtualDevType(devType string) bool {
-	return devType != api.CONTAINER_DEV_NVIDIA_HAMI && utils.IsInStringArray(devType, api.VITRUAL_DEVICE_TYPES)
+	return utils.IsInStringArray(devType, api.VITRUAL_DEVICE_TYPES)
 }
 
 type isolatedDeviceMergeKey struct {

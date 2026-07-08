@@ -50,8 +50,9 @@ const (
 )
 
 var ID_VENDOR_MAP = map[string]string{
-	NVIDIA_VENDOR_ID: "NVIDIA",
-	AMD_VENDOR_ID:    "AMD",
+	NVIDIA_VENDOR_ID:     "NVIDIA",
+	AMD_VENDOR_ID:        "AMD",
+	VASTAITECH_VENDOR_ID: "VASTAITECH",
 }
 
 var VENDOR_ID_MAP = map[string]string{

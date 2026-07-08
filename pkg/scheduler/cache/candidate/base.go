@@ -300,8 +300,8 @@ func (b baseHostGetter) AvailableIsolatedDevices() []*core.IsolatedDeviceDesc {
 	return b.h.AvailableIsolatedDevices()
 }
 
-func (b baseHostGetter) AvailableIsolatedDevicesByType(devType string) []*core.IsolatedDeviceDesc {
-	return b.h.AvailableIsolatedDevicesByType(devType)
+func (b baseHostGetter) AvailableIsolatedDevicesByTypeSharingMode(devType string, sharingMode string) []*core.IsolatedDeviceDesc {
+	return b.h.AvailableIsolatedDevicesByTypeSharingMode(devType, sharingMode)
 }
 
 func (b baseHostGetter) AvailableIsolatedDevicesByVendorModel(vendorModel string) []*core.IsolatedDeviceDesc {
@@ -491,10 +491,10 @@ func (h *BaseHostDesc) AvailableIsolatedDevices() []*core.IsolatedDeviceDesc {
 	return ret
 }
 
-func (h *BaseHostDesc) AvailableIsolatedDevicesByType(devType string) []*core.IsolatedDeviceDesc {
+func (h *BaseHostDesc) AvailableIsolatedDevicesByTypeSharingMode(devType, sharingMode string) []*core.IsolatedDeviceDesc {
 	ret := make([]*core.IsolatedDeviceDesc, 0)
 	for _, dev := range h.AvailableIsolatedDevices() {
-		if dev.DevType == devType {
+		if dev.DevType == devType && dev.SharingMode == sharingMode {
 			ret = append(ret, dev)
 		}
 	}
@@ -568,6 +568,7 @@ func (h *BaseHostDesc) fillIsolatedDevices(b *baseBuilder, host *computemodels.S
 			ID:                  devModel.Id,
 			HostID:              devModel.HostId,
 			DevType:             devModel.DevType,
+			SharingMode:         devModel.SharingMode,
 			Model:               devModel.Model,
 			Addr:                devModel.Addr,
 			VendorDeviceID:      devModel.VendorDeviceId,

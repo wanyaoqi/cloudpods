@@ -19,10 +19,12 @@ import (
 	"strings"
 
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
-	"yunion.io/x/onecloud/pkg/hostman/options"
 
+	computeapi "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
+	"yunion.io/x/onecloud/pkg/hostman/hostinfo"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
+	"yunion.io/x/onecloud/pkg/hostman/options"
 )
 
 func init() {
@@ -30,19 +32,26 @@ func init() {
 }
 
 type nvidiaHAMIManager struct {
-	nvidiaGPUManager
+}
+
+func (m *nvidiaHAMIManager) NewDevices(dev *isolated_device.ContainerDevice) ([]isolated_device.IDevice, error) {
+	return nil, nil
+}
+
+func (m *nvidiaHAMIManager) NewContainerDevices(input *hostapi.ContainerCreateInput, dev *hostapi.ContainerDevice) ([]*runtimeapi.Device, []*runtimeapi.Device, error) {
+	return nil, nil, nil
 }
 
 func newNvidiaHAMIManager() *nvidiaHAMIManager {
 	return &nvidiaHAMIManager{}
 }
 
-func (m *nvidiaHAMIManager) GetType() isolated_device.ContainerDeviceType {
+func (m *nvidiaHAMIManager) GetRegisterType() isolated_device.ContainerDeviceType {
 	return isolated_device.ContainerDeviceTypeNvidiaHAMI
 }
 
 func (m *nvidiaHAMIManager) ProbeDevices() ([]isolated_device.IDevice, error) {
-	return probeNvidiaGpus(isolated_device.ContainerDeviceTypeNvidiaHAMI)
+	return probeNvidiaGpus(computeapi.DEVICE_SHARING_MODE_HAMI, m)
 }
 
 func (m *nvidiaHAMIManager) GetContainerExtraConfigures(devs []*hostapi.ContainerDevice) ([]*runtimeapi.KeyValue, []*runtimeapi.Mount) {
@@ -53,7 +62,10 @@ func (m *nvidiaHAMIManager) GetContainerExtraConfigures(devs []*hostapi.Containe
 		if dev.IsolatedDevice == nil {
 			continue
 		}
-		if dev.IsolatedDevice.DeviceType == string(isolated_device.ContainerDeviceTypeNvidiaHAMI) {
+
+		iDev := hostinfo.Instance().IsolatedDeviceMan.GetDeviceByCloudId(dev.IsolatedDevice.Id)
+		devMan := iDev.GetContainerDeviceManager()
+		if _, ok := devMan.(*nvidiaHAMIManager); !ok {
 			continue
 		}
 		gpuIds = append(gpuIds, dev.IsolatedDevice.Path)

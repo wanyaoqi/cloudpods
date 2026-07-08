@@ -18,13 +18,14 @@ import (
 	"context"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/errors"
+
 	"yunion.io/x/onecloud/pkg/apis"
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/errors"
 )
 
 func init() {
@@ -141,6 +142,7 @@ func (i isolatedDevice) ToHostDevice(dev *api.ContainerDevice, guestId string) (
 			Path:        isoDev.DevicePath,
 			CardPath:    isoDev.CardPath,
 			DeviceType:  isoDev.DevType,
+			SharingMode: isoDev.SharingMode,
 			RenderPath:  isoDev.RenderPath,
 			MemoryLimit: gdev.DeviceMemorySize,
 			SmUtilLimit: gdev.SmUtilLimit,

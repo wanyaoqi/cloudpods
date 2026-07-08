@@ -23,6 +23,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/tristate"
 
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/hostman/guestman/desc"
@@ -63,6 +64,7 @@ type CloudDeviceInfo struct {
 	NumaNode            int                         `json:"numa_node"`
 	PcieInfo            *api.IsolatedDevicePCIEInfo `json:"pcie_info"`
 	VirtualNum          int                         `json:"virtual_num"`
+	HotPluggable        bool                        `json:"hot_pluggable"`
 
 	// The frame rate limiter (FRL) configuration in frames per second
 	FRL string `json:"frl"`
@@ -117,6 +119,8 @@ type IDevice interface {
 	SetDeviceInfo(info CloudDeviceInfo)
 	DetectByAddr() error
 	GetVirtualNum() int
+	GetContainerDeviceManager() IContainerDeviceManager
+	HotPluggable() bool
 
 	GetPassthroughOptions() map[string]string
 	GetPassthroughCmd(index int) string
@@ -164,6 +168,7 @@ type IsolatedDeviceManager interface {
 	GetDevices() []IDevice
 	GetDeviceByIdent(vendorDevId, addr, mdevId string) IDevice
 	GetDeviceByAddr(addr string) IDevice
+	GetDeviceByCloudId(cloudId string) IDevice
 	ProbePCIDevices(opts *SIsolatedDeviceProbeOptions)
 	StartDetachTask()
 	BatchCustomProbe()
@@ -485,10 +490,11 @@ func (man *isolatedDeviceManager) ProbePCIDevices(opts *SIsolatedDeviceProbeOpti
 }
 
 type IsolatedDeviceModel struct {
-	DevType  string `json:"dev_type"`
-	VendorId string `json:"vendor_id"`
-	DeviceId string `json:"device_id"`
-	Model    string `json:"model"`
+	DevType      string            `json:"dev_type"`
+	VendorId     string            `json:"vendor_id"`
+	DeviceId     string            `json:"device_id"`
+	Model        string            `json:"model"`
+	HotPluggable tristate.TriState `json:"hot_pluggable"`
 }
 
 func (man *isolatedDeviceManager) getCustomIsolatedDeviceModels() ([]IsolatedDeviceModel, error) {
@@ -594,6 +600,9 @@ func (man *isolatedDeviceManager) CheckDevIsNeedUpdate(dev IDevice, devInfo *Clo
 	if dev.GetVirtualNum() != devInfo.VirtualNum {
 		return true
 	}
+	if dev.HotPluggable() != devInfo.HotPluggable {
+		return true
+	}
 	return false
 }
 
@@ -633,6 +642,15 @@ func (man *isolatedDeviceManager) GetDeviceByVendorDevId(vendorDevId string) IDe
 func (man *isolatedDeviceManager) GetDeviceByAddr(addr string) IDevice {
 	for _, dev := range man.devices {
 		if dev.GetAddr() == addr {
+			return dev
+		}
+	}
+	return nil
+}
+
+func (man *isolatedDeviceManager) GetDeviceByCloudId(cloudId string) IDevice {
+	for _, dev := range man.devices {
+		if dev.GetCloudId() == cloudId {
 			return dev
 		}
 	}
@@ -848,7 +866,15 @@ func (dev *SBaseDevice) GetGuestId() string {
 }
 
 func (dev *SBaseDevice) GetVirtualNum() int {
-	return 0
+	return 1
+}
+
+func (dev *SBaseDevice) HotPluggable() bool {
+	return true
+}
+
+func (dev *SBaseDevice) GetContainerDeviceManager() IContainerDeviceManager {
+	return nil
 }
 
 func (dev *SBaseDevice) GetNvidiaMpsMemoryLimit() int {
@@ -885,6 +911,8 @@ func GetApiResourceData(dev IDevice) *jsonutils.JSONDict {
 		"addr":             dev.GetAddr(),
 		"model":            dev.GetModelName(),
 		"vendor_device_id": dev.GetVendorDeviceId(),
+		"virtual_num":      dev.GetVirtualNum(),
+		"hot_pluggable":    dev.HotPluggable(),
 	}
 	detected := false
 	if err := dev.DetectByAddr(); err == nil {
@@ -897,9 +925,9 @@ func GetApiResourceData(dev IDevice) *jsonutils.JSONDict {
 	if len(dev.GetHostId()) != 0 {
 		data["host_id"] = dev.GetHostId()
 	}
-	if len(dev.GetGuestId()) != 0 {
-		data["guest_id"] = dev.GetGuestId()
-	}
+	//if len(dev.GetGuestId()) != 0 {
+	//	data["guest_id"] = dev.GetGuestId()
+	//}
 	if len(dev.GetWireId()) != 0 {
 		data["wire_id"] = dev.GetWireId()
 	}
@@ -920,7 +948,6 @@ func GetApiResourceData(dev IDevice) *jsonutils.JSONDict {
 	} else {
 		log.Debugf("failed get dev %s numa node %s", dev.GetAddr(), err)
 	}
-
 	if dev.GetMdevId() != "" {
 		data["mdev_id"] = dev.GetMdevId()
 	}

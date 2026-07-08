@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"yunion.io/x/onecloud/pkg/apis/compute"
 
 	"yunion.io/x/pkg/errors"
 
@@ -50,8 +51,16 @@ func newCphAOSPBinderManager() *cphAOSPBinderManager {
 	return &cphAOSPBinderManager{}
 }
 
-func (m *cphAOSPBinderManager) GetType() isolated_device.ContainerDeviceType {
+func (m *cphAOSPBinderManager) GetRegisterType() isolated_device.ContainerDeviceType {
 	return isolated_device.ContainerDeviceTypeCphASOPBinder
+}
+
+func (m *cphAOSPBinderManager) GetDevType() string {
+	return compute.BINDER_TYPE
+}
+
+func (m *cphAOSPBinderManager) GetSharingMode() string {
+	return compute.DEVICE_SHARING_MODE_UNLIMITED
 }
 
 func (m *cphAOSPBinderManager) ProbeDevices() ([]isolated_device.IDevice, error) {
@@ -75,7 +84,8 @@ func (m *cphAOSPBinderManager) NewDevices(dev *isolated_device.ContainerDevice) 
 	}
 	devPath := fmt.Sprintf("/dev/%s", id)
 	binderDev := &cphAOSPBinder{
-		BaseDevice:  NewBaseDevice(ndev, isolated_device.ContainerDeviceTypeCphASOPBinder, devPath, dev.VirtualNumber),
+		manager:     m,
+		BaseDevice:  NewBaseDevice(ndev, compute.BINDER_TYPE, devPath, compute.DEVICE_SHARING_MODE_UNLIMITED, dev.VirtualNumber),
 		ControlPath: m.controlDevicePath,
 	}
 	return []isolated_device.IDevice{binderDev}, nil
@@ -161,6 +171,11 @@ func (m *cphAOSPBinderManager) ensureBinderDevice(ctrName string, dev *hostapi.C
 }
 
 type cphAOSPBinder struct {
+	manager *cphAOSPBinderManager
 	*BaseDevice
 	ControlPath string
+}
+
+func (dev *cphAOSPBinder) GetContainerDeviceManager() isolated_device.IContainerDeviceManager {
+	return dev.manager
 }

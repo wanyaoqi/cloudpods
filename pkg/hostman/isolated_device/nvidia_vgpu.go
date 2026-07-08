@@ -107,7 +107,15 @@ func (dev *sNVIDIAVgpuDevice) GetDevicePath() string {
 }
 
 func (dev *sNVIDIAVgpuDevice) GetVirtualNum() int {
-	return 0
+	return 1
+}
+
+func (dev *sNVIDIAVgpuDevice) HotPluggable() bool {
+	return true
+}
+
+func (dev *sNVIDIAVgpuDevice) GetContainerDeviceManager() IContainerDeviceManager {
+	return nil
 }
 
 func (dev *sNVIDIAVgpuDevice) GetNvidiaMpsMemoryLimit() int {

@@ -122,7 +122,7 @@ type CandidatePropertyGetter interface {
 
 	// isloatedDevices
 	AvailableIsolatedDevices() []*IsolatedDeviceDesc
-	AvailableIsolatedDevicesByType(devType string) []*IsolatedDeviceDesc
+	AvailableIsolatedDevicesByTypeSharingMode(devType string, sharingMode string) []*IsolatedDeviceDesc
 	AvailableIsolatedDevicesByVendorModel(vendorModel string) []*IsolatedDeviceDesc
 	AvailableIsolatedDevicesByModel(model string) []*IsolatedDeviceDesc
 	AvailableIsolatedDevicesByModelAndWire(model, wire string) []*IsolatedDeviceDesc
@@ -272,6 +272,7 @@ type IsolatedDeviceDesc struct {
 	GuestID        string
 	HostID         string
 	DevType        string
+	SharingMode    string
 	Model          string
 	Addr           string
 	VendorDeviceID string
