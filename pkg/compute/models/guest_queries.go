@@ -966,7 +966,6 @@ func fetchGuestIsolatedDevices(guestIds []string) map[string][]api.SIsolatedDevi
 		dev.HostId = gdev.HostId
 		dev.DevType = gdev.DevType
 		dev.Model = gdev.Model
-		dev.GuestId = devs[i].GuestId
 		dev.Addr = gdev.Addr
 		dev.VendorDeviceId = gdev.VendorDeviceId
 		dev.NumaNode = byte(gdev.NumaNode)
