@@ -2380,7 +2380,6 @@ func (manager *SIsolatedDeviceManager) migrateDevType() error {
 		}
 		effects, _ := res.RowsAffected()
 		log.Infof("updated dev_type from %v to %s, effects: %d", devType, targetDevType, effects)
-		return nil
 	}
 	return nil
 }
