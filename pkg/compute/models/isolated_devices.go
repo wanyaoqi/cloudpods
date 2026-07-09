@@ -2371,10 +2371,10 @@ func (manager *SIsolatedDeviceManager) migrateDevType() error {
 		}
 
 		sql := fmt.Sprintf(
-			"update %s set dev_type = %s, sharing_mode = %s, hot_pluggable = %d where dev_type = %s and deleted = 0",
-			manager.TableSpec().Name(), targetDevType, sharingMode, hotPluggable, devType,
+			"update %s set dev_type = ?, sharing_mode = ?, hot_pluggable = ? where dev_type = ? and deleted = 0",
+			manager.TableSpec().Name(),
 		)
-		res, err := sqlchemy.GetDB().Exec(sql)
+		res, err := sqlchemy.GetDB().Exec(sql, targetDevType, sharingMode, hotPluggable, devType)
 		if err != nil {
 			return errors.Wrapf(err, "update dev_type from %v to %s", devType, targetDevType)
 		}
