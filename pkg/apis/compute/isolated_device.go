@@ -397,3 +397,11 @@ type GuestIsolatedDeviceListInput struct {
 	IsolatedDeviceListInput
 	IsolatedDeviceFilterListInput
 }
+
+type GuestIsolatedDeviceDetails struct {
+	GuestJointResourceDetails
+	SGuestIsolatedDevice
+	SIsolatedDevice
+	HostResourceInfo
+	apis.SharableResourceBaseInfo
+}

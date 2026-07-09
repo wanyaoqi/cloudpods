@@ -21,7 +21,7 @@ import (
 
 var (
 	IsolatedDevices       modulebase.ResourceManager
-	Serverisolateddevices modulebase.JointResourceManager
+	ServerIsolatedDevices modulebase.JointResourceManager
 )
 
 func init() {
@@ -33,7 +33,7 @@ func init() {
 		[]string{})
 	modules.RegisterCompute(&IsolatedDevices)
 
-	Serverisolateddevices = modules.NewJointComputeManager(
+	ServerIsolatedDevices = modules.NewJointComputeManager(
 		"guestisolateddevice",
 		"guestisolateddevices",
 		[]string{"Guest_ID", "Guest", "Isolated_device_ID", "Index",
@@ -42,5 +42,5 @@ func init() {
 		&Servers,
 		&IsolatedDevices,
 	)
-	modules.RegisterCompute(&Serverisolateddevices)
+	modules.RegisterCompute(&ServerIsolatedDevices)
 }

@@ -51,11 +51,11 @@ type SGuestIsolatedDevice struct {
 	GpuType string `width:"16" charset:"ascii" nullable:"true" default:"" index:"true" list:"user" create:"optional" update:"user"`
 
 	// guest network index
-	NetworkIndex int `nullable:"true" default:"-1" list:"user" update:"user"`
+	NetworkIndex int `nullable:"true" default:"-1" list:"user"`
 	// guest disk index
-	DiskIndex int8 `nullable:"true" default:"-1" list:"user" update:"user"`
+	DiskIndex int8 `nullable:"true" default:"-1" list:"user"`
 
-	Index int8 `nullable:"false" default:"0" list:"user" update:"user"`
+	Index int8 `nullable:"false" default:"0" list:"user"`
 }
 
 func (manager *SGuestIsolatedDeviceManager) GetSlaveFieldName() string {
@@ -114,6 +114,27 @@ func (manager *SGuestIsolatedDeviceManager) ListItemExportKeys(ctx context.Conte
 
 func (manager *SGuestIsolatedDeviceManager) CreateByInsertOrUpdate() bool {
 	return false
+}
+
+func (manager *SGuestIsolatedDeviceManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []api.GuestIsolatedDeviceDetails {
+	rows := make([]api.GuestIsolatedDeviceDetails, len(objs))
+	guestRows := manager.SGuestJointsManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	isolatedDeviceRows := manager.SIsolatedDeviceResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	for i := range rows {
+		rows[i].GuestJointResourceDetails = guestRows[i]
+		rows[i].SIsolatedDevice = isolatedDeviceRows[i].SIsolatedDevice
+		rows[i].HostResourceInfo = isolatedDeviceRows[i].HostResourceInfo
+		rows[i].SharableResourceBaseInfo = isolatedDeviceRows[i].SharableResourceBaseInfo
+	}
+
+	return rows
 }
 
 func (dev *SIsolatedDevice) getAllocatedMemorySize() (int, error) {

@@ -43,6 +43,15 @@ func (o *DeviceListOptions) Params() (jsonutils.JSONObject, error) {
 	return options.ListStructToParams(o)
 }
 
+type ServerDeviceListOptions struct {
+	DeviceListOptions
+	IsolateDeviceIds []string `json:"isolate_device_ids"`
+}
+
+func (o *ServerDeviceListOptions) Params() (jsonutils.JSONObject, error) {
+	return options.ListStructToParams(o)
+}
+
 type DeviceShowOptions struct {
 	options.BaseIdOptions
 }
