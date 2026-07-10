@@ -207,7 +207,7 @@ func (m *ascendNPUManager) getAscendNpus() ([]isolated_device.IDevice, error) {
 		dev := isolated_device.NewPCIDevice2(pciOutput[0])
 		npuDev := &ascnedNPU{
 			manager:    m,
-			BaseDevice: NewBaseDevice(dev, computeapi.NPU_TYPE, computeapi.DEVICE_SHARING_MODE_UNLIMITED, devPath, 1),
+			BaseDevice: NewBaseDevice(dev, computeapi.NPU_TYPE, devPath, computeapi.DEVICE_SHARING_MODE_UNLIMITED, 1),
 		}
 		npuDev.SetModelName(npuName)
 

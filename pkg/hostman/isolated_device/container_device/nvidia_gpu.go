@@ -198,7 +198,7 @@ func getNvidiaGPUs(sharingMode string, manager isolated_device.IContainerDeviceM
 
 		gpuDev := &nvidiaGPU{
 			manager:     manager,
-			BaseDevice:  NewBaseDevice(dev, api.GPU_TYPE, sharingMode, gpuId, 1),
+			BaseDevice:  NewBaseDevice(dev, api.GPU_TYPE, gpuId, sharingMode, 1),
 			memSize:     memSize,
 			gpuIndex:    indexInt,
 			deviceMinor: driverInfo.DeviceMinor,
