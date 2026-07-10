@@ -84,7 +84,7 @@ func (manager *SGuestIsolatedDeviceManager) ListItemFilter(
 	if len(query.IsolateDeviceIds) > 0 {
 		query.IsolatedDeviceListInput.Ids = query.IsolateDeviceIds
 	}
-	q, err = manager.SIsolatedDeviceResourceBaseManager.ListItemFilter(ctx, q, userCred, query.IsolatedDeviceListInput)
+	q, err = manager.SIsolatedDeviceResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
 	if err != nil {
 		return nil, errors.Wrap(err, "SGuestJointsManager.ListItemFilter")
 	}
