@@ -2358,6 +2358,7 @@ func (self *SGuest) SetReleasedIsolatedDevices(ctx context.Context, userCred mcc
 		record := api.ServerReleasedIsolatedDevice{
 			DevType: dev.DevType,
 			Model:   dev.Model,
+			GpuType: devs[i].GpuType,
 		}
 		records = append(records, record)
 	}

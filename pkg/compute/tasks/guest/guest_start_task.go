@@ -53,8 +53,14 @@ func (self *GuestStartTask) attachReleasedDevices(ctx context.Context, guest *mo
 	if len(devs) == 0 {
 		return self.ScheduleRun(nil)
 	}
-	attachReq := make(map[string]int)
+	//type map[string]int reqTye
+	gpuTypeGroup := map[string]map[string]int{}
 	for _, dev := range devs {
+		attachReq, ok := gpuTypeGroup[dev.GpuType]
+		if !ok {
+			gpuTypeGroup[dev.GpuType] = map[string]int{}
+			attachReq = gpuTypeGroup[dev.GpuType]
+		}
 		count, ok := attachReq[dev.Model]
 		if !ok {
 			attachReq[dev.Model] = 1
@@ -62,9 +68,12 @@ func (self *GuestStartTask) attachReleasedDevices(ctx context.Context, guest *mo
 			attachReq[dev.Model] = count + 1
 		}
 	}
-	if err := guest.AttachIsolatedDevices(ctx, self.GetUserCred(), attachReq); err != nil {
-		return errors.Wrap(err, "attach isolated devices")
+	for gpuType, attachReq := range gpuTypeGroup {
+		if err := guest.AttachIsolatedDevices(ctx, self.GetUserCred(), attachReq, gpuType); err != nil {
+			return errors.Wrap(err, "attach isolated devices")
+		}
 	}
+
 	return guest.StartIsolatedDevicesSyncTask(ctx, self.GetUserCred(), false, self.GetTaskId())
 }
 
