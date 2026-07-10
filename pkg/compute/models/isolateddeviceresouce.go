@@ -91,16 +91,14 @@ func (manager *SIsolatedDeviceResourceBaseManager) ListItemFilter(
 	ctx context.Context,
 	q *sqlchemy.SQuery,
 	userCred mcclient.TokenCredential,
-	query api.IsolatedDeviceListInput,
+	query api.GuestIsolatedDeviceListInput,
 ) (*sqlchemy.SQuery, error) {
-	devQ := IsolatedDeviceManager.Query("id").Snapshot()
-	devQ, err := IsolatedDeviceManager.ListItemFilter(ctx, devQ, userCred, query)
+	devQ := IsolatedDeviceManager.Query("id")
+	devQ, err := IsolatedDeviceManager.ListItemFilter(ctx, devQ, userCred, query.IsolatedDeviceListInput)
 	if err != nil {
 		return nil, errors.Wrap(err, "IsolatedDeviceManager.ListItemFilter")
 	}
-	if devQ.IsAltered() {
-		q = q.Filter(sqlchemy.In(q.Field("isolated_device_id"), devQ.SubQuery()))
-	}
+	q = q.Filter(sqlchemy.In(q.Field("isolated_device_id"), devQ.SubQuery()))
 	return q, nil
 }
 
@@ -131,7 +129,7 @@ func (manager *SIsolatedDeviceResourceBaseManager) OrderByExtraFields(
 	ctx context.Context,
 	q *sqlchemy.SQuery,
 	userCred mcclient.TokenCredential,
-	query api.IsolatedDeviceListInput,
+	query api.GuestIsolatedDeviceListInput,
 ) (*sqlchemy.SQuery, error) {
 	if !db.NeedOrderQuery(manager.GetOrderByFields(query)) {
 		return q, nil
@@ -149,7 +147,7 @@ func (manager *SIsolatedDeviceResourceBaseManager) GetOrderBySubQuery(
 	subq *sqlchemy.SSubQuery,
 	joinField sqlchemy.IQueryField,
 	userCred mcclient.TokenCredential,
-	query api.IsolatedDeviceListInput,
+	query api.GuestIsolatedDeviceListInput,
 	orders []string,
 	fields []sqlchemy.IQueryField,
 ) (*sqlchemy.SQuery, []string, []sqlchemy.IQueryField) {
@@ -162,7 +160,7 @@ func (manager *SIsolatedDeviceResourceBaseManager) GetOrderBySubQuery(
 	return q, orders, fields
 }
 
-func (manager *SIsolatedDeviceResourceBaseManager) GetOrderByFields(query api.IsolatedDeviceListInput) []string {
+func (manager *SIsolatedDeviceResourceBaseManager) GetOrderByFields(query api.GuestIsolatedDeviceListInput) []string {
 	return IsolatedDeviceManager.SHostResourceBaseManager.GetOrderByFields(query.HostFilterListInput)
 }
 

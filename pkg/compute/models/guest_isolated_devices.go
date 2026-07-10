@@ -137,6 +137,26 @@ func (manager *SGuestIsolatedDeviceManager) FetchCustomizeColumns(
 	return rows
 }
 
+func (manager *SGuestIsolatedDeviceManager) OrderByExtraFields(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query api.GuestIsolatedDeviceListInput,
+) (*sqlchemy.SQuery, error) {
+	var err error
+
+	q, err = manager.SGuestJointsManager.OrderByExtraFields(ctx, q, userCred, query.GuestJointsListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SGuestJointsManager.OrderByExtraFields")
+	}
+	q, err = manager.SIsolatedDeviceResourceBaseManager.OrderByExtraFields(ctx, q, userCred, query)
+	if err != nil {
+		return nil, errors.Wrap(err, "SNetworkResourceBaseManager.OrderByExtraFields")
+	}
+
+	return q, nil
+}
+
 func (dev *SIsolatedDevice) getAllocatedMemorySize() (int, error) {
 	sq := GuestIsolatedDeviceManager.Query().Equals("isolated_device_id", dev.Id).SubQuery()
 	q := sq.Query(sqlchemy.SUM("memory_used", sq.Field("memory_size"))).GroupBy(sq.Field("isolated_device_id"))
@@ -163,13 +183,21 @@ func (dev *SIsolatedDevice) getAllocatedCount() (int, error) {
 
 func (dev *SIsolatedDevice) getAttachedGuestIds() []string {
 	q := GuestIsolatedDeviceManager.Query("guest_id").Equals("isolated_device_id", dev.Id)
-	guestIsolatedDevices := make([]string, 0)
+	type sGuestId struct {
+		GuestId string
+	}
+
+	guestIsolatedDevices := make([]sGuestId, 0)
 	err := q.All(&guestIsolatedDevices)
 	if err != nil {
 		log.Errorf("failed get guest isolated devices %s", err)
 		return nil
 	}
-	return guestIsolatedDevices
+	ret := make([]string, len(guestIsolatedDevices))
+	for i := range guestIsolatedDevices {
+		ret[i] = guestIsolatedDevices[i].GuestId
+	}
+	return ret
 }
 
 func (dev *SIsolatedDevice) getAttachedGuests() []SGuestIsolatedDevice {
