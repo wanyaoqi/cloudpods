@@ -145,8 +145,13 @@ type SDelIsolatedDeviceInput struct {
 	Index  int
 }
 
+type SAddIsolatedDeviceInput struct {
+	Device  string
+	GpuType string
+}
+
 type SetIsolatedDeviceInput struct {
-	AddDevices []string
+	AddDevices []SAddIsolatedDeviceInput
 	DelDevices []SDelIsolatedDeviceInput
 	AutoStart  bool
 }

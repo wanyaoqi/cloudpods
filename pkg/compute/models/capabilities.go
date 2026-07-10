@@ -869,9 +869,10 @@ func getStorageTypes(
 }
 
 type PCIDevModelTypes struct {
-	Model   string
-	DevType string
-	SizeMB  int
+	Model       string
+	DevType     string
+	SharingMode string
+	SizeMB      int
 
 	VirtualDev bool
 	Hypervisor string
@@ -935,7 +936,7 @@ func getIsolatedDeviceInfo(ctx context.Context, userCred mcclient.TokenCredentia
 			sqlchemy.IsNullOrEmpty(hosts.Field("manager_id")),
 		))
 	}*/
-	q = q.GroupBy(hosts.Field("host_type"), devices.Field("model"), devices.Field("dev_type"), devices.Field("nvme_size_mb"))
+	q = q.GroupBy(hosts.Field("host_type"), devices.Field("model"), devices.Field("dev_type"), devices.Field("sharing_mode"), devices.Field("nvme_size_mb"))
 
 	rows, err := q.Rows()
 	if err != nil {
@@ -969,7 +970,7 @@ func getIsolatedDeviceInfo(ctx context.Context, userCred mcclient.TokenCredentia
 			hypervisor = api.HYPERVISOR_ZETTAKIT
 		}
 
-		gpus = append(gpus, PCIDevModelTypes{m, t, sizeMB, vdev, hypervisor})
+		gpus = append(gpus, PCIDevModelTypes{m, t, sharingMode, sizeMB, vdev, hypervisor})
 
 		if !utils.IsInStringArray(m, gpuModels) {
 			gpuModels = append(gpuModels, m)

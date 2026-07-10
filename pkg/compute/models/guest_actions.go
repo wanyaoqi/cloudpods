@@ -2498,9 +2498,14 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 	}
 	var err error
 	autoStart := jsonutils.QueryBoolean(data, "auto_start", false)
+	gpuType, _ := data.GetString("gpu_type")
+	if gpuType != "" && utils.IsInStringArray(gpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
+		return nil, httperrors.NewInputParameterError("gpu_type %s not vaild", gpuType)
+	}
+
 	if data.Contains("device") {
 		device, _ := data.GetString("device")
-		err = self.StartAttachIsolatedDeviceGpuOrUsb(ctx, userCred, device, autoStart)
+		err = self.StartAttachIsolatedDeviceGpuOrUsb(ctx, userCred, device, gpuType, autoStart)
 	} else if data.Contains("model") {
 		vmodel, _ := data.GetString("model")
 		var count int64 = 1
@@ -2510,7 +2515,7 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 		if count < 1 {
 			return nil, httperrors.NewBadRequestError("guest attach gpu count must > 0")
 		}
-		err = self.StartAttachIsolatedDevices(ctx, userCred, vmodel, int(count), autoStart)
+		err = self.StartAttachIsolatedDevices(ctx, userCred, vmodel, gpuType, int(count), autoStart)
 	} else {
 		return nil, httperrors.NewMissingParameterError("device||model")
 	}
@@ -2521,15 +2526,15 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 	return nil, nil
 }
 
-func (self *SGuest) StartAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel string, count int, autoStart bool) error {
-	if err := self.startAttachIsolatedDevices(ctx, userCred, devModel, count); err != nil {
+func (self *SGuest) StartAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel, gpuType string, count int, autoStart bool) error {
+	if err := self.startAttachIsolatedDevices(ctx, userCred, devModel, gpuType, count); err != nil {
 		return err
 	}
 	// perform post attach task
 	return self.StartIsolatedDevicesSyncTask(ctx, userCred, autoStart, "")
 }
 
-func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModelCount map[string]int) error {
+func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModelCount map[string]int, gpuType string) error {
 	host, _ := self.GetHost()
 	lockman.LockObject(ctx, host)
 	defer lockman.ReleaseObject(ctx, host)
@@ -2593,26 +2598,26 @@ func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient
 	}
 	defer func() { go host.ClearSchedDescCache() }()
 	for i := 0; i < len(unusedDevs); i++ {
-		if err := self.attachIsolatedDevice(ctx, userCred, &unusedDevs[i], nil, nil, nil); err != nil {
+		if err := self.attachIsolatedDevice(ctx, userCred, &unusedDevs[i], nil, nil, nil, gpuType); err != nil {
 			return errors.Wrapf(err, "attach device %s", unusedDevs[i].GetId())
 		}
 	}
 	return nil
 }
 
-func (self *SGuest) startAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel string, count int) error {
-	return self.AttachIsolatedDevices(ctx, userCred, map[string]int{devModel: count})
+func (self *SGuest) startAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel, gpuType string, count int) error {
+	return self.AttachIsolatedDevices(ctx, userCred, map[string]int{devModel: count}, gpuType)
 }
 
-func (self *SGuest) StartAttachIsolatedDeviceGpuOrUsb(ctx context.Context, userCred mcclient.TokenCredential, device string, autoStart bool) error {
-	if err := self.startAttachIsolatedDevGeneral(ctx, userCred, device); err != nil {
+func (self *SGuest) StartAttachIsolatedDeviceGpuOrUsb(ctx context.Context, userCred mcclient.TokenCredential, device, gpuType string, autoStart bool) error {
+	if err := self.startAttachIsolatedDevGeneral(ctx, userCred, device, gpuType); err != nil {
 		return err
 	}
 	// perform post attach task
 	return self.StartIsolatedDevicesSyncTask(ctx, userCred, autoStart, "")
 }
 
-func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred mcclient.TokenCredential, device string) error {
+func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred mcclient.TokenCredential, device, gpuType string) error {
 	iDev, err := IsolatedDeviceManager.FetchByIdOrName(ctx, userCred, device)
 	if err != nil {
 		msgFmt := "Isolated device %s not found"
@@ -2647,7 +2652,7 @@ func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred 
 	host, _ := self.GetHost()
 	lockman.LockObject(ctx, host)
 	defer lockman.ReleaseObject(ctx, host)
-	err = self.attachIsolatedDevice(ctx, userCred, dev, nil, nil, nil)
+	err = self.attachIsolatedDevice(ctx, userCred, dev, nil, nil, nil, gpuType)
 	var msg string
 	if err != nil {
 		msg = err.Error()
@@ -2658,7 +2663,7 @@ func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred 
 	return err
 }
 
-func (self *SGuest) attachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, dev *SIsolatedDevice, networkIndex *int, diskIndex *int8, memoryRequest *int) error {
+func (self *SGuest) attachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, dev *SIsolatedDevice, networkIndex *int, diskIndex *int8, memoryRequest *int, gpuType string) error {
 	if dev.IsFull() {
 		return fmt.Errorf("Isolated device already allocated")
 	}
@@ -2683,6 +2688,9 @@ func (self *SGuest) attachIsolatedDevice(ctx context.Context, userCred mcclient.
 	}
 	if memoryRequest != nil {
 		guestIsolatedDevice.DeviceMemorySize = *memoryRequest
+	}
+	if utils.IsInStringArray(gpuType, []string{api.GPU_HPC, api.GPU_VGA}) {
+		guestIsolatedDevice.GpuType = gpuType
 	}
 
 	drv, _ := self.GetDriver()
@@ -2719,7 +2727,11 @@ func (self *SGuest) PerformSetIsolatedDevice(ctx context.Context, userCred mccli
 		}
 	}
 	for i := 0; i < len(addDevs); i++ {
-		err := self.startAttachIsolatedDevGeneral(ctx, userCred, addDevs[i])
+		if addDevs[i].GpuType != "" && utils.IsInStringArray(addDevs[i].GpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
+			return nil, httperrors.NewInputParameterError("gpu_type %s not vaild", addDevs[i].GpuType)
+		}
+
+		err := self.startAttachIsolatedDevGeneral(ctx, userCred, addDevs[i].Device, addDevs[i].GpuType)
 		if err != nil {
 			return nil, err
 		}

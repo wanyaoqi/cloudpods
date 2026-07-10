@@ -1318,7 +1318,7 @@ func (self *SGuest) SyncVMIsolateDevices(ctx context.Context, userCred mcclient.
 	}
 
 	for i := range devs {
-		err = self.attachIsolatedDevice(ctx, userCred, &devs[i], nil, nil, nil)
+		err = self.attachIsolatedDevice(ctx, userCred, &devs[i], nil, nil, nil, "")
 		if err != nil {
 			return err
 		}

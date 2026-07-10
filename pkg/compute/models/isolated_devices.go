@@ -570,6 +570,9 @@ func (manager *SIsolatedDeviceManager) isValidDeviceInfo(config *api.IsolatedDev
 			return httperrors.NewConflictError("Isolated device already attached")
 		}
 	}
+	if config.GpuType != "" && !utils.IsInStringArray(config.GpuType, []string{api.GPU_HPC, api.GPU_VGA}) {
+		return httperrors.NewInputParameterError("Input gpu_type %s not valid", config.GpuType)
+	}
 	return nil
 }
 
@@ -625,7 +628,7 @@ func (manager *SIsolatedDeviceManager) attachSpecificDeviceToGuest(ctx context.C
 	if !dev.IsEnough(devConfig.MemoryRequest) {
 		return errors.Errorf("Dev %s not enough", dev.Id)
 	}
-	return guest.attachIsolatedDevice(ctx, userCred, dev, devConfig.NetworkIndex, devConfig.DiskIndex, &devConfig.MemoryRequest)
+	return guest.attachIsolatedDevice(ctx, userCred, dev, devConfig.NetworkIndex, devConfig.DiskIndex, &devConfig.MemoryRequest, devConfig.GpuType)
 }
 
 func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByDevicePath(ctx context.Context, guest *SGuest, host *SHost, devConfig *api.IsolatedDeviceConfig, userCred mcclient.TokenCredential, usedDevMap map[string]*SIsolatedDevice, preferNumaNodes []int) error {
@@ -660,7 +663,7 @@ func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByDevicePath(ctx c
 	if !selectedDev.IsEnough(devConfig.MemoryRequest) {
 		return errors.Errorf("Dev %s not enough", selectedDev.Id)
 	}
-	return guest.attachIsolatedDevice(ctx, userCred, &selectedDev, devConfig.NetworkIndex, devConfig.DiskIndex, &devConfig.MemoryRequest)
+	return guest.attachIsolatedDevice(ctx, userCred, &selectedDev, devConfig.NetworkIndex, devConfig.DiskIndex, &devConfig.MemoryRequest, devConfig.GpuType)
 }
 
 // filterDevicesByMemoryMb drops devices whose MemorySize > 0 and is below the
@@ -1050,7 +1053,7 @@ func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByModel(
 	devAddr := strings.Split(selectedDev.Addr, "-")[0]
 	usedDevMap[devAddr] = selectedDev
 
-	return guest.attachIsolatedDevice(ctx, userCred, selectedDev, devConfig.NetworkIndex, devConfig.DiskIndex, &devConfig.MemoryRequest)
+	return guest.attachIsolatedDevice(ctx, userCred, selectedDev, devConfig.NetworkIndex, devConfig.DiskIndex, &devConfig.MemoryRequest, devConfig.GpuType)
 }
 
 func (manager *SIsolatedDeviceManager) FindAvailableByModels(models []string) ([]SIsolatedDevice, error) {
@@ -2366,6 +2369,8 @@ func (manager *SIsolatedDeviceManager) migrateDevType() error {
 			targetDevType = api.NETINT_TYPE
 		case devType == api.CONTAINER_DEV_CPH_AOSP_BINDER:
 			targetDevType = api.BINDER_TYPE
+		case devType == api.CONTAINER_DEV_ASCEND_NPU:
+			targetDevType = api.NPU_TYPE
 		default:
 			targetDevType = devType
 		}

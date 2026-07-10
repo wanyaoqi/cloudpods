@@ -1908,7 +1908,7 @@ func (manager *SGuestManager) validateCreateData(
 
 		hasGpuVga := func() bool {
 			for i := 0; i < len(input.IsolatedDevices); i++ {
-				if input.IsolatedDevices[i].GpuMode == api.GPU_VGA {
+				if input.IsolatedDevices[i].GpuType == api.GPU_VGA {
 					return true
 				}
 			}
