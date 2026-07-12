@@ -886,7 +886,7 @@ func getIsolatedDeviceInfo(ctx context.Context, userCred mcclient.TokenCredentia
 		hostQuery = StorageManager.FilterByOwner(ctx, hostQuery, StorageManager, userCred, ownerId, rbacscope.ScopeDomain)
 	}
 	if len(tenantId) > 0 {
-		devicesQ = IsolatedDeviceManager.queryWithoutGuest(devicesQ)
+		devicesQ = IsolatedDeviceManager.GetAvailableIsolatedDeviceQuery(devicesQ)
 		subq := db.SharedResourceManager.Query("resource_id")
 		subq = subq.Equals("resource_type", IsolatedDeviceManager.Keyword())
 		subq = subq.Equals("target_project_id", tenantId)

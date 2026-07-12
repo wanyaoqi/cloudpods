@@ -570,7 +570,7 @@ func NewPendingUsageBySchedInfo(hostId string, req *api.SchedInfo, candidate *sc
 			size := dev.MemoryRequest
 			u.IsolatedDevice.Set(pendingKey, oSize+size)
 		} else {
-			oCnt := u.IsolatedDevice.Get(devType)
+			oCnt := u.IsolatedDevice.Get(pendingKey)
 			u.IsolatedDevice.Set(pendingKey, oCnt+1)
 		}
 	}

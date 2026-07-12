@@ -1058,7 +1058,7 @@ func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByModel(
 
 func (manager *SIsolatedDeviceManager) FindAvailableByModels(models []string) ([]SIsolatedDevice, error) {
 	devs := make([]SIsolatedDevice, 0)
-	q := manager.GetAvailableIsolatedDeviceQuery()
+	q := manager.GetAvailableIsolatedDeviceQuery(nil)
 	q = q.In("model", models)
 	err := db.FetchModelObjects(manager, q, &devs)
 	if err != nil {
@@ -1091,7 +1091,7 @@ func (manager *SIsolatedDeviceManager) FindAvailableNicWiresByModel(modelName st
 
 func (manager *SIsolatedDeviceManager) FindAvailableGpusOnHost(hostId string) ([]SIsolatedDevice, error) {
 	devs := make([]SIsolatedDevice, 0)
-	q := manager.GetAvailableIsolatedDeviceQuery()
+	q := manager.GetAvailableIsolatedDeviceQuery(nil)
 	q = q.Equals("dev_type", api.GPU_TYPE).Equals("host_id", hostId)
 	err := db.FetchModelObjects(manager, q, &devs)
 	if err != nil {
@@ -1129,7 +1129,7 @@ func (manager *SIsolatedDeviceManager) findHostDevsByDevAttr(model, attrKey, att
 
 func (manager *SIsolatedDeviceManager) findHostAvailableByDevAttr(model, attrKey, attrVal, hostId, wireId string) ([]SIsolatedDevice, error) {
 	devs := make([]SIsolatedDevice, 0)
-	q := manager.GetAvailableIsolatedDeviceQuery()
+	q := manager.GetAvailableIsolatedDeviceQuery(nil)
 	q = q.Equals("model", model).Equals("host_id", hostId)
 	if attrVal != "" {
 		q.Equals(attrKey, attrVal)
@@ -1343,7 +1343,7 @@ func (man *SIsolatedDeviceManager) BatchGetModelSpecs(statusCheck bool) (jsonuti
 	hostQ := HostManager.Query()
 	q := man.Query("vendor_device_id", "model", "dev_type", "sharing_mode")
 	if statusCheck {
-		q = man.queryWithoutGuest(q)
+		q = man.GetAvailableIsolatedDeviceQuery(q)
 		hostQ = hostQ.Equals("status", api.BAREMETAL_RUNNING).IsTrue("enabled").
 			In("host_type", []string{api.HOST_TYPE_HYPERVISOR, api.HOST_TYPE_CONTAINER, api.HOST_TYPE_ZETTAKIT})
 	}
@@ -1595,9 +1595,9 @@ func (manager *SIsolatedDeviceManager) GetAllDevsOnHost(hostId string) ([]SIsola
 	return devs, nil
 }
 
-func (manager *SIsolatedDeviceManager) GetUnusedDevsOnHost(hostId string, model string, count int) ([]SIsolatedDevice, error) {
+func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceOnHost(hostId string, model string, count int) ([]SIsolatedDevice, error) {
 	devs := make([]SIsolatedDevice, 0)
-	q := manager.queryWithoutGuest(manager.Query().Equals("host_id", hostId).Equals("model", model))
+	q := manager.GetAvailableIsolatedDeviceQuery(manager.Query().Equals("host_id", hostId).Equals("model", model))
 	if count > 0 {
 		q = q.Limit(count)
 	}
@@ -1836,7 +1836,7 @@ func (host *SHost) VirtualDeviceNumaBalance(devModel string, numaNode int8) (boo
 	return true, nil
 }
 
-func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceQuery() *sqlchemy.SQuery {
+func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceQuery(isq *sqlchemy.SQuery) *sqlchemy.SQuery {
 	guestIdevs := GuestIsolatedDeviceManager.Query().SubQuery()
 	guestIsQ := guestIdevs.Query(
 		guestIdevs.Field("isolated_device_id"),
@@ -1844,11 +1844,14 @@ func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceQuery() *sqlche
 		sqlchemy.COUNT("guest_count", guestIdevs.Field("guest_id")),
 	).GroupBy("isolated_device_id").SubQuery()
 
-	isq := manager.Query()
+	if isq == nil {
+		isq = manager.Query()
+	}
+
 	isq = isq.LeftJoin(guestIsQ, sqlchemy.Equals(isq.Field("id"), guestIsQ.Field("isolated_device_id")))
 	cond1 := sqlchemy.AND(
 		sqlchemy.Equals(isq.Field("sharing_mode"), api.DEVICE_SHARING_MODE_HAMI),
-		sqlchemy.GT(isq.Field("memory_size"), guestIsQ.Field("device_memory_size")),
+		sqlchemy.GT(isq.Field("memory_size"), guestIsQ.Field("memory_allocated")),
 	)
 	cond2 := sqlchemy.AND(
 		sqlchemy.NotEquals(isq.Field("sharing_mode"), api.DEVICE_SHARING_MODE_HAMI),

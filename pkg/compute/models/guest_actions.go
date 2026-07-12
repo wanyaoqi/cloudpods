@@ -2542,7 +2542,7 @@ func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient
 
 	unusedDevs := []SIsolatedDevice{}
 	for devModel, count := range devModelCount {
-		devs, err := IsolatedDeviceManager.GetUnusedDevsOnHost(host.Id, devModel, count)
+		devs, err := IsolatedDeviceManager.GetAvailableIsolatedDeviceOnHost(host.Id, devModel, count)
 		if err != nil {
 			return httperrors.NewInternalServerError("fetch gpu failed %s", err)
 		}
@@ -2568,7 +2568,7 @@ func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient
 				}
 			}
 		} else if utils.IsInStringArray(dev.SharingMode, []string{api.DEVICE_SHARING_MODE_MPS, api.DEVICE_SHARING_MODE_HAMI, api.DEVICE_SHARING_MODE_UNLIMITED}) {
-			allDevs, err := IsolatedDeviceManager.GetUnusedDevsOnHost(host.Id, devModel, -1)
+			allDevs, err := IsolatedDeviceManager.GetAvailableIsolatedDeviceOnHost(host.Id, devModel, -1)
 			if err != nil {
 				return httperrors.NewInternalServerError("fetch gpu failed %s", err)
 			}
