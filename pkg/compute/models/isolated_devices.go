@@ -1876,7 +1876,7 @@ func (manager *SIsolatedDeviceManager) GetHostsIsolatedDeviceStats(hostIds []str
 	).GroupBy("isolated_device_id").SubQuery()
 
 	isq := manager.Query().In("host_id", hostIds)
-	isq = isq.Join(guestIsQ, sqlchemy.Equals(isq.Field("id"), guestIsQ.Field("isolated_device_id")))
+	isq = isq.LeftJoin(guestIsQ, sqlchemy.Equals(isq.Field("id"), guestIsQ.Field("isolated_device_id")))
 	isq.AppendField(guestIsQ.Field("memory_allocated"), guestIsQ.Field("guest_count"))
 	stats := make([]IsolatedDeviceAllocateStat, 0)
 	err := isq.All(&stats)
@@ -1928,7 +1928,7 @@ func (dev *SIsolatedDevice) IsEnough(memoryRequest int) bool {
 			log.Errorf("failed getAllocatedMemorySize %s", err)
 			return false
 		}
-		return (dev.MemorySize - allocated) > memoryRequest
+		return (dev.MemorySize - allocated) >= memoryRequest
 	}
 }
 

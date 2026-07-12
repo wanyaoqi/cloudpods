@@ -561,12 +561,14 @@ func (manager *SGuestManager) ListItemFilter(
 
 	devTypeQ := func(q *sqlchemy.SQuery, checkType, backup *bool, dType string, conditions []sqlchemy.ICondition) []sqlchemy.ICondition {
 		if checkType != nil {
-			isodev := IsolatedDeviceManager.Query().SubQuery()
-			isodevCons := []sqlchemy.ICondition{sqlchemy.IsNotNull(isodev.Field("guest_id"))}
+			guestIdev := GuestIsolatedDeviceManager.Query().SubQuery()
+			sgq := guestIdev.Query(guestIdev.Field("guest_id")).GroupBy(guestIdev.Field("guest_id"))
+
 			if len(dType) > 0 {
-				isodevCons = append(isodevCons, sqlchemy.Startswith(isodev.Field("dev_type"), dType))
+				isodev := IsolatedDeviceManager.Query().SubQuery()
+				sgq = sgq.Join(isodev, sqlchemy.Equals(guestIdev.Field("isolated_device_id"), isodev.Field("id")))
+				sgq = sgq.Filter(sqlchemy.Startswith(isodev.Field("dev_type"), dType))
 			}
-			sgq := isodev.Query(isodev.Field("guest_id")).Filter(sqlchemy.AND(isodevCons...))
 			cond := sqlchemy.NotIn
 			if *checkType {
 				cond = sqlchemy.In

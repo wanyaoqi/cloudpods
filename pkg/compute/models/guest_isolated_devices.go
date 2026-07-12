@@ -159,7 +159,7 @@ func (manager *SGuestIsolatedDeviceManager) OrderByExtraFields(
 
 func (dev *SIsolatedDevice) getAllocatedMemorySize() (int, error) {
 	sq := GuestIsolatedDeviceManager.Query().Equals("isolated_device_id", dev.Id).SubQuery()
-	q := sq.Query(sqlchemy.SUM("memory_used", sq.Field("memory_size"))).GroupBy(sq.Field("isolated_device_id"))
+	q := sq.Query(sqlchemy.SUM("memory_used", sq.Field("device_memory_size"))).GroupBy(sq.Field("isolated_device_id"))
 
 	var memoryUsed int
 	err := q.All(&memoryUsed)

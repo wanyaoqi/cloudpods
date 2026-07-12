@@ -287,7 +287,7 @@ type IsolatedDeviceDesc struct {
 }
 
 func (i *IsolatedDeviceDesc) IsUsedUp() bool {
-	if i.DevType == computeapi.CONTAINER_DEV_NVIDIA_HAMI {
+	if i.SharingMode == computeapi.DEVICE_SHARING_MODE_HAMI {
 		return i.MemorySizeAllocated >= i.MemorySize
 	} else {
 		return i.VirtualNumAllocated >= i.VirtualNum

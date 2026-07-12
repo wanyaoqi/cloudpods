@@ -17,6 +17,7 @@ package predicates
 import (
 	"context"
 	"fmt"
+	"path"
 
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/scheduler/core"
@@ -159,7 +160,7 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	for _, dev := range reqIsoDevs {
 		if len(dev.DevType) != 0 {
 			key := reqKey{devType: dev.DevType, sharingMode: dev.SharingMode}
-			if dev.SharingMode == compute.CONTAINER_DEV_NVIDIA_HAMI {
+			if dev.SharingMode == compute.DEVICE_SHARING_MODE_HAMI {
 				devTypeRequest[key] += dev.MemoryRequest
 			} else {
 				devTypeRequest[key] += 1
@@ -169,9 +170,9 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	for key, reqCount := range devTypeRequest {
 		devType, sharingMode := key.devType, key.sharingMode
 		devs := getter.AvailableIsolatedDevicesByTypeSharingMode(devType, sharingMode)
-		pendingCnt := pendingUsage.Get(fmt.Sprintf("%s/%s", devType, sharingMode))
+		pendingCnt := pendingUsage.Get(path.Join(devType, sharingMode))
 		freeCount := f.getIsolatedDeviceCountBySharingMode(sharingMode, devs)
-		if freeCount < (reqCount - pendingCnt) {
+		if freeCount < (reqCount + pendingCnt) {
 			h.Exclude(fmt.Sprintf("IsolatedDevice type %q not enough, request: %d, hostFree: %d", devType, reqCount, freeCount))
 			return h.GetResult()
 		}
@@ -194,9 +195,9 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: 0", vendorModel, reqCount))
 			return h.GetResult()
 		}
-		pendingCnt := pendingUsage.Get(fmt.Sprintf("%s/%s", devs[0].DevType, devs[0].SharingMode))
+		pendingCnt := pendingUsage.Get(path.Join(devs[0].DevType, devs[0].SharingMode))
 		freeCount := f.getIsolatedDeviceCountBySharingMode(devs[0].SharingMode, devs)
-		if freeCount < (reqCount - pendingCnt) {
+		if freeCount < (reqCount + pendingCnt) {
 			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: %d", vendorModel, reqCount, freeCount))
 			return h.GetResult()
 		}
@@ -253,9 +254,9 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: 0", devPath, reqCnt))
 			return h.GetResult()
 		}
-		pendingCnt := pendingUsage.Get(devs[0].DevType)
-		freeCount := f.getIsolatedDeviceCountBySharingMode(devs[0].DevType, devs)
-		if freeCount < (reqCnt - pendingCnt) {
+		pendingCnt := pendingUsage.Get(path.Join(devs[0].DevType, devs[0].SharingMode))
+		freeCount := f.getIsolatedDeviceCountBySharingMode(devs[0].SharingMode, devs)
+		if freeCount < (reqCnt + pendingCnt) {
 			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: %d", devPath, reqCnt, freeCount))
 			return h.GetResult()
 		}

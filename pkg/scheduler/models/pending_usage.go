@@ -17,6 +17,7 @@ package models
 import (
 	"context"
 	"fmt"
+	"path"
 	"sync"
 	"time"
 
@@ -563,13 +564,14 @@ func NewPendingUsageBySchedInfo(hostId string, req *api.SchedInfo, candidate *sc
 	for _, dev := range req.IsolatedDevices {
 		devType := dev.DevType
 		sharingMode := dev.SharingMode
+		pendingKey := path.Join(devType, sharingMode)
 		if sharingMode == compute.DEVICE_SHARING_MODE_HAMI {
-			oSize := u.IsolatedDevice.Get(devType)
+			oSize := u.IsolatedDevice.Get(pendingKey)
 			size := dev.MemoryRequest
-			u.IsolatedDevice.Set(fmt.Sprintf("%s/%s", devType, sharingMode), oSize+size)
+			u.IsolatedDevice.Set(pendingKey, oSize+size)
 		} else {
 			oCnt := u.IsolatedDevice.Get(devType)
-			u.IsolatedDevice.Set(fmt.Sprintf("%s/%s", devType, sharingMode), oCnt+1)
+			u.IsolatedDevice.Set(pendingKey, oCnt+1)
 		}
 	}
 
