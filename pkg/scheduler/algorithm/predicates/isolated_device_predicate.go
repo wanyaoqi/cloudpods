@@ -77,12 +77,10 @@ func (f *IsolatedDevicePredicate) getIsolatedDeviceCountBySharingMode(sharingMod
 	return ret
 }
 
-// countDevicesWithMinMemory counts free devices of the given dev_type whose
-// MemorySize satisfies the minimum requirement. Devices with MemorySize == 0
-// are treated as "unknown" and pass through (so newly-introduced rows that
-// haven't been backfilled yet don't accidentally exclude every host).
-// For NVIDIA_MPS / NVIDIA_GPU_SHARE the count is deduplicated by DevicePath,
-// matching getIsolatedDeviceCountBySharingMode.
+// countDevicesWithMinMemory counts available capacity for devices of the given
+// dev_type whose MemorySize satisfies the minimum requirement. Devices with
+// MemorySize == 0 are treated as "unknown" and pass through for non-HAMI modes
+// so rows that have not been backfilled yet do not exclude every host.
 func (f *IsolatedDevicePredicate) countDevicesWithMinMemory(getter core.CandidatePropertyGetter, devType, sharingMode string, minMemoryMb int) int {
 	devs := getter.AvailableIsolatedDevicesByTypeSharingMode(devType, sharingMode)
 	return countDevicesWithMinMemoryFromList(devs, sharingMode, minMemoryMb)
@@ -102,14 +100,39 @@ func countDevicesWithMinMemoryFromList(devs []*core.IsolatedDeviceDesc, sharingM
 		}
 		return n
 	}
-	seen := map[string]struct{}{}
+	n := 0
 	for _, d := range devs {
-		if d.MemorySize > 0 && (d.MemorySize-d.MemorySizeAllocated) < minMemoryMb {
+		if d.AvailableMemorySize() < minMemoryMb {
 			continue
 		}
-		seen[d.DevicePath] = struct{}{}
+		n++
 	}
-	return len(seen)
+	return n
+}
+
+func filterDevicesByTypeSharingMode(devs []*core.IsolatedDeviceDesc, devType, sharingMode string) []*core.IsolatedDeviceDesc {
+	ret := make([]*core.IsolatedDeviceDesc, 0, len(devs))
+	for _, dev := range devs {
+		if dev.DevType == devType && dev.SharingMode == sharingMode {
+			ret = append(ret, dev)
+		}
+	}
+	return ret
+}
+
+func isolatedDeviceRequestAmount(dev *compute.IsolatedDeviceConfig) int {
+	if dev.SharingMode == compute.DEVICE_SHARING_MODE_HAMI {
+		return dev.MemoryRequest
+	}
+	return 1
+}
+
+func isolatedDeviceMinMemory(dev *compute.IsolatedDeviceConfig) int {
+	minMemMb := dev.MemoryMb
+	if dev.SharingMode == compute.DEVICE_SHARING_MODE_HAMI && dev.MemoryRequest > minMemMb {
+		minMemMb = dev.MemoryRequest
+	}
+	return minMemMb
 }
 
 func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c core.Candidater) (bool, []core.PredicateFailureReason, error) {
@@ -160,11 +183,12 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	for _, dev := range reqIsoDevs {
 		if len(dev.DevType) != 0 {
 			key := reqKey{devType: dev.DevType, sharingMode: dev.SharingMode}
-			if dev.SharingMode == compute.DEVICE_SHARING_MODE_HAMI {
-				devTypeRequest[key] += dev.MemoryRequest
-			} else {
-				devTypeRequest[key] += 1
+			reqAmount := isolatedDeviceRequestAmount(dev)
+			if reqAmount <= 0 {
+				h.Exclude(fmt.Sprintf("IsolatedDevice type %q sharing_mode %q request amount must be positive", dev.DevType, dev.SharingMode))
+				return h.GetResult()
 			}
+			devTypeRequest[key] += reqAmount
 		}
 	}
 	for key, reqCount := range devTypeRequest {
@@ -183,22 +207,37 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	}
 
 	// check host device by model
-	devVendorModelRequest := make(map[string]int, 0)
+	type modelReqKey struct {
+		vendorModel string
+		devType     string
+		sharingMode string
+	}
+	devVendorModelRequest := make(map[modelReqKey]int, 0)
 	for _, dev := range reqIsoDevs {
 		if len(dev.Model) != 0 {
-			devVendorModelRequest[fmt.Sprintf("%s:%s", dev.Vendor, dev.Model)] += 1
+			key := modelReqKey{
+				vendorModel: fmt.Sprintf("%s:%s", dev.Vendor, dev.Model),
+				devType:     dev.DevType,
+				sharingMode: dev.SharingMode,
+			}
+			reqAmount := isolatedDeviceRequestAmount(dev)
+			if reqAmount <= 0 {
+				h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q request amount must be positive", key.vendorModel))
+				return h.GetResult()
+			}
+			devVendorModelRequest[key] += reqAmount
 		}
 	}
-	for vendorModel, reqCount := range devVendorModelRequest {
-		devs := getter.AvailableIsolatedDevicesByVendorModel(vendorModel)
+	for key, reqCount := range devVendorModelRequest {
+		devs := filterDevicesByTypeSharingMode(getter.AvailableIsolatedDevicesByVendorModel(key.vendorModel), key.devType, key.sharingMode)
 		if len(devs) == 0 {
-			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: 0", vendorModel, reqCount))
+			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: 0", key.vendorModel, reqCount))
 			return h.GetResult()
 		}
-		pendingCnt := pendingUsage.Get(path.Join(devs[0].DevType, devs[0].SharingMode))
-		freeCount := f.getIsolatedDeviceCountBySharingMode(devs[0].SharingMode, devs)
+		pendingCnt := pendingUsage.Get(path.Join(key.devType, key.sharingMode))
+		freeCount := f.getIsolatedDeviceCountBySharingMode(key.sharingMode, devs)
 		if freeCount < (reqCount + pendingCnt) {
-			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: %d", vendorModel, reqCount, freeCount))
+			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: %d", key.vendorModel, reqCount, freeCount))
 			return h.GetResult()
 		}
 		cap := freeCount / reqCount
@@ -218,14 +257,11 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	}
 	vramReq := make(map[vramReqKey]int)
 	for _, dev := range reqIsoDevs {
-		if dev.MemoryMb <= 0 && dev.MemoryRequest <= 0 {
+		minMemMb := isolatedDeviceMinMemory(dev)
+		if minMemMb <= 0 {
 			continue
 		}
-		memMb := dev.MemoryRequest
-		if dev.MemoryMb > 0 && dev.MemoryMb < dev.MemoryRequest {
-			memMb = dev.MemoryMb
-		}
-		vramReq[vramReqKey{dev.DevType, dev.SharingMode, memMb}]++
+		vramReq[vramReqKey{dev.DevType, dev.SharingMode, minMemMb}]++
 	}
 	for k, reqCnt := range vramReq {
 		fit := f.countDevicesWithMinMemory(getter, k.devType, k.sharingMode, k.minMemMb)
@@ -242,22 +278,37 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	}
 
 	// check host device by device_path
-	devicePathReq := make(map[string]int, 0)
+	type devicePathReqKey struct {
+		devicePath  string
+		devType     string
+		sharingMode string
+	}
+	devicePathReq := make(map[devicePathReqKey]int, 0)
 	for _, dev := range reqIsoDevs {
 		if len(dev.DevicePath) != 0 {
-			devicePathReq[dev.DevicePath] += 1
+			key := devicePathReqKey{
+				devicePath:  dev.DevicePath,
+				devType:     dev.DevType,
+				sharingMode: dev.SharingMode,
+			}
+			reqAmount := isolatedDeviceRequestAmount(dev)
+			if reqAmount <= 0 {
+				h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q request amount must be positive", dev.DevicePath))
+				return h.GetResult()
+			}
+			devicePathReq[key] += reqAmount
 		}
 	}
-	for devPath, reqCnt := range devicePathReq {
-		devs := getter.AvailableIsolatedDevicesByDevicePath(devPath)
+	for key, reqCnt := range devicePathReq {
+		devs := filterDevicesByTypeSharingMode(getter.AvailableIsolatedDevicesByDevicePath(key.devicePath), key.devType, key.sharingMode)
 		if len(devs) == 0 {
-			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: 0", devPath, reqCnt))
+			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: 0", key.devicePath, reqCnt))
 			return h.GetResult()
 		}
-		pendingCnt := pendingUsage.Get(path.Join(devs[0].DevType, devs[0].SharingMode))
-		freeCount := f.getIsolatedDeviceCountBySharingMode(devs[0].SharingMode, devs)
+		pendingCnt := pendingUsage.Get(path.Join(key.devType, key.sharingMode))
+		freeCount := f.getIsolatedDeviceCountBySharingMode(key.sharingMode, devs)
 		if freeCount < (reqCnt + pendingCnt) {
-			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: %d", devPath, reqCnt, freeCount))
+			h.Exclude(fmt.Sprintf("IsolatedDevice device_path %q not enough, request: %d, hostFree: %d", key.devicePath, reqCnt, freeCount))
 			return h.GetResult()
 		}
 		cap := freeCount / reqCnt
