@@ -16,12 +16,12 @@ package device
 
 import (
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
-	"yunion.io/x/onecloud/pkg/hostman/hostinfo"
 
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/apis"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
+	"yunion.io/x/onecloud/pkg/hostman/hostinfo"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
 )
 
@@ -46,6 +46,9 @@ func (i isolatedDevice) GetRuntimeDevices(input *hostapi.ContainerCreateInput, d
 	devsMap := map[isolated_device.IContainerDeviceManager][]*hostapi.ContainerDevice{}
 	for _, dev := range devs {
 		iDev := hostinfo.Instance().IsolatedDeviceMan.GetDeviceByCloudId(dev.IsolatedDevice.Id)
+		if iDev == nil {
+			return nil, errors.Wrapf(errors.ErrNotFound, "device %s not exist", dev.IsolatedDevice.Id)
+		}
 		devMan := iDev.GetContainerDeviceManager()
 
 		if mapDevs, ok := devsMap[devMan]; ok {

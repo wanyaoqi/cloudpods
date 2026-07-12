@@ -65,6 +65,7 @@ type CloudDeviceInfo struct {
 	PcieInfo            *api.IsolatedDevicePCIEInfo `json:"pcie_info"`
 	VirtualNum          int                         `json:"virtual_num"`
 	HotPluggable        bool                        `json:"hot_pluggable"`
+	SharingMode         string                      `json:"sharing_mode"`
 
 	// The frame rate limiter (FRL) configuration in frames per second
 	FRL string `json:"frl"`
@@ -603,6 +604,9 @@ func (man *isolatedDeviceManager) CheckDevIsNeedUpdate(dev IDevice, devInfo *Clo
 	if dev.HotPluggable() != devInfo.HotPluggable {
 		return true
 	}
+	if dev.GetSharingMode() != devInfo.SharingMode {
+		return true
+	}
 	return false
 }
 
@@ -913,6 +917,7 @@ func GetApiResourceData(dev IDevice) *jsonutils.JSONDict {
 		"vendor_device_id": dev.GetVendorDeviceId(),
 		"virtual_num":      dev.GetVirtualNum(),
 		"hot_pluggable":    dev.HotPluggable(),
+		"sharing_mode":     dev.GetSharingMode(),
 	}
 	detected := false
 	if err := dev.DetectByAddr(); err == nil {

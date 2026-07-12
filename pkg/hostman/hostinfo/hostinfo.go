@@ -2383,14 +2383,16 @@ func (h *SHostInfo) probeSyncIsolatedDevices() (*jsonutils.JSONArray, error) {
 				log.Errorf("Sync deviceInfo %s error: %v", dev.String(), err)
 				return errors.Wrapf(err, "Sync device %s", dev.String())
 			} else {
-				mtx.Lock()
-				updateDevs.Add(obj)
-				mtx.Unlock()
-				info := isolated_device.CloudDeviceInfo{}
-				if err := obj.Unmarshal(&info); err != nil {
-					return errors.Wrapf(err, "unmarshal isolated device %s to cloud device info", obj)
+				if obj != nil {
+					mtx.Lock()
+					updateDevs.Add(obj)
+					mtx.Unlock()
+					info := isolated_device.CloudDeviceInfo{}
+					if err := obj.Unmarshal(&info); err != nil {
+						return errors.Wrapf(err, "unmarshal isolated device %s to cloud device info", obj)
+					}
+					dev.SetDeviceInfo(info)
 				}
-				dev.SetDeviceInfo(info)
 				return nil
 			}
 		})

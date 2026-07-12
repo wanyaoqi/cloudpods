@@ -35,6 +35,9 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/util/sets"
+
 	"yunion.io/x/onecloud/pkg/apis"
 	computeapi "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
@@ -70,8 +73,6 @@ import (
 	"yunion.io/x/onecloud/pkg/util/pod/logs"
 	"yunion.io/x/onecloud/pkg/util/pod/nerdctl"
 	"yunion.io/x/onecloud/pkg/util/procutils"
-	"yunion.io/x/pkg/errors"
-	"yunion.io/x/pkg/util/sets"
 )
 
 func (m *SGuestManager) startContainerProbeManager() {
@@ -2375,6 +2376,9 @@ func (s *sPodGuestInstance) getIsolatedDeviceExtraConfig(spec *hostapi.Container
 		dev := restDevs[i]
 
 		iDev := hostinfo.Instance().IsolatedDeviceMan.GetDeviceByCloudId(dev.IsolatedDevice.Id)
+		if iDev == nil {
+			return errors.Wrapf(errors.ErrNotFound, "device %s not exist", dev.IsolatedDevice.Id)
+		}
 		devMan := iDev.GetContainerDeviceManager()
 
 		if _, ok := restDevsByType[devMan]; !ok {

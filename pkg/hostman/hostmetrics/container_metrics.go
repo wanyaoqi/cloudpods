@@ -230,6 +230,8 @@ func (m PodNvidiaGpuMetrics) GetTag() map[string]string {
 	sharingMode := apis.DEVICE_SHARING_MODE_UNLIMITED
 	if options.HostOptions.EnableCudaMPS {
 		sharingMode = apis.DEVICE_SHARING_MODE_MPS
+	} else if options.HostOptions.EnableCudaHAMI {
+		sharingMode = apis.DEVICE_SHARING_MODE_HAMI
 	}
 	return map[string]string{
 		"index":          strconv.Itoa(m.Index),
