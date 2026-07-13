@@ -52,6 +52,26 @@ func (o *ServerDeviceListOptions) Params() (jsonutils.JSONObject, error) {
 	return options.ListStructToParams(o)
 }
 
+type DeviceCreateOptions struct {
+	options.BaseCreateOptions
+
+	HostId         string
+	DevType        string
+	SharingMode    string
+	Model          string
+	HotPluggable   bool
+	Addr           string
+	DevicePath     string
+	VendorDeviceId string
+	MemorySize     int
+	VirtualNum     int
+	NumaNode       int
+}
+
+func (o *DeviceCreateOptions) Params() (jsonutils.JSONObject, error) {
+	return jsonutils.Marshal(o), nil
+}
+
 type DeviceShowOptions struct {
 	options.BaseIdOptions
 }
