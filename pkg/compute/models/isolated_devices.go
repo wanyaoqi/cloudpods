@@ -162,7 +162,7 @@ type SIsolatedDevice struct {
 	// or per-slice quota for MPS share mode). 0 means unknown / not applicable.
 	MemorySize int `nullable:"true" default:"0" list:"domain" update:"domain" create:"domain_optional"`
 	// some of isolated device type support virtual num, like NVIDIA_GPU_SHARE, NVIDIA_MPS
-	VirtualNum int `nullable:"true" list:"user" update:"domain" create:"domain_optional"`
+	VirtualNum int `nullable:"true" default:"1" list:"user" update:"domain" create:"domain_optional"`
 }
 
 func (manager *SIsolatedDeviceManager) GetIVirtualModelManager() db.IVirtualModelManager {
