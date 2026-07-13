@@ -731,6 +731,12 @@ func (manager *SGuestManager) ListItemFilter(
 			q = q.IsNullOrEmpty("host_id")
 		}
 	}
+	if len(query.IsolatedDeviceId) > 0 {
+		sq := GuestIsolatedDeviceManager.Query("guest_id").
+			Equals("isolated_device_id", query.IsolatedDeviceId).SubQuery()
+		q = q.In("id", sq)
+	}
+
 	if len(query.SnapshotpolicyId) > 0 {
 		sp := SnapshotPolicyResourceManager.Query("resource_id").
 			Equals("resource_type", api.SNAPSHOT_POLICY_TYPE_SERVER).

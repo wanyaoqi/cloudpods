@@ -131,6 +131,8 @@ type ServerListInput struct {
 
 	SnapshotpolicyId string `json:"snapshotpolicy_id"`
 
+	IsolatedDeviceId string `json:"isolated_device_id"`
+
 	// 是否调度到宿主机上
 	WithHost *bool `json:"with_host"`
 
