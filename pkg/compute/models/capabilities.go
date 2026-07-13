@@ -918,7 +918,7 @@ func getIsolatedDeviceInfo(ctx context.Context, userCred mcclient.TokenCredentia
 	devices := devicesQ.SubQuery()
 	hosts := hostQuery.SubQuery()
 
-	q := devices.Query(hosts.Field("host_type"), devices.Field("model"), devices.Field("dev_type"), devices.Field("sharing_mode"), devices.Field("nvme_size_mb"))
+	q := devices.Query(hosts.Field("host_type"), devices.Field("model"), devices.Field("dev_type"), devices.Field("sharing_mode"), devices.Field("nvme_size_mb"), devices.Field("memory_size"))
 	q = q.Filter(sqlchemy.NotIn(devices.Field("dev_type"), []string{api.USB_TYPE, api.NIC_TYPE}))
 	if zone != nil {
 		q = q.Join(hosts, sqlchemy.Equals(devices.Field("host_id"), hosts.Field("id")))
