@@ -146,8 +146,9 @@ type SDelIsolatedDeviceInput struct {
 }
 
 type SAddIsolatedDeviceInput struct {
-	Device  string
-	GpuType string
+	Device        string
+	GpuType       string
+	MemoryRequest *int
 }
 
 type SetIsolatedDeviceInput struct {

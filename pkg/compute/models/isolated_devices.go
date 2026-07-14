@@ -1341,7 +1341,7 @@ func (man *SIsolatedDeviceManager) GetSpecShouldCheckStatus(query *jsonutils.JSO
 
 func (man *SIsolatedDeviceManager) BatchGetModelSpecs(statusCheck bool) (jsonutils.JSONObject, error) {
 	hostQ := HostManager.Query()
-	q := man.Query("vendor_device_id", "model", "dev_type", "sharing_mode")
+	q := man.Query("vendor_device_id", "model", "dev_type", "sharing_mode", "nvme_size_mb", "memory_size")
 	if statusCheck {
 		q = man.GetAvailableIsolatedDeviceQuery(q)
 		hostQ = hostQ.Equals("status", api.BAREMETAL_RUNNING).IsTrue("enabled").
@@ -1351,7 +1351,7 @@ func (man *SIsolatedDeviceManager) BatchGetModelSpecs(statusCheck bool) (jsonuti
 	q.Join(hostSQ, sqlchemy.Equals(q.Field("host_id"), hostSQ.Field("id")))
 
 	q.AppendField(hostSQ.Field("host_type"))
-	q.GroupBy(hostSQ.Field("host_type"), q.Field("vendor_device_id"), q.Field("model"), q.Field("dev_type"))
+	q.GroupBy(hostSQ.Field("host_type"), q.Field("vendor_device_id"), q.Field("model"), q.Field("dev_type"), q.Field("sharing_mode"), q.Field("nvme_size_mb"), q.Field("memory_size"))
 	q.AppendField(sqlchemy.COUNT("*"))
 
 	rows, err := q.Rows()
@@ -1363,21 +1363,22 @@ func (man *SIsolatedDeviceManager) BatchGetModelSpecs(statusCheck bool) (jsonuti
 
 	for rows.Next() {
 		var hostType, vendorDeviceId, m, t, s string
+		var nvmeSize, memorySize int
 		var count int
-		if err := rows.Scan(&vendorDeviceId, &m, &t, &s, &hostType, &count); err != nil {
+		if err := rows.Scan(&vendorDeviceId, &m, &t, &s, &nvmeSize, &memorySize, &hostType, &count); err != nil {
 			return nil, errors.Wrap(err, "get model spec scan rows")
 		}
 		vendor := GetVendorByVendorDeviceId(vendorDeviceId)
 		specKeys := man.getSpecKeys(vendor, m, t)
 		specKey := GetSpecIdentKey(specKeys)
-		spec := man.getSpecByRows(hostType, vendorDeviceId, m, t, s, &count)
+		spec := man.getSpecByRows(hostType, vendorDeviceId, m, t, s, &nvmeSize, &memorySize, &count)
 		res.Set(specKey, spec)
 	}
 
 	return res, nil
 }
 
-func (man *SIsolatedDeviceManager) getSpecByRows(hostType, vendorDeviceId, model, devType, sharingMode string, count *int) *jsonutils.JSONDict {
+func (man *SIsolatedDeviceManager) getSpecByRows(hostType, vendorDeviceId, model, devType, sharingMode string, nvmeSize, memorySize, count *int) *jsonutils.JSONDict {
 	var vdev bool
 	var hypervisor string
 	if utils.IsInStringArray(sharingMode, api.VIRTUAL_SHARING_MODES) {
@@ -1396,11 +1397,18 @@ func (man *SIsolatedDeviceManager) getSpecByRows(hostType, vendorDeviceId, model
 	ret.Set("virtual_dev", jsonutils.NewBool(vdev))
 	ret.Set("hypervisor", jsonutils.NewString(hypervisor))
 	ret.Set("dev_type", jsonutils.NewString(devType))
+	ret.Set("sharing_mode", jsonutils.NewString(sharingMode))
 	ret.Set("model", jsonutils.NewString(model))
 	ret.Set("pci_id", jsonutils.NewString(vendorDeviceId))
 	ret.Set("vendor", jsonutils.NewString(GetVendorByVendorDeviceId(vendorDeviceId)))
 	if count != nil {
 		ret.Set("count", jsonutils.NewInt(int64(*count)))
+	}
+	if nvmeSize != nil {
+		ret.Set("nvme_size_mb", jsonutils.NewInt(int64(*nvmeSize)))
+	}
+	if memorySize != nil {
+		ret.Set("memory_size_mb", jsonutils.NewInt(int64(*memorySize)))
 	}
 
 	return ret
@@ -1426,7 +1434,7 @@ func (self *SIsolatedDevice) GetSpec(statusCheck bool) *jsonutils.JSONDict {
 			return nil
 		}
 	}
-	return IsolatedDeviceManager.getSpecByRows(host.HostType, self.VendorDeviceId, self.Model, self.DevType, self.SharingMode, nil)
+	return IsolatedDeviceManager.getSpecByRows(host.HostType, self.VendorDeviceId, self.Model, self.DevType, self.SharingMode, &self.NvmeSizeMB, &self.MemorySize, nil)
 }
 
 func (self *SIsolatedDevice) GetGpuSpec() *GpuSpec {
@@ -1595,12 +1603,9 @@ func (manager *SIsolatedDeviceManager) GetAllDevsOnHost(hostId string) ([]SIsola
 	return devs, nil
 }
 
-func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceOnHost(hostId string, model string, count int) ([]SIsolatedDevice, error) {
+func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceOnHost(hostId string, model, sharingMode string) ([]SIsolatedDevice, error) {
 	devs := make([]SIsolatedDevice, 0)
-	q := manager.GetAvailableIsolatedDeviceQuery(manager.Query().Equals("host_id", hostId).Equals("model", model))
-	if count > 0 {
-		q = q.Limit(count)
-	}
+	q := manager.GetAvailableIsolatedDeviceQuery(manager.Query().Equals("host_id", hostId).Equals("model", model)).Equals("sharing_mode", sharingMode)
 	err := db.FetchModelObjects(manager, q, &devs)
 	if err != nil {
 		return nil, err

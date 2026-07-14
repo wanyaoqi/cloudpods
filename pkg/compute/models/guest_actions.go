@@ -2359,9 +2359,11 @@ func (self *SGuest) SetReleasedIsolatedDevices(ctx context.Context, userCred mcc
 	for i := range devs {
 		dev := devs[i].GetIsolatedDevice()
 		record := api.ServerReleasedIsolatedDevice{
-			DevType: dev.DevType,
-			Model:   dev.Model,
-			GpuType: devs[i].GpuType,
+			DevType:       dev.DevType,
+			Model:         dev.Model,
+			GpuType:       devs[i].GpuType,
+			SharingMode:   dev.SharingMode,
+			MemoryRequest: devs[i].DeviceMemorySize,
 		}
 		records = append(records, record)
 	}
@@ -2503,7 +2505,7 @@ func (self *SGuest) detachIsolateDevice(ctx context.Context, userCred mcclient.T
 }
 
 // 挂载透传设备
-func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.ServerAttachIsolatedDeviceInput) (jsonutils.JSONObject, error) {
 	if self.Hypervisor != api.HYPERVISOR_KVM && self.Hypervisor != api.HYPERVISOR_POD {
 		return nil, httperrors.NewNotAcceptableError("Not allow for hypervisor %s", self.Hypervisor)
 	}
@@ -2514,25 +2516,29 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 		return nil, httperrors.NewInvalidStatusError("%s", msg)
 	}
 	var err error
-	autoStart := jsonutils.QueryBoolean(data, "auto_start", false)
-	gpuType, _ := data.GetString("gpu_type")
-	if gpuType != "" && utils.IsInStringArray(gpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
-		return nil, httperrors.NewInputParameterError("gpu_type %s not vaild", gpuType)
+	if input.GpuType != "" && utils.IsInStringArray(input.GpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
+		return nil, httperrors.NewInputParameterError("gpu_type %s not vaild", input.GpuType)
+	}
+	if input.MemoryRequest != nil && *input.MemoryRequest <= 0 {
+		return nil, httperrors.NewBadRequestError("guest attach gpu memory request count must > 0")
 	}
 
-	if data.Contains("device") {
-		device, _ := data.GetString("device")
-		err = self.StartAttachIsolatedDeviceGpuOrUsb(ctx, userCred, device, gpuType, autoStart)
-	} else if data.Contains("model") {
-		vmodel, _ := data.GetString("model")
-		var count int64 = 1
-		if data.Contains("count") {
-			count, _ = data.Int("count")
+	if input.Device != "" {
+		err = self.StartAttachIsolatedDeviceGpuOrUsb(ctx, userCred, input.Device, input.GpuType, input.MemoryRequest, input.AutoStart)
+	} else if input.Model != "" {
+		if !utils.IsInStringArray(input.SharingMode, api.VAILD_SHARING_MODES) {
+			return nil, httperrors.NewInputParameterError("shaing_mode %s not valid", input.SharingMode)
+		}
+
+		var count int = 1
+		if input.Count != nil {
+			count = *input.Count
 		}
 		if count < 1 {
 			return nil, httperrors.NewBadRequestError("guest attach gpu count must > 0")
 		}
-		err = self.StartAttachIsolatedDevices(ctx, userCred, vmodel, gpuType, int(count), autoStart)
+		input.Count = &count
+		err = self.StartAttachIsolatedDevices(ctx, userCred, input.Model, input.GpuType, input.SharingMode, count, input.MemoryRequest, input.AutoStart)
 	} else {
 		return nil, httperrors.NewMissingParameterError("device||model")
 	}
@@ -2543,98 +2549,107 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 	return nil, nil
 }
 
-func (self *SGuest) StartAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel, gpuType string, count int, autoStart bool) error {
-	if err := self.startAttachIsolatedDevices(ctx, userCred, devModel, gpuType, count); err != nil {
+func (self *SGuest) StartAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel, gpuType, sharingMode string, count int, memoryRequest *int, autoStart bool) error {
+	if err := self.startAttachIsolatedDevices(ctx, userCred, devModel, gpuType, sharingMode, count, memoryRequest); err != nil {
 		return err
 	}
 	// perform post attach task
 	return self.StartIsolatedDevicesSyncTask(ctx, userCred, autoStart, "")
 }
 
-func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModelCount map[string]int, gpuType string) error {
+func (self *SGuest) AttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModelCount map[string]int, gpuType, sharingMode string, memoryRequest *int) error {
 	host, _ := self.GetHost()
 	lockman.LockObject(ctx, host)
 	defer lockman.ReleaseObject(ctx, host)
+	attachedGpus, err := self.GetGuestIsolatedDevices()
+	if err != nil {
+		return errors.Wrap(err, "get isolated devices")
+	}
+	attachedAddrs := map[string]struct{}{}
+	if sharingMode == api.DEVICE_SHARING_MODE_MDEV {
+		for i := range attachedGpus {
+			gdev := attachedGpus[i].GetIsolatedDevice()
+			if gdev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
+				return httperrors.NewBadRequestError("Nvidia vgpu count exceed > 1")
+			} else if gdev.DevType == api.GPU_TYPE {
+				return httperrors.NewBadRequestError("Nvidia vgpu can't passthrough with other gpus")
+			}
+		}
+	} else if utils.IsInStringArray(sharingMode, api.VIRTUAL_SHARING_MODES) {
+		for i := range attachedGpus {
+			dev := attachedGpus[i].GetIsolatedDevice()
+			attachedAddrs[dev.Addr] = struct{}{}
+		}
+	}
 
-	unusedDevs := []SIsolatedDevice{}
 	for devModel, count := range devModelCount {
-		devs, err := IsolatedDeviceManager.GetAvailableIsolatedDeviceOnHost(host.Id, devModel, count)
+		devs, err := IsolatedDeviceManager.GetAvailableIsolatedDeviceOnHost(host.Id, devModel, sharingMode)
 		if err != nil {
 			return httperrors.NewInternalServerError("fetch gpu failed %s", err)
 		}
-		if len(devs) == 0 || len(devs) != count {
+		if len(devs) == 0 {
 			return httperrors.NewBadRequestError("required %d %s isolated devices on host %s, but not enough are available", count, devModel, host.GetName())
 		}
-		dev := devs[0]
+		avaDevs := make([]SIsolatedDevice, 0)
+		avaDevCnt := 0
+		for i := range devs {
+			dev := devs[i]
+			if _, ok := attachedAddrs[dev.Addr]; ok {
+				continue
+			}
+			if dev.SharingMode == api.DEVICE_SHARING_MODE_HAMI {
+				if memoryRequest == nil || *memoryRequest <= 0 {
+					return httperrors.NewBadRequestError("dev sharing_mode %s memory request invalid", dev.SharingMode)
+				}
+				if dev.IsEnough(*memoryRequest) {
+					avaDevs = append(avaDevs, dev)
+					avaDevCnt += 1
+				}
+			} else {
+				cnt, err := dev.getAllocatedCount()
+				if err != nil {
+					return errors.Wrap(err, "getAllocatedCount")
+				}
+				if dev.VirtualNum > cnt {
+					avaCnt := dev.VirtualNum - cnt
+					avaDevCnt += avaCnt
+					for j := 0; j < avaCnt; j++ {
+						avaDevs = append(avaDevs, dev)
+					}
+				}
+			}
+		}
+		if avaDevCnt < count {
+			return httperrors.NewInsufficientResourceError("Available device count %d less then request count %d", avaDevCnt, count)
+		}
+		dev := avaDevs[0]
 		if !dev.HotPluggable && self.GetStatus() == api.VM_RUNNING {
 			return httperrors.NewBadRequestError("dev type %s model %s unhotpluggable", dev.DevType, dev.Model)
+		}
 
-		}
-		if dev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
-			attachedGpus, err := self.GetGuestIsolatedDevices()
-			if err != nil {
-				return errors.Wrap(err, "get isolated devices")
+		for k := 0; k < count; k++ {
+			if err := self.attachIsolatedDevice(ctx, userCred, &avaDevs[k], nil, nil, memoryRequest, gpuType); err != nil {
+				return errors.Wrapf(err, "attach device %s", avaDevs[k].GetId())
 			}
-			for i := range attachedGpus {
-				gdev := attachedGpus[i].GetIsolatedDevice()
-				if gdev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
-					return httperrors.NewBadRequestError("Nvidia vgpu count exceed > 1")
-				} else if gdev.DevType == api.GPU_TYPE {
-					return httperrors.NewBadRequestError("Nvidia vgpu can't passthrough with other gpus")
-				}
-			}
-		} else if utils.IsInStringArray(dev.SharingMode, []string{api.DEVICE_SHARING_MODE_MPS, api.DEVICE_SHARING_MODE_HAMI, api.DEVICE_SHARING_MODE_UNLIMITED}) {
-			allDevs, err := IsolatedDeviceManager.GetAvailableIsolatedDeviceOnHost(host.Id, devModel, -1)
-			if err != nil {
-				return httperrors.NewInternalServerError("fetch gpu failed %s", err)
-			}
-			attachedGpus, err := self.GetGuestIsolatedDevices()
-			if err != nil {
-				return httperrors.NewInternalServerError("get attached isolated devices %s", err)
-			}
-			attachedAddrs := map[string]struct{}{}
-			for i := range attachedGpus {
-				dev := attachedGpus[i].GetIsolatedDevice()
-				addr := strings.Split(dev.Addr, "-")[0]
-				attachedAddrs[addr] = struct{}{}
-			}
-			validDevs := []SIsolatedDevice{}
-			for i := range allDevs {
-				devAddr := strings.Split(allDevs[i].Addr, "-")[0]
-				if _, ok := attachedAddrs[devAddr]; ok {
-					continue
-				}
-				validDevs = append(validDevs, allDevs[i])
-			}
-			if len(validDevs) < count {
-				return httperrors.NewInsufficientResourceError("required %d %s isolated devices on host %s, but not enough are available", count, devModel, host.GetName())
-			}
-			devs = validDevs[:count]
-		}
-		unusedDevs = append(unusedDevs, devs...)
-	}
-	defer func() { go host.ClearSchedDescCache() }()
-	for i := 0; i < len(unusedDevs); i++ {
-		if err := self.attachIsolatedDevice(ctx, userCred, &unusedDevs[i], nil, nil, nil, gpuType); err != nil {
-			return errors.Wrapf(err, "attach device %s", unusedDevs[i].GetId())
 		}
 	}
+	go host.ClearSchedDescCache()
 	return nil
 }
 
-func (self *SGuest) startAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel, gpuType string, count int) error {
-	return self.AttachIsolatedDevices(ctx, userCred, map[string]int{devModel: count}, gpuType)
+func (self *SGuest) startAttachIsolatedDevices(ctx context.Context, userCred mcclient.TokenCredential, devModel, gpuType, sharingMode string, count int, memoryRequest *int) error {
+	return self.AttachIsolatedDevices(ctx, userCred, map[string]int{devModel: count}, gpuType, sharingMode, memoryRequest)
 }
 
-func (self *SGuest) StartAttachIsolatedDeviceGpuOrUsb(ctx context.Context, userCred mcclient.TokenCredential, device, gpuType string, autoStart bool) error {
-	if err := self.startAttachIsolatedDevGeneral(ctx, userCred, device, gpuType); err != nil {
+func (self *SGuest) StartAttachIsolatedDeviceGpuOrUsb(ctx context.Context, userCred mcclient.TokenCredential, device, gpuType string, memoryRequest *int, autoStart bool) error {
+	if err := self.startAttachIsolatedDevGeneral(ctx, userCred, device, gpuType, memoryRequest); err != nil {
 		return err
 	}
 	// perform post attach task
 	return self.StartIsolatedDevicesSyncTask(ctx, userCred, autoStart, "")
 }
 
-func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred mcclient.TokenCredential, device, gpuType string) error {
+func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred mcclient.TokenCredential, device, gpuType string, memoryRequest *int) error {
 	iDev, err := IsolatedDeviceManager.FetchByIdOrName(ctx, userCred, device)
 	if err != nil {
 		msgFmt := "Isolated device %s not found"
@@ -2649,6 +2664,17 @@ func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred 
 
 	if !utils.IsInStringArray(self.GetStatus(), []string{api.VM_READY, api.VM_RUNNING}) {
 		return httperrors.NewInvalidStatusError("Can't attach isolated device when status is %q", self.GetStatus())
+	}
+
+	reqCnt := 1
+	if dev.SharingMode == api.DEVICE_SHARING_MODE_HAMI {
+		if memoryRequest == nil || *memoryRequest <= 0 {
+			return httperrors.NewBadRequestError("Dev sharing_mode %s memory request invalid", dev.SharingMode)
+		}
+		reqCnt = *memoryRequest
+	}
+	if !dev.IsEnough(reqCnt) {
+		return httperrors.NewBadRequestError("Dev %s is not enough", dev.GetName())
 	}
 
 	if dev.SharingMode == api.DEVICE_SHARING_MODE_MDEV {
@@ -2669,7 +2695,7 @@ func (self *SGuest) startAttachIsolatedDevGeneral(ctx context.Context, userCred 
 	host, _ := self.GetHost()
 	lockman.LockObject(ctx, host)
 	defer lockman.ReleaseObject(ctx, host)
-	err = self.attachIsolatedDevice(ctx, userCred, dev, nil, nil, nil, gpuType)
+	err = self.attachIsolatedDevice(ctx, userCred, dev, nil, nil, memoryRequest, gpuType)
 	var msg string
 	if err != nil {
 		msg = err.Error()
@@ -2703,7 +2729,7 @@ func (self *SGuest) attachIsolatedDevice(ctx context.Context, userCred mcclient.
 	if diskIndex != nil {
 		guestIsolatedDevice.DiskIndex = *diskIndex
 	}
-	if memoryRequest != nil {
+	if dev.SharingMode == api.DEVICE_SHARING_MODE_HAMI && memoryRequest != nil {
 		guestIsolatedDevice.DeviceMemorySize = *memoryRequest
 	}
 	if utils.IsInStringArray(gpuType, []string{api.GPU_HPC, api.GPU_VGA}) {
@@ -2748,7 +2774,7 @@ func (self *SGuest) PerformSetIsolatedDevice(ctx context.Context, userCred mccli
 			return nil, httperrors.NewInputParameterError("gpu_type %s not vaild", addDevs[i].GpuType)
 		}
 
-		err := self.startAttachIsolatedDevGeneral(ctx, userCred, addDevs[i].Device, addDevs[i].GpuType)
+		err := self.startAttachIsolatedDevGeneral(ctx, userCred, addDevs[i].Device, addDevs[i].GpuType, addDevs[i].MemoryRequest)
 		if err != nil {
 			return nil, err
 		}
