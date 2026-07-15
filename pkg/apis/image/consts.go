@@ -54,6 +54,7 @@ const (
 
 	IMAGE_STORAGE_DRIVER_LOCAL = "local"
 	IMAGE_STORAGE_DRIVER_S3    = "s3"
+	IMAGE_STORAGE_DRIVER_NFS   = "nfs"
 
 	// image properties
 	IMAGE_OS_ARCH              = "os_arch"

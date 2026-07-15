@@ -104,6 +104,10 @@ func StartService() {
 		execlient.SetTimeoutSeconds(options.Options.ExecutorConnectTimeoutSeconds)
 		procutils.SetRemoteExecutor()
 	}
+	if err := initNFS(); err != nil {
+		log.Errorf("fail to init nfs storage: %s", err)
+		return
+	}
 
 	if !opts.IsSlaveNode {
 

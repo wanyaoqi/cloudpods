@@ -51,10 +51,12 @@ const (
 )
 
 type SLocalImageCache struct {
-	imageId string
-	Manager IImageCacheManger
-	Size    int64
-	Desc    *remotefile.SImageDesc
+	imageId  string
+	Manager  IImageCacheManger
+	Size     int64
+	Desc     *remotefile.SImageDesc
+	path     string
+	readOnly bool
 
 	consumerCount int
 	cond          *sync.Cond
@@ -65,9 +67,15 @@ type SLocalImageCache struct {
 }
 
 func NewLocalImageCache(imageId string, imagecacheManager IImageCacheManger) *SLocalImageCache {
+	return NewLocalImageCacheWithPath(imageId, imagecacheManager, "", false)
+}
+
+func NewLocalImageCacheWithPath(imageId string, imagecacheManager IImageCacheManger, imagePath string, readOnly bool) *SLocalImageCache {
 	imageCache := new(SLocalImageCache)
 	imageCache.imageId = imageId
 	imageCache.Manager = imagecacheManager
+	imageCache.path = imagePath
+	imageCache.readOnly = readOnly
 	imageCache.cond = sync.NewCond(new(sync.Mutex))
 	imageCache.accessDirLock = sync.Mutex{}
 	return imageCache
@@ -275,6 +283,9 @@ func (l *SLocalImageCache) fetch(ctx context.Context, input api.CacheImageInput,
 			}
 		}
 	}
+	if l.readOnly {
+		return errors.Errorf("read-only shared image %s is not valid, refuse to fetch to it", l.GetPath())
+	}
 	err := l.remoteFile.Fetch(callback)
 	if err != nil {
 		return errors.Wrapf(err, "remoteFile.Fetch")
@@ -283,7 +294,7 @@ func (l *SLocalImageCache) fetch(ctx context.Context, input api.CacheImageInput,
 }
 
 func (l *SLocalImageCache) Remove(ctx context.Context) error {
-	if fileutils2.Exists(l.GetPath()) {
+	if !l.readOnly && fileutils2.Exists(l.GetPath()) {
 		if err := syscall.Unlink(l.GetPath()); err != nil {
 			return errors.Wrap(err, l.GetPath())
 		}
@@ -316,6 +327,9 @@ func (l *SLocalImageCache) Remove(ctx context.Context) error {
 }
 
 func (l *SLocalImageCache) GetPath() string {
+	if len(l.path) > 0 {
+		return l.path
+	}
 	return path.Join(l.Manager.GetPath(), l.imageId)
 }
 

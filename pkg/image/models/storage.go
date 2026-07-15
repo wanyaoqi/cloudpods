@@ -76,6 +76,8 @@ func Init(storageBackend string) {
 	switch storageBackend {
 	case image.IMAGE_STORAGE_DRIVER_LOCAL:
 		storage = &LocalStorage{}
+	case image.IMAGE_STORAGE_DRIVER_NFS:
+		storage = &NFSStorage{}
 	case image.IMAGE_STORAGE_DRIVER_S3:
 		storage = &S3Storage{}
 	default:
@@ -142,6 +144,14 @@ func (s *LocalStorage) IsCheckStatusEnabled() bool {
 
 func (s *LocalStorage) RemoveImage(ctx context.Context, imagePath string) error {
 	return os.Remove(imagePath)
+}
+
+type NFSStorage struct {
+	LocalStorage
+}
+
+func (s *NFSStorage) Type() string {
+	return image.IMAGE_STORAGE_DRIVER_NFS
 }
 
 type S3Storage struct{}
