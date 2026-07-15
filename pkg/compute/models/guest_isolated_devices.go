@@ -158,27 +158,27 @@ func (manager *SGuestIsolatedDeviceManager) OrderByExtraFields(
 }
 
 func (dev *SIsolatedDevice) getAllocatedMemorySize() (int, error) {
-	sq := GuestIsolatedDeviceManager.Query().Equals("isolated_device_id", dev.Id).SubQuery()
-	q := sq.Query(sqlchemy.SUM("memory_used", sq.Field("device_memory_size"))).GroupBy(sq.Field("isolated_device_id"))
+	sq := GuestIsolatedDeviceManager.Query().
+		Equals("isolated_device_id", dev.Id).
+		SubQuery()
 
-	var memoryUsed int
-	err := q.All(&memoryUsed)
-	if err != nil {
-		return -1, err
+	q := sq.Query(
+		sqlchemy.SUM("memory_used", sq.Field("device_memory_size")),
+	)
+
+	var result struct {
+		MemoryUsed int
 	}
-	return memoryUsed, nil
+
+	err := q.First(&result)
+	if err != nil {
+		return 0, err
+	}
+	return result.MemoryUsed, nil
 }
 
 func (dev *SIsolatedDevice) getAllocatedCount() (int, error) {
-	sq := GuestIsolatedDeviceManager.Query().Equals("isolated_device_id", dev.Id).SubQuery()
-	q := sq.Query(sqlchemy.COUNT("guest_count", sq.Field("guest_id"))).GroupBy(sq.Field("isolated_device_id"))
-
-	var guestCount int
-	err := q.All(&guestCount)
-	if err != nil {
-		return -1, err
-	}
-	return guestCount, nil
+	return GuestIsolatedDeviceManager.Query().Equals("isolated_device_id", dev.Id).CountWithError()
 }
 
 func (dev *SIsolatedDevice) getAttachedGuestIds() []string {

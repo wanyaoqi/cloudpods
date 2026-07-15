@@ -34,6 +34,9 @@ type IsolateDeviceDetails struct {
 
 	SIsolatedDevice
 
+	MemoryAllocated int
+	AllocatedCount  int
+
 	// 云主机名称
 	Guest []string `json:"guest"`
 	// 云主机状态

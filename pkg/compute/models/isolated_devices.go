@@ -204,6 +204,10 @@ func (manager *SIsolatedDeviceManager) ValidateCreateData(ctx context.Context,
 		}
 	}
 
+	if !utils.IsInStringArray(input.SharingMode, api.VAILD_SHARING_MODES) {
+		return input, httperrors.NewNotEmptyError("sharing_mode %s is not valid", input.SharingMode)
+	}
+
 	input.StandaloneResourceCreateInput, err = manager.SStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input.StandaloneResourceCreateInput)
 	if err != nil {
 		return input, errors.Wrap(err, "SStandaloneResourceBaseManager.ValidateCreateData")
@@ -1495,7 +1499,13 @@ func (manager *SIsolatedDeviceManager) FetchCustomizeColumns(
 			HostResourceInfo:          hostRows[i],
 			SharableResourceBaseInfo:  shareRows[i],
 		}
-		guestIds[i] = objs[i].(*SIsolatedDevice).getAttachedGuestIds()
+		dev := objs[i].(*SIsolatedDevice)
+		if dev.SharingMode == api.DEVICE_SHARING_MODE_HAMI {
+			rows[i].MemoryAllocated, _ = dev.getAllocatedMemorySize()
+		} else {
+			rows[i].AllocatedCount, _ = dev.getAllocatedCount()
+		}
+		guestIds[i] = dev.getAttachedGuestIds()
 		if len(guestIds[i]) > 0 {
 			guestIdsAll = append(guestIdsAll, guestIds[i]...)
 		}
