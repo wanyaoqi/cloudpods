@@ -1856,7 +1856,10 @@ func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceQuery(isq *sqlc
 	isq = isq.LeftJoin(guestIsQ, sqlchemy.Equals(isq.Field("id"), guestIsQ.Field("isolated_device_id")))
 	cond1 := sqlchemy.AND(
 		sqlchemy.Equals(isq.Field("sharing_mode"), api.DEVICE_SHARING_MODE_HAMI),
-		sqlchemy.GT(isq.Field("memory_size"), guestIsQ.Field("memory_allocated")),
+		sqlchemy.OR(
+			sqlchemy.IsNull(guestIsQ.Field("memory_allocated")),
+			sqlchemy.GT(isq.Field("memory_size"), guestIsQ.Field("memory_allocated")),
+		),
 	)
 	cond2 := sqlchemy.AND(
 		sqlchemy.NotEquals(isq.Field("sharing_mode"), api.DEVICE_SHARING_MODE_HAMI),
