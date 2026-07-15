@@ -2516,7 +2516,7 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 		return nil, httperrors.NewInvalidStatusError("%s", msg)
 	}
 	var err error
-	if input.GpuType != "" && utils.IsInStringArray(input.GpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
+	if input.GpuType != "" && !utils.IsInStringArray(input.GpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
 		return nil, httperrors.NewInputParameterError("gpu_type %s not vaild", input.GpuType)
 	}
 	if input.MemoryRequest != nil && *input.MemoryRequest <= 0 {
@@ -2770,7 +2770,7 @@ func (self *SGuest) PerformSetIsolatedDevice(ctx context.Context, userCred mccli
 		}
 	}
 	for i := 0; i < len(addDevs); i++ {
-		if addDevs[i].GpuType != "" && utils.IsInStringArray(addDevs[i].GpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
+		if addDevs[i].GpuType != "" && !utils.IsInStringArray(addDevs[i].GpuType, []string{api.GPU_VGA, api.GPU_HPC}) {
 			return nil, httperrors.NewInputParameterError("gpu_type %s not vaild", addDevs[i].GpuType)
 		}
 
