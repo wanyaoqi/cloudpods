@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"path"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/scheduler/core"
