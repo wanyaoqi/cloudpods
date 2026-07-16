@@ -236,7 +236,7 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	}
 	for key, reqCount := range devVendorModelRequest {
 		log.Errorf("len(getter.devs): %d", len(getter.AvailableIsolatedDevicesByVendorModel(key.vendorModel)))
-		log.Errorf("key %s", jsonutils.Marshal(key))
+		log.Errorf("key %s %s", key.devType, key.sharingMode)
 		devs := filterDevicesByTypeSharingMode(getter.AvailableIsolatedDevicesByVendorModel(key.vendorModel), key.devType, key.sharingMode)
 		log.Errorf("len(devs): %d", len(devs))
 		if len(devs) == 0 {
