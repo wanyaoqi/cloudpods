@@ -113,6 +113,7 @@ func countDevicesWithMinMemoryFromList(devs []*core.IsolatedDeviceDesc, sharingM
 }
 
 func filterDevicesByTypeSharingMode(devs []*core.IsolatedDeviceDesc, devType, sharingMode string) []*core.IsolatedDeviceDesc {
+	log.Errorf("devs %s\n ========== %s %s", jsonutils.Marshal(devs), devType, sharingMode)
 	ret := make([]*core.IsolatedDeviceDesc, 0)
 	for _, dev := range devs {
 		if dev.DevType != "" && devType != dev.DevType {
