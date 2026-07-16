@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"path"
 
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/scheduler/core"
 )
@@ -111,7 +112,7 @@ func countDevicesWithMinMemoryFromList(devs []*core.IsolatedDeviceDesc, sharingM
 }
 
 func filterDevicesByTypeSharingMode(devs []*core.IsolatedDeviceDesc, devType, sharingMode string) []*core.IsolatedDeviceDesc {
-	ret := make([]*core.IsolatedDeviceDesc, 0, len(devs))
+	ret := make([]*core.IsolatedDeviceDesc, 0)
 	for _, dev := range devs {
 		if dev.DevType == devType && dev.SharingMode == sharingMode {
 			ret = append(ret, dev)
@@ -229,7 +230,9 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 		}
 	}
 	for key, reqCount := range devVendorModelRequest {
+		log.Errorf("len(getter.devs): %d", len(getter.AvailableIsolatedDevicesByVendorModel(key.vendorModel)))
 		devs := filterDevicesByTypeSharingMode(getter.AvailableIsolatedDevicesByVendorModel(key.vendorModel), key.devType, key.sharingMode)
+		log.Errorf("len(devs): %d", len(devs))
 		if len(devs) == 0 {
 			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: 0", key.vendorModel, reqCount))
 			return h.GetResult()
