@@ -50,6 +50,7 @@ func init() {
 	R(&ServerDetachDeviceOptions{}, "server-detach-isolated-device", "Detach a isolated device from a virtual server", func(s *mcclient.ClientSession, args *ServerDetachDeviceOptions) error {
 		params := jsonutils.NewDict()
 		params.Add(jsonutils.NewString(args.DEVICE), "device")
+		params.Add(jsonutils.NewInt(int64(args.INDEX)), "index")
 		if args.IsForce {
 			params.Set("is_force", jsonutils.JSONTrue)
 		}
