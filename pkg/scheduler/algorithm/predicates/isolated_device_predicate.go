@@ -65,6 +65,7 @@ func (f *IsolatedDevicePredicate) PreExecute(ctx context.Context, u *core.Unit, 
 }
 
 func (f *IsolatedDevicePredicate) getIsolatedDeviceCountBySharingMode(sharingMode string, devs []*core.IsolatedDeviceDesc) int {
+	log.Errorf("devs %s\n sharingmode %s", jsonutils.Marshal(devs), sharingMode)
 	if sharingMode == compute.DEVICE_SHARING_MODE_HAMI {
 		ret := 0
 		for i := range devs {
@@ -248,7 +249,7 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 		pendingCnt := pendingUsage.Get(path.Join(key.devType, key.sharingMode))
 		freeCount := f.getIsolatedDeviceCountBySharingMode(key.sharingMode, devs)
 		if freeCount < (reqCount + pendingCnt) {
-			h.Exclude(fmt.Sprintf("IsolatedDevice vendor:model %q not enough, request: %d, hostFree: %d", key.vendorModel, reqCount, freeCount))
+			h.Exclude(fmt.Sprintf("IsolatedDevice == vendor:model %q not enough, request: %d, hostFree: %d", key.vendorModel, reqCount, freeCount))
 			return h.GetResult()
 		}
 		cap := freeCount / reqCount
