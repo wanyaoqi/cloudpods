@@ -494,9 +494,13 @@ func (h *BaseHostDesc) AvailableIsolatedDevices() []*core.IsolatedDeviceDesc {
 func (h *BaseHostDesc) AvailableIsolatedDevicesByTypeSharingMode(devType, sharingMode string) []*core.IsolatedDeviceDesc {
 	ret := make([]*core.IsolatedDeviceDesc, 0)
 	for _, dev := range h.AvailableIsolatedDevices() {
-		if dev.DevType == devType && dev.SharingMode == sharingMode {
-			ret = append(ret, dev)
+		if devType != "" && dev.DevType != devType {
+			continue
 		}
+		if sharingMode != "" && dev.SharingMode != sharingMode {
+			continue
+		}
+		ret = append(ret, dev)
 	}
 	return ret
 }
