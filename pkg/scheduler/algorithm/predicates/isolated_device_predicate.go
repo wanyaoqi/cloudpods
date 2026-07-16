@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"path"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/scheduler/core"
@@ -235,6 +236,7 @@ func (f *IsolatedDevicePredicate) Execute(ctx context.Context, u *core.Unit, c c
 	}
 	for key, reqCount := range devVendorModelRequest {
 		log.Errorf("len(getter.devs): %d", len(getter.AvailableIsolatedDevicesByVendorModel(key.vendorModel)))
+		log.Errorf("key %s", jsonutils.Marshal(key))
 		devs := filterDevicesByTypeSharingMode(getter.AvailableIsolatedDevicesByVendorModel(key.vendorModel), key.devType, key.sharingMode)
 		log.Errorf("len(devs): %d", len(devs))
 		if len(devs) == 0 {
