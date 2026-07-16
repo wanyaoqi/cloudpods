@@ -1904,6 +1904,7 @@ func (manager *SIsolatedDeviceManager) GetHostsIsolatedDeviceStats(hostIds []str
 
 	isq := manager.Query().In("host_id", hostIds)
 	isq = isq.LeftJoin(guestIsQ, sqlchemy.Equals(isq.Field("id"), guestIsQ.Field("isolated_device_id")))
+	isq.AppendField(isq.QueryFields()...)
 	isq.AppendField(guestIsQ.Field("memory_allocated"), guestIsQ.Field("guest_count"))
 	log.Errorf("GetHostsIsolatedDeviceStats debugq %s", isq.DebugString())
 	stats := make([]IsolatedDeviceAllocateStat, 0)
