@@ -3526,9 +3526,8 @@ func (manager *SHostManager) totalCountQ(
 
 	q = db.ObjectIdQueryWithPolicyResult(ctx, q, HostManager, policyResult)
 
-	isolatedDevices := IsolatedDeviceManager.Query().SubQuery()
-	unusedDevs := IsolatedDeviceManager.queryWithoutGuest(isolatedDevices.Query()).SubQuery()
-	iq := unusedDevs.Query(
+	isolatedDevices := IsolatedDeviceManager.queryWithoutGuest(IsolatedDeviceManager.Query()).SubQuery()
+	iq := isolatedDevices.Query(
 		isolatedDevices.Field("host_id"),
 		sqlchemy.SUM("isolated_reserved_memory", isolatedDevices.Field("reserved_memory")),
 		sqlchemy.SUM("isolated_reserved_cpu", isolatedDevices.Field("reserved_cpu")),

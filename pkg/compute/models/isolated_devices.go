@@ -1358,6 +1358,7 @@ func (man *SIsolatedDeviceManager) BatchGetModelSpecs(statusCheck bool) (jsonuti
 	q.GroupBy(hostSQ.Field("host_type"), q.Field("vendor_device_id"), q.Field("model"), q.Field("dev_type"), q.Field("sharing_mode"), q.Field("nvme_size_mb"), q.Field("memory_size"))
 	q.AppendField(sqlchemy.COUNT("*"))
 
+	log.Errorf("BatchGetModelSpecs %s", q.DebugString())
 	rows, err := q.Rows()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed get specs")
