@@ -269,7 +269,7 @@ type SHostOptions struct {
 	CudaMPSLogDirectory  string `help:"cuda mps log dir" default:"/tmp/nvidia-mps/log"`
 	CudaMPSReplicas      int    `help:"cuda mps replicas" default:"10"`
 
-	EnableCudaHAMI      bool   `help:"enable cuda hami" default:"false"`
+	EnableCudaHAMI      bool   `help:"enable cuda hami" default:"true"`
 	HAMICoreLibvgpuPath string `help:"hami core libvgpu.so path" default:"/opt/cloud/hami/libvgpu.so"`
 
 	SkipCheckKernelMods []string `help:"skip check kernel modules"`

@@ -44,6 +44,7 @@ func init() {
 	type ServerDetachDeviceOptions struct {
 		SERVER  string `help:"ID or name of server"`
 		DEVICE  string `help:"ID of isolated device to detach"`
+		INDEX   int    `help:"Index of isolated device to detach"`
 		IsForce bool   `help:"Force detach isolated device"`
 	}
 	R(&ServerDetachDeviceOptions{}, "server-detach-isolated-device", "Detach a isolated device from a virtual server", func(s *mcclient.ClientSession, args *ServerDetachDeviceOptions) error {
