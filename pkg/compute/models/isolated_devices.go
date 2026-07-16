@@ -1874,7 +1874,10 @@ func (manager *SIsolatedDeviceManager) GetAvailableIsolatedDeviceQuery(isq *sqlc
 	)
 	cond2 := sqlchemy.AND(
 		sqlchemy.NotEquals(isq.Field("sharing_mode"), api.DEVICE_SHARING_MODE_HAMI),
-		sqlchemy.GT(isq.Field("virtual_num"), guestIsQ.Field("guest_count")),
+		sqlchemy.OR(
+			sqlchemy.IsNull(guestIsQ.Field("guest_count")),
+			sqlchemy.GT(isq.Field("virtual_num"), guestIsQ.Field("guest_count")),
+		),
 	)
 
 	isq = isq.Filter(sqlchemy.OR(cond1, cond2))
