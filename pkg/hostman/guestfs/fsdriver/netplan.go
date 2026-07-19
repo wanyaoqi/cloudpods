@@ -93,10 +93,33 @@ func newNetplanNetwork(allNics []*types.SServerNic, bondNics []*types.SServerNic
 			netConf.Mtu = defaultMtu
 		}
 
+		// A VLAN-backed bond must keep the bond itself unaddressed; addresses
+		// and routes belong to the VLAN subinterface (for example bond0.100).
+		bondNetConf := netConf
+		if bondNic.VlanInterface {
+			bondNetConf = &netplan.EthernetConfig{}
+			*bondNetConf = *netConf
+			bondNetConf.Addresses = nil
+			bondNetConf.Gateway4 = ""
+			bondNetConf.Gateway6 = ""
+			bondNetConf.Routes = nil
+			bondNetConf.Nameservers = nil
+			bondNetConf.DHCP4 = false
+			bondNetConf.DHCP6 = false
+		}
+
 		// TODO: implement kinds of bond mode config
-		bondConf := netplan.NewBondMode4(netConf, interfaces)
+		bondConf := netplan.NewBondMode4(bondNetConf, interfaces)
 
 		network.AddBond(bondNic.Name, bondConf)
+		if bondNic.VlanInterface {
+			ifname := fmt.Sprintf("%s.%d", bondNic.Name, bondNic.Vlan)
+			network.AddVlan(ifname, &netplan.VlanConfig{
+				EthernetConfig: *netConf,
+				Link:           bondNic.Name,
+				Id:             bondNic.Vlan,
+			})
+		}
 	}
 
 	return network
