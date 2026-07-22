@@ -51,6 +51,9 @@ const (
 
 	LocalFilePrefix = "file://"
 	S3Prefix        = "s3://"
+	NfsPrefix       = "nfs://"
+
+	NfsSubDirName = "images"
 
 	IMAGE_STORAGE_DRIVER_LOCAL = "local"
 	IMAGE_STORAGE_DRIVER_S3    = "s3"

@@ -60,6 +60,7 @@ type SImageOptions struct {
 
 	NfsStorageId    string `help:"region nfs storage id or name used as glance filesystem backend"`
 	NfsMountOptions string `help:"nfs mount options for glance filesystem backend"`
+	NfsMountPoint   string `help:"nfs mount point" default:"/opt/cloud/workspace/data/glance/nfsimages"`
 
 	ImageStreamWorkerCount int `help:"Image stream worker count" default:"10"`
 
