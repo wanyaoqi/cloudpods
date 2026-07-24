@@ -27,6 +27,10 @@ func newAscendNPUHamiManager() *ascendNPUHamiManager {
 	return &ascendNPUHamiManager{}
 }
 
+func (m *ascendNPUHamiManager) GetRegisterType() isolated_device.ContainerDeviceType {
+	return isolated_device.ContainerDeviceTypeAscendNpuHami
+}
+
 func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.ContainerDevice) ([]*runtimeapi.KeyValue, []*runtimeapi.Mount) {
 	npus := []string{}
 	memoryLimit := ""
