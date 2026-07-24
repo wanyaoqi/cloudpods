@@ -46,8 +46,9 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 		}
 		idx, err := extractPartitionNumber(dev.IsolatedDevice.Path)
 		if err != nil {
-			npus = append(npus, strconv.Itoa(idx))
+			log.Errorf("failed to extract partition number %s: %s", dev.IsolatedDevice.Path, err)
 		}
+		npus = append(npus, strconv.Itoa(idx))
 		if memoryLimit == "" {
 			memoryLimit = fmt.Sprintf("%dM", dev.IsolatedDevice.MemoryLimit)
 		}
@@ -89,6 +90,11 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 	return retEnvs, []*runtimeapi.Mount{
 		{
 			ContainerPath: "/hami-shared-region",
+			HostPath:      options.HostOptions.AscendNpuHamiShmPath,
+			Readonly:      true,
+		},
+		{
+			ContainerPath: options.HostOptions.AscendNpuHamiLibvnpuPath,
 			HostPath:      options.HostOptions.AscendNpuHamiLibvnpuPath,
 			Readonly:      true,
 		},
