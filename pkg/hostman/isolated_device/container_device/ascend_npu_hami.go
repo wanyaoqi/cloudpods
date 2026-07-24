@@ -70,7 +70,7 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 		},
 		{
 			Key:   "LD_PRELOAD",
-			Value: options.HostOptions.HAMICoreLibvgpuPath,
+			Value: options.HostOptions.AscendNpuHamiLibvnpuPath,
 		},
 		{
 			Key:   "NPU_MEM_QUOTA",
