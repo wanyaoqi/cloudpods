@@ -276,7 +276,7 @@ type SHostOptions struct {
 
 	EnableContainerAscendNPU     bool   `help:"enable container npu" default:"false"`
 	EnableContainerAscendNPUHami bool   `help:"enable container npu hami" default:"true"`
-	AscendNpuHamiShmPath         string `help:"ascend npu hami shm path" default:"/tmp/hami-shared-region"`
+	AscendNpuHamiShmPath         string `help:"ascend npu hami shm path" default:"/opt/cloud/hami-shared-region"`
 	AscendNpuHamiLibvnpuPath     string `help:"ascend npu hami libvnpu.so path" default:"/opt/cloud/hami/libvnpu.so"`
 
 	EnableDirtyRecoverySeconds int  `help:"Seconds to delay enable dirty guests recovery feature, default 15 minutes" default:"900"`

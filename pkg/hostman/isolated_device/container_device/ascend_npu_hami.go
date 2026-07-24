@@ -2,6 +2,8 @@ package container_device
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 
@@ -12,6 +14,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/hostinfo"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
 	"yunion.io/x/onecloud/pkg/hostman/options"
+	fileutils "yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 )
 
@@ -59,9 +62,17 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 	if len(npus) == 0 {
 		return nil, nil
 	}
-	out, err := procutils.NewRemoteCommandAsFarAsPossible("mkdir", "-p", options.HostOptions.AscendNpuHamiShmPath).Output()
-	if err != nil {
-		log.Errorf("mkdir -p %s: %s %s", options.HostOptions.AscendNpuHamiShmPath, out, err)
+
+	shmFilePath := path.Join(options.HostOptions.AscendNpuHamiShmPath, "global_registry")
+	if !fileutils.Exists(shmFilePath) {
+		err := os.MkdirAll(options.HostOptions.AscendNpuHamiShmPath, 0755)
+		if err != nil {
+			log.Errorf("failed to create shm dir %s: %s", options.HostOptions.AscendNpuHamiShmPath, err)
+		}
+		out, err := procutils.NewRemoteCommandAsFarAsPossible("touch", shmFilePath).Output()
+		if err != nil {
+			log.Errorf("mkdir -p %s: %s %s", options.HostOptions.AscendNpuHamiShmPath, out, err)
+		}
 	}
 	retEnvs := []*runtimeapi.KeyValue{
 		{
@@ -89,9 +100,9 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 	}
 	return retEnvs, []*runtimeapi.Mount{
 		{
-			ContainerPath: "/hami-shared-region",
-			HostPath:      options.HostOptions.AscendNpuHamiShmPath,
-			Readonly:      true,
+			ContainerPath: "/hami-shared-region/global_registry",
+			HostPath:      shmFilePath,
+			Readonly:      false,
 		},
 		{
 			ContainerPath: options.HostOptions.AscendNpuHamiLibvnpuPath,
