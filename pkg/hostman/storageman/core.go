@@ -369,15 +369,11 @@ func (s *SStorageManager) InitSharedFileStorageImagecache(storagecacheId, path s
 	if len(path) == 0 {
 		return
 	}
-	sharedImagePath := ""
-	if storage != nil && storage.StorageType() == api.STORAGE_NFS {
-		sharedImagePath = storage.GetPath()
-	}
 	if s.SharedFileStorageImagecacheManagers == nil {
 		s.SharedFileStorageImagecacheManagers = map[string]IImageCacheManger{}
 	}
 	if _, ok := s.SharedFileStorageImagecacheManagers[storagecacheId]; !ok {
-		s.SharedFileStorageImagecacheManagers[storagecacheId] = NewLocalImageCacheManagerWithSharedImagePath(s, path, storagecacheId, storage, sharedImagePath)
+		s.SharedFileStorageImagecacheManagers[storagecacheId] = NewLocalImageCacheManager(s, path, storagecacheId, storage)
 	}
 }
 

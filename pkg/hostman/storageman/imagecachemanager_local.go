@@ -17,7 +17,6 @@ package storageman
 import (
 	"context"
 	"os"
-	"path"
 	"sync"
 	"time"
 
@@ -42,22 +41,16 @@ type SLocalImageCacheManager struct {
 	// isTemplate bool
 	lock lockman.ILockManager
 
-	storage         IStorage
-	sharedImagePath string
+	storage IStorage
 }
 
 func NewLocalImageCacheManager(manager IStorageManager, cachePath string, storagecacheId string, storage IStorage) *SLocalImageCacheManager {
-	return NewLocalImageCacheManagerWithSharedImagePath(manager, cachePath, storagecacheId, storage, "")
-}
-
-func NewLocalImageCacheManagerWithSharedImagePath(manager IStorageManager, cachePath string, storagecacheId string, storage IStorage, sharedImagePath string) *SLocalImageCacheManager {
 	imageCacheManager := new(SLocalImageCacheManager)
 	imageCacheManager.lock = lockman.NewInMemoryLockManager()
 	imageCacheManager.storageManager = manager
 	imageCacheManager.storagecacaheId = storagecacheId
 	imageCacheManager.cachePath = cachePath
 	imageCacheManager.storage = storage
-	imageCacheManager.sharedImagePath = sharedImagePath
 	// imageCacheManager.limit = limit
 	// imageCacheManager.isTemplate = isTemplete
 	imageCacheManager.cachedImages = &sync.Map{} // make(map[string]IImageCache, 0)
@@ -80,6 +73,13 @@ func (c *SLocalImageCacheManager) GetStorageType() string {
 		return api.STORAGE_LOCAL
 	}
 	return c.storage.StorageType()
+}
+
+func (c *SLocalImageCacheManager) GetStorageId() string {
+	if c.storage == nil {
+		return ""
+	}
+	return c.storage.GetId()
 }
 
 func (c *SLocalImageCacheManager) loadCache(ctx context.Context) {
@@ -105,18 +105,10 @@ func (c *SLocalImageCacheManager) LoadImageCache(imageId string) {
 
 func (c *SLocalImageCacheManager) GetImage(imageId string) IImageCache {
 	imgObj, ok := c.cachedImages.Load(imageId)
-	if ok {
-		return imgObj.(IImageCache)
-	}
-	imageCache := c.newSharedImageCache(imageId)
-	if imageCache == nil {
+	if !ok {
 		return nil
 	}
-	if imageCache.Load() != nil {
-		return nil
-	}
-	c.cachedImages.Store(imageId, imageCache)
-	return imageCache
+	return imgObj.(IImageCache)
 }
 
 func (c *SLocalImageCacheManager) AcquireImage(ctx context.Context, input api.CacheImageInput, callback func(progress, progressMbps float64, totalSizeMb int64)) (IImageCache, error) {
@@ -125,7 +117,7 @@ func (c *SLocalImageCacheManager) AcquireImage(ctx context.Context, input api.Ca
 
 	imgObj, ok := c.cachedImages.Load(input.ImageId)
 	if !ok {
-		imgObj = c.newImageCache(input.ImageId)
+		imgObj = NewLocalImageCache(input.ImageId, c)
 		c.cachedImages.Store(input.ImageId, imgObj)
 	}
 	if callback == nil && len(input.ServerId) > 0 {
@@ -139,24 +131,6 @@ func (c *SLocalImageCacheManager) AcquireImage(ctx context.Context, input api.Ca
 	}
 	img := imgObj.(IImageCache)
 	return img, img.Acquire(ctx, input, callback)
-}
-
-func (c *SLocalImageCacheManager) newImageCache(imageId string) IImageCache {
-	if imageCache := c.newSharedImageCache(imageId); imageCache != nil {
-		return imageCache
-	}
-	return NewLocalImageCache(imageId, c)
-}
-
-func (c *SLocalImageCacheManager) newSharedImageCache(imageId string) IImageCache {
-	if len(c.sharedImagePath) == 0 {
-		return nil
-	}
-	imagePath := path.Join(c.sharedImagePath, imageId)
-	if !fileutils2.Exists(imagePath) {
-		return nil
-	}
-	return NewLocalImageCacheWithPath(imageId, c, imagePath, true)
 }
 
 func (c *SLocalImageCacheManager) ReleaseImage(ctx context.Context, imageId string) {
