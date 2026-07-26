@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -82,7 +83,9 @@ func mountNFS(host, sharedDir, mountPoint, mountOptions string) error {
 	if err := os.MkdirAll(mountPoint, 0755); err != nil {
 		return errors.Wrapf(err, "mkdir %s", mountPoint)
 	}
-
+	if err := os.MkdirAll(path.Join(mountPoint, imageapi.NfsSubDirName), 0755); err != nil {
+		return errors.Wrapf(err, "mkdir %s", mountPoint)
+	}
 	source := fmt.Sprintf("%s:%s", host, sharedDir)
 	if out, err := procutils.NewRemoteCommandAsFarAsPossible("mountpoint", mountPoint).Output(); err == nil {
 		log.Infof("%s has already been mounted as glance nfs store", mountPoint)
@@ -104,5 +107,6 @@ func mountNFS(host, sharedDir, mountPoint, mountOptions string) error {
 		return errors.Wrapf(err, "mount %s to %s failed: %s", source, mountPoint, out)
 	}
 	log.Infof("mounted nfs %s to glance filesystem store %s", source, mountPoint)
+
 	return nil
 }
