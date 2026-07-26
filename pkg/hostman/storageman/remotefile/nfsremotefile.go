@@ -18,7 +18,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/coredns/coredns/plugin/pkg/log"
+	"yunion.io/x/log"
 )
 
 type NfsRemoteFileInfo struct {
@@ -27,6 +27,6 @@ type NfsRemoteFileInfo struct {
 
 func (i *NfsRemoteFileInfo) nfsLinkImage(targetPath, storagePath string) error {
 	srcPath := path.Join(storagePath, i.NfsImagePath)
-	log.Info("NfsRemoteFileInfo start link %s to %s", srcPath, targetPath)
+	log.Infof("NfsRemoteFileInfo start link %s to %s", srcPath, targetPath)
 	return os.Link(srcPath, targetPath)
 }
