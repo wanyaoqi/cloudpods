@@ -61,7 +61,7 @@ func initNFS() error {
 		return errors.Wrapf(err, "storage %s missing nfs_shared_dir", options.Options.NfsStorageId)
 	}
 
-	return mountNFS(host, sharedDir, options.Options.FilesystemStoreDatadir, options.Options.NfsMountOptions)
+	return mountNFS(host, sharedDir, options.Options.NfsMountPoint, options.Options.NfsMountOptions)
 }
 
 func getNFSStorage(storageId string) (*computeapi.StorageDetails, error) {
