@@ -122,6 +122,10 @@ func (c *SRbdImageCacheManager) GetStorageId() string {
 	return c.storage.GetId()
 }
 
+func (c *SRbdImageCacheManager) GetStoragePath() string {
+	return c.storage.GetPath()
+}
+
 func (c *SRbdImageCacheManager) GetPath() string {
 	return c.Pool
 }

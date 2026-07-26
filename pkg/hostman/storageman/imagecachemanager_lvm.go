@@ -69,6 +69,10 @@ func (s *SLVMImageCacheManager) GetStorageId() string {
 	return s.storage.GetId()
 }
 
+func (s *SLVMImageCacheManager) GetStoragePath() string {
+	return s.storage.GetPath()
+}
+
 func (c *SLVMImageCacheManager) Lvmlockd() bool {
 	return c.lvmlockd
 }

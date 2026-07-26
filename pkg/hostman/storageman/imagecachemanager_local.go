@@ -82,6 +82,13 @@ func (c *SLocalImageCacheManager) GetStorageId() string {
 	return c.storage.GetId()
 }
 
+func (c *SLocalImageCacheManager) GetStoragePath() string {
+	if c.storage == nil {
+		return ""
+	}
+	return c.storage.GetPath()
+}
+
 func (c *SLocalImageCacheManager) loadCache(ctx context.Context) {
 	if len(c.cachePath) == 0 {
 		return
