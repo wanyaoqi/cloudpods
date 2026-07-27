@@ -3,12 +3,14 @@ package container_device
 import (
 	"fmt"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
+
 	computeapi "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	"yunion.io/x/onecloud/pkg/hostman/hostinfo"
@@ -16,7 +18,6 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/options"
 	fileutils "yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
-	"yunion.io/x/pkg/errors"
 )
 
 func init() {
@@ -64,15 +65,10 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 		return nil, nil
 	}
 
-	shmFilePath := path.Join(options.HostOptions.AscendNpuHamiShmPath, "global_registry")
-	if !fileutils.Exists(shmFilePath) {
+	if !fileutils.Exists(options.HostOptions.AscendNpuHamiShmPath) {
 		err := os.MkdirAll(options.HostOptions.AscendNpuHamiShmPath, 0755)
 		if err != nil {
 			log.Errorf("failed to create shm dir %s: %s", options.HostOptions.AscendNpuHamiShmPath, err)
-		}
-		out, err := procutils.NewRemoteCommandAsFarAsPossible("touch", shmFilePath).Output()
-		if err != nil {
-			log.Errorf("mkdir -p %s: %s %s", options.HostOptions.AscendNpuHamiShmPath, out, err)
 		}
 	}
 	retEnvs := []*runtimeapi.KeyValue{
