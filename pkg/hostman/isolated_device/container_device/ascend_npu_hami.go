@@ -100,8 +100,8 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 	}
 	return retEnvs, []*runtimeapi.Mount{
 		{
-			ContainerPath: "/hami-shared-region/global_registry",
-			HostPath:      shmFilePath,
+			ContainerPath: "/hami-shared-region",
+			HostPath:      options.HostOptions.AscendNpuHamiShmPath,
 			Readonly:      false,
 		},
 		{
