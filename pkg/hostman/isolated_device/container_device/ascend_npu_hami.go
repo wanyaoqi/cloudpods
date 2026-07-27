@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/options"
 	fileutils "yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
+	"yunion.io/x/pkg/errors"
 )
 
 func init() {
@@ -53,7 +54,7 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 		}
 		npus = append(npus, strconv.Itoa(idx))
 		if memoryLimit == "" {
-			memoryLimit = fmt.Sprintf("%dM", dev.IsolatedDevice.MemoryLimit)
+			memoryLimit = strconv.Itoa(dev.IsolatedDevice.MemoryLimit)
 		}
 		if smLimit == "" && dev.IsolatedDevice.SmUtilLimit > 0 {
 			smLimit = fmt.Sprintf("%d", dev.IsolatedDevice.SmUtilLimit)
@@ -113,5 +114,20 @@ func (m *ascendNPUHamiManager) GetContainerExtraConfigures(devs []*hostapi.Conta
 }
 
 func (m *ascendNPUHamiManager) ProbeDevices() ([]isolated_device.IDevice, error) {
-	return getAscendNpus(m, computeapi.DEVICE_SHARING_MODE_HAMI)
+	devs, err := getAscendNpus(m, computeapi.DEVICE_SHARING_MODE_HAMI)
+	if err != nil {
+		return nil, err
+	}
+	for i := range devs {
+		devPath := devs[i].GetDevicePath()
+		idx, err := extractPartitionNumber(devPath)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to extract partition number %s", devPath)
+		}
+		out, err := procutils.NewRemoteCommandAsFarAsPossible("sh", "-c", fmt.Sprintf("echo y | npu-smi set -t device-share -i %d -d 1", idx)).Output()
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to set device-share %s: out", devPath, out)
+		}
+	}
+	return devs, nil
 }
