@@ -333,7 +333,7 @@ func (s *STelegraf) GetConfig(kwargs map[string]interface{}) string {
 
 	if vasmi, ok := kwargs[TELEGRAF_INPUT_VASMI]; ok {
 		vasmiMap, _ := vasmi.(map[string]interface{})
-		conf += fmt.Sprintf("[[inputs.npu_smi]]\n")
+		conf += fmt.Sprintf("[[inputs.%s]]\n", TELEGRAF_INPUT_VASMI)
 		conf += fmt.Sprintf("  bin_path = \"%s\"\n", vasmiMap[TELEGRAF_INPUT_CONF_BIN_PATH].(string))
 		conf += "\n"
 	}
@@ -345,7 +345,7 @@ func (s *STelegraf) GetConfig(kwargs map[string]interface{}) string {
 
 	if npusmi, ok := kwargs[TELEGRAF_INPUT_NPUSMI]; ok {
 		npusmiMap, _ := npusmi.(map[string]interface{})
-		conf += fmt.Sprintf("[[inputs.%s]]\n", TELEGRAF_INPUT_NPUSMI)
+		conf += fmt.Sprintf("[[inputs.npu_smi]]\n")
 		conf += fmt.Sprintf("  bin_path = \"%s\"\n", npusmiMap[TELEGRAF_INPUT_CONF_BIN_PATH].(string))
 		conf += "\n"
 	}
