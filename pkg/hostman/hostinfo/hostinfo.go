@@ -2661,6 +2661,7 @@ func (h *SHostInfo) injectTelegrafDeviceConfig(conf map[string]interface{}) {
 	hasNetint := false
 	hasVasmi := false
 	hasNvidiasmi := false
+	hasNpusmi := false
 	for _, dev := range devs {
 		if !utils.IsInStringArray(dev.GetSharingMode(), api.VIRTUAL_SHARING_MODES) {
 			continue
@@ -2690,6 +2691,8 @@ func (h *SHostInfo) injectTelegrafDeviceConfig(conf map[string]interface{}) {
 			hasVasmi = true
 		case api.NVIDIA_VENDOR_ID:
 			hasNvidiasmi = true
+		case api.ASCEND_VENDOR_ID:
+			hasNpusmi = true
 		}
 	}
 	if hasNetint {
@@ -2704,6 +2707,11 @@ func (h *SHostInfo) injectTelegrafDeviceConfig(conf map[string]interface{}) {
 	}
 	if hasNvidiasmi {
 		conf[system_service.TELEGRAF_INPUT_NVIDIASMI] = struct{}{}
+	}
+	if hasNpusmi {
+		conf[system_service.TELEGRAF_INPUT_NPUSMI] = map[string]interface{}{
+			system_service.TELEGRAF_INPUT_CONF_BIN_PATH: "/usr/local/bin/npu-smi",
+		}
 	}
 }
 

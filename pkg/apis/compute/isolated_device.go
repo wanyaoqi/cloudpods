@@ -413,4 +413,7 @@ type GuestIsolatedDeviceDetails struct {
 	SIsolatedDevice
 	HostResourceInfo
 	apis.SharableResourceBaseInfo
+
+	MemoryAllocated int
+	AllocatedCount  int
 }
