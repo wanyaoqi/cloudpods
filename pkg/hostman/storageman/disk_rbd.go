@@ -263,7 +263,7 @@ func (d *SRBDDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, enc
 	return nil, nil
 }
 
-func (d *SRBDDisk) DeleteSnapshot(snapshotId, convertSnapshot string, blockStream bool, encryptInfo apis.SEncryptInfo) error {
+func (d *SRBDDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	storage := d.Storage.(*SRbdStorage)
 	return storage.deleteSnapshot(d.Id, snapshotId)
 }
@@ -293,7 +293,7 @@ func (d *SRBDDisk) DiskDeleteSnapshot(ctx context.Context, params interface{}) (
 	if !ok {
 		return nil, hostutils.ParamsError
 	}
-	err := d.DeleteSnapshot(snapshotId, "", false, apis.SEncryptInfo{})
+	err := d.DeleteSnapshot(snapshotId, nil, apis.SEncryptInfo{})
 	if err != nil {
 		return nil, err
 	} else {

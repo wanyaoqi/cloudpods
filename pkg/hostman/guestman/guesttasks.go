@@ -21,9 +21,11 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"yunion.io/x/jsonutils"
@@ -2227,42 +2229,245 @@ func (s *SGuestDiskSnapshotTask) onResumeSucc(res string) {
 
 type SGuestSnapshotDeleteTask struct {
 	*SGuestReloadDiskTask
-	deleteSnapshot  string
-	convertSnapshot string
-	blockStream     bool
-	encryptInfo     apis.SEncryptInfo
+	deleteSnapshot string
+	snapshotIds    []string
+	encryptInfo    apis.SEncryptInfo
 
-	tmpPath string
+	blockJobLock        sync.Mutex
+	blockJobDevice      string
+	blockJobObserved    bool
+	blockJobCompleted   bool
+	blockJobMissingPoll int
+	blockJobDone        bool
+	unwatchBlockJob     func()
+}
 
-	delSnapshotPathAfterReload func() error
+func snapshotIdsForDelete(snapshotIds []string, storageType string) []string {
+	if !utils.IsInStringArray(storageType, []string{api.STORAGE_LVM, api.STORAGE_SLVM}) {
+		return snapshotIds
+	}
+	ret := make([]string, 0, len(snapshotIds))
+	for _, snapshotId := range snapshotIds {
+		ret = append(ret, "snap_"+snapshotId)
+	}
+	return ret
 }
 
 func NewGuestSnapshotDeleteTask(
 	ctx context.Context, s *SKVMGuestInstance, disk storageman.IDisk,
-	deleteSnapshot, convertSnapshot string, blockStream bool, encryptInfo apis.SEncryptInfo,
+	deleteSnapshot string, snapshotIds []string, encryptInfo apis.SEncryptInfo,
 ) *SGuestSnapshotDeleteTask {
 	return &SGuestSnapshotDeleteTask{
 		SGuestReloadDiskTask: NewGuestReloadDiskTask(ctx, s, disk),
 		deleteSnapshot:       deleteSnapshot,
-		convertSnapshot:      convertSnapshot,
-		blockStream:          blockStream,
+		snapshotIds:          snapshotIds,
 		encryptInfo:          encryptInfo,
 	}
 }
 
 func (s *SGuestSnapshotDeleteTask) Start(totalDeleteSnapshotCount, deletedSnapshotCount int) {
-	if s.blockStream {
-		s.startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount)
-		return
-	}
+	s.startResolveBackingChain(totalDeleteSnapshotCount, deletedSnapshotCount)
+}
 
-	cb, err := s.disk.ConvertSnapshotRelyOnReloadDisk(s.convertSnapshot, s.encryptInfo)
+func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotCount, deletedSnapshotCount int) {
+	cleanupGraph, err := storageman.PrepareLocalSnapshotGraph(s.disk, s.snapshotIds)
 	if err != nil {
 		s.taskFailed(err.Error())
 		return
 	}
-	s.delSnapshotPathAfterReload = cb
-	s.fetchDisksInfo(s.doReloadDisk)
+	snapshotDir := s.disk.GetSnapshotDir()
+	deleteSnapshot := s.deleteSnapshot
+	if utils.IsInStringArray(s.disk.GetType(), []string{api.STORAGE_LVM, api.STORAGE_SLVM}) {
+		snapshotDir = path.Dir(snapshotDir)
+		deleteSnapshot = "snap_" + deleteSnapshot
+	}
+	plan, err := storageman.ResolveLocalSnapshotDeletePlan(snapshotDir, deleteSnapshot, snapshotIdsForDelete(s.snapshotIds, s.disk.GetType()), s.disk.GetPath())
+	cleanupGraph()
+	if err != nil {
+		s.taskFailed(err.Error())
+		return
+	}
+	if plan.Action == storageman.LocalSnapshotRemove {
+		s.deleteInactiveSnapshot()
+		return
+	}
+	s.Monitor.GetNamedBlockNodes(func(nodes []monitor.QemuNamedBlockNode, err error) {
+		if err != nil {
+			s.taskFailed(err.Error())
+			return
+		}
+		nodeForPath := func(filePath string) string {
+			for i := range nodes {
+				if filepath.Clean(nodes[i].Filename()) == filepath.Clean(filePath) {
+					return nodes[i].NodeName
+				}
+			}
+			return ""
+		}
+		childNode := nodeForPath(plan.Child)
+		parentNode := nodeForPath(plan.Parent)
+		targetNode := nodeForPath(plan.Target)
+		if childNode == "" && targetNode == "" {
+			s.deleteInactiveSnapshot()
+			return
+		}
+		if childNode == "" || targetNode == "" || (plan.Action != storageman.LocalSnapshotPromote && parentNode == "") {
+			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
+			return
+		}
+		if err := s.watchResolvedBlockJob(childNode); err != nil {
+			s.taskFailed(err.Error())
+			return
+		}
+		started := func(res string) {
+			if res != "" {
+				s.finishResolvedBlockJob(errors.Errorf("start block job: %s", res))
+				return
+			}
+			s.waitResolvedBlockJob()
+		}
+		if plan.Action == storageman.LocalSnapshotCommit {
+			s.Monitor.BlockCommit(childNode, targetNode, parentNode, started)
+		} else if plan.Action == storageman.LocalSnapshotPromote {
+			s.Monitor.BlockStream(childNode, started)
+		} else {
+			s.Monitor.BlockStreamToBase(childNode, parentNode, started)
+		}
+	})
+}
+
+func (s *SGuestSnapshotDeleteTask) deleteInactiveSnapshot() {
+	if err := s.disk.DeleteSnapshot(s.deleteSnapshot, s.snapshotIds, s.encryptInfo); err != nil {
+		s.taskFailed(err.Error())
+		return
+	}
+	body := jsonutils.NewDict()
+	body.Set("deleted", jsonutils.JSONTrue)
+	hostutils.TaskComplete(s.ctx, body)
+}
+
+func (s *SGuestSnapshotDeleteTask) watchResolvedBlockJob(device string) error {
+	unwatch, err := s.Monitor.WatchBlockJob(device, s.onResolvedBlockJobEvent)
+	if err != nil {
+		return err
+	}
+	s.blockJobLock.Lock()
+	s.blockJobDevice = device
+	s.unwatchBlockJob = unwatch
+	s.blockJobLock.Unlock()
+	return nil
+}
+
+func (s *SGuestSnapshotDeleteTask) onResolvedBlockJobEvent(event *monitor.Event) {
+	switch event.Event {
+	case `"BLOCK_JOB_COMPLETED"`:
+		if eventErr, ok := event.Data["error"].(string); ok && eventErr != "" {
+			s.finishResolvedBlockJob(errors.Errorf("block job completed with error: %s", eventErr))
+			return
+		}
+		s.blockJobLock.Lock()
+		s.blockJobCompleted = true
+		s.blockJobLock.Unlock()
+		s.waitResolvedBlockJob()
+	case `"BLOCK_JOB_ERROR"`, `"BLOCK_JOB_CANCELLED"`:
+		err := errors.Errorf("block job failed: %s", event.String())
+		if event.Event == `"BLOCK_JOB_ERROR"` {
+			s.cancelResolvedBlockJob(err)
+		} else {
+			s.finishResolvedBlockJob(err)
+		}
+	}
+}
+
+func (s *SGuestSnapshotDeleteTask) waitResolvedBlockJob() {
+	time.AfterFunc(time.Second, func() {
+		s.Monitor.GetBlockJobsWithError(func(jobs []monitor.BlockJob, err error) {
+			if err != nil {
+				s.cancelResolvedBlockJob(errors.Wrap(err, "query block jobs"))
+				return
+			}
+			s.blockJobLock.Lock()
+			if s.blockJobDone {
+				s.blockJobLock.Unlock()
+				return
+			}
+			device := s.blockJobDevice
+			completed := s.blockJobCompleted
+			var current *monitor.BlockJob
+			for i := range jobs {
+				if jobs[i].Device == device {
+					job := jobs[i]
+					current = &job
+					break
+				}
+			}
+			if current != nil {
+				s.blockJobObserved = true
+				s.blockJobMissingPoll = 0
+			}
+			observed := s.blockJobObserved
+			if current == nil {
+				s.blockJobMissingPoll++
+			}
+			missingPolls := s.blockJobMissingPoll
+			s.blockJobLock.Unlock()
+			if current != nil {
+				if current.IoStatus != "" && current.IoStatus != "ok" {
+					s.cancelResolvedBlockJob(errors.Errorf("block job %s io-status=%s", device, current.IoStatus))
+					return
+				}
+				s.waitResolvedBlockJob()
+				return
+			}
+			if completed {
+				s.finishResolvedBlockJob(nil)
+				return
+			}
+			if observed || missingPolls >= 2 {
+				s.finishResolvedBlockJob(errors.Errorf("block job %s disappeared without completion event", device))
+				return
+			}
+			s.waitResolvedBlockJob()
+		})
+	})
+}
+
+func (s *SGuestSnapshotDeleteTask) cancelResolvedBlockJob(reason error) {
+	s.blockJobLock.Lock()
+	if s.blockJobDone {
+		s.blockJobLock.Unlock()
+		return
+	}
+	device := s.blockJobDevice
+	s.blockJobLock.Unlock()
+	if device != "" {
+		s.Monitor.CancelBlockJob(device, true, func(res string) {
+			if res != "" {
+				log.Errorf("cancel failed snapshot delete block job %s: %s", device, res)
+			}
+		})
+	}
+	s.finishResolvedBlockJob(reason)
+}
+
+func (s *SGuestSnapshotDeleteTask) finishResolvedBlockJob(err error) {
+	s.blockJobLock.Lock()
+	if s.blockJobDone {
+		s.blockJobLock.Unlock()
+		return
+	}
+	s.blockJobDone = true
+	unwatch := s.unwatchBlockJob
+	s.unwatchBlockJob = nil
+	s.blockJobLock.Unlock()
+	if unwatch != nil {
+		unwatch()
+	}
+	if err != nil {
+		s.taskFailed(err.Error())
+		return
+	}
+	s.onStreamDiskComplete()
 }
 
 func (s *SGuestSnapshotDeleteTask) startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount int) {
@@ -2282,48 +2487,6 @@ func (s *SGuestSnapshotDeleteTask) onStreamDiskComplete() {
 		hostutils.TaskFailed(s.ctx, err.Error())
 		return
 	}
-	body := jsonutils.NewDict()
-	body.Set("deleted", jsonutils.JSONTrue)
-	hostutils.TaskComplete(s.ctx, body)
-}
-
-func (s *SGuestSnapshotDeleteTask) doReloadDisk(device string) {
-	s.SGuestReloadDiskTask.doReloadDisk(device, s.onReloadBlkdevSucc)
-}
-
-func (s *SGuestSnapshotDeleteTask) onReloadBlkdevSucc(err string) {
-	if s.delSnapshotPathAfterReload != nil {
-		if e := s.delSnapshotPathAfterReload(); e != nil {
-			log.Errorf("failed do delSnapshotPathAfterReload: %s", e)
-		}
-	}
-
-	var callback = s.onResumeSucc
-	if len(err) > 0 {
-		callback = func(string) {
-			s.onSnapshotBlkdevFail(fmt.Sprintf("onReloadBlkdevFail %s", err))
-		}
-	}
-	s.Monitor.SimpleCommand("cont", callback)
-}
-
-func (s *SGuestSnapshotDeleteTask) onSnapshotBlkdevFail(res string) {
-	snapshotPath := path.Join(s.disk.GetSnapshotDir(), s.convertSnapshot)
-	if output, err := procutils.NewCommand("mv", "-f", s.tmpPath, snapshotPath).Output(); err != nil {
-		log.Errorf("mv %s to %s failed: %s, %s", s.tmpPath, snapshotPath, err, output)
-	}
-	s.taskFailed(fmt.Sprintf("Reload blkdev failed %s", res))
-}
-
-func (s *SGuestSnapshotDeleteTask) onResumeSucc(res string) {
-	log.Infof("guest do new snapshot task resume succ %s", res)
-	if len(s.tmpPath) > 0 {
-		output, err := procutils.NewCommand("rm", "-f", s.tmpPath).Output()
-		if err != nil {
-			log.Errorf("rm %s failed: %s, %s", s.tmpPath, err, output)
-		}
-	}
-	s.disk.DoDeleteSnapshot(s.deleteSnapshot)
 	body := jsonutils.NewDict()
 	body.Set("deleted", jsonutils.JSONTrue)
 	hostutils.TaskComplete(s.ctx, body)

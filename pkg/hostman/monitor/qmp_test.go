@@ -43,3 +43,48 @@ func TestQmpMonitor_Connect(t *testing.T) {
 	m.Disconnect()
 	time.Sleep(3 * time.Second)
 }
+
+func TestFilterQcow2NamedBlockNodes(t *testing.T) {
+	qcow2 := QemuNamedBlockNode{NodeName: "node-snap", Driver: "qcow2", File: "/snapshots/s1"}
+	file := QemuNamedBlockNode{NodeName: "file-snap", Driver: "file", File: "/snapshots/s1"}
+	unnamed := QemuNamedBlockNode{Driver: "qcow2", File: "/snapshots/s2"}
+	nodes := filterQcow2NamedBlockNodes([]QemuNamedBlockNode{file, unnamed, qcow2})
+	if len(nodes) != 1 || nodes[0].NodeName != qcow2.NodeName {
+		t.Fatalf("unexpected qcow2 nodes: %#v", nodes)
+	}
+}
+
+func TestBlockJobsReturnsQMPError(t *testing.T) {
+	m := NewQmpMonitor("test", "", nil, nil, nil, nil)
+	if _, err := m.blockJobs(&Response{ErrorVal: &Error{Class: "GenericError", Desc: "failed"}}); err == nil {
+		t.Fatal("expected query-block-jobs error")
+	}
+}
+
+func TestWatchBlockJobByDevice(t *testing.T) {
+	m := NewQmpMonitor("test", "", nil, nil, nil, nil)
+	events := make(chan *Event, 1)
+	unwatch, err := m.WatchBlockJob("node-disk", func(event *Event) { events <- event })
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.watchEvent(&Event{Event: `"BLOCK_JOB_ERROR"`, Data: map[string]interface{}{"device": "other"}})
+	select {
+	case <-events:
+		t.Fatal("received event for another device")
+	case <-time.After(20 * time.Millisecond):
+	}
+	m.watchEvent(&Event{Event: `"BLOCK_JOB_ERROR"`, Data: map[string]interface{}{"device": "node-disk"}})
+	select {
+	case <-events:
+	case <-time.After(time.Second):
+		t.Fatal("did not receive matching block job event")
+	}
+	unwatch()
+	m.watchEvent(&Event{Event: `"BLOCK_JOB_COMPLETED"`, Data: map[string]interface{}{"device": "node-disk"}})
+	select {
+	case <-events:
+		t.Fatal("received event after unwatch")
+	case <-time.After(20 * time.Millisecond):
+	}
+}

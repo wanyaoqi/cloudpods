@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -651,7 +652,7 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	log.Errorf("input %s", jsonutils.Marshal(input))
 	snapshotDir := path.Join(s.GetSnapshotDir(), input.DiskId+options.HostOptions.SnapshotDirSuffix)
 	diskPath := path.Join(s.GetPath(), input.DiskId)
-	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, diskPath, input.ConvertSnapshot, input.BlockStream)
+	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, input.SnapshotIds, diskPath, input.EncryptInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -660,71 +661,412 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	return res, nil
 }
 
-func DeleteLocalSnapshot(snapshotDir, snapshotId, diskPath, convertSnapshot string, blockStream bool) error {
-	//snapshotDir := d.GetSnapshotDir()
-	snapshotPath := path.Join(snapshotDir, snapshotId)
-	if blockStream {
-		//diskPath := d.getPath()
-		output := diskPath + ".tmp"
-		if fileutils2.Exists(output) {
-			procutils.NewCommand("rm", "-f", output).Run()
+func DeleteLocalSnapshot(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo) error {
+	return deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, snapshotIds, diskPath, encryptInfo)
+}
+
+const legacySnapshotBaseName = "snap_base"
+
+func snapshotBaseName(diskPath string) string {
+	return path.Base(diskPath) + "_snap_base"
+}
+
+func prefixSnapshotIds(snapshotIds []string) []string {
+	prefixed := make([]string, 0, len(snapshotIds))
+	for _, snapshotId := range snapshotIds {
+		if isSnapshotBaseName(snapshotId) {
+			prefixed = append(prefixed, snapshotId)
+		} else {
+			prefixed = append(prefixed, "snap_"+snapshotId)
 		}
-		img, err := qemuimg.NewQemuImage(diskPath)
+	}
+	return prefixed
+}
+
+func isSnapshotBaseName(name string) bool {
+	return name == legacySnapshotBaseName || strings.HasSuffix(name, "_snap_base")
+}
+
+type LocalSnapshotDeleteAction string
+
+const (
+	LocalSnapshotRemove  LocalSnapshotDeleteAction = "remove"
+	LocalSnapshotPromote LocalSnapshotDeleteAction = "promote"
+	LocalSnapshotCommit  LocalSnapshotDeleteAction = "commit"
+	LocalSnapshotRebase  LocalSnapshotDeleteAction = "rebase"
+)
+
+type LocalSnapshotDeletePlan struct {
+	Action LocalSnapshotDeleteAction
+	Target string
+	Parent string
+	Child  string
+	Base   string
+}
+
+type localSnapshotGraph struct {
+	parents map[string]string
+	chains  [][]string
+}
+
+func loadLocalSnapshotGraph(snapshotDir, diskPath string, snapshotIds []string) (*localSnapshotGraph, error) {
+	graph := &localSnapshotGraph{parents: make(map[string]string)}
+	managed := make(map[string]struct{}, len(snapshotIds))
+	for _, snapshotId := range snapshotIds {
+		managed[filepath.Clean(path.Join(snapshotDir, snapshotId))] = struct{}{}
+	}
+
+	probe := func(candidate string) error {
+		candidate = filepath.Clean(candidate)
+		if _, ok := graph.parents[candidate]; ok {
+			return nil
+		}
+		if !fileutils2.Exists(candidate) {
+			return errors.Errorf("snapshot graph node %s is missing", candidate)
+		}
+		img, err := qemuimg.NewQemuImage(candidate)
 		if err != nil {
-			return errors.Wrap(err, "NewQemuImage")
+			return errors.Wrapf(err, "probe snapshot graph node %s", candidate)
 		}
-		if err = img.Convert2Qcow2To(output, false, "", "", ""); err != nil {
-			log.Errorf("convert image %s to %s: %s", img.Path, output, err)
-			procutils.NewCommand("rm", "-f", output).Run()
-			return err
+		parent := img.BackFilePath
+		if parent != "" {
+			parent = filepath.Clean(parent)
 		}
-		if err = procutils.NewCommand("rm", "-f", diskPath).Run(); err != nil {
-			log.Errorf("rm convert disk file %s: %s", diskPath, err)
-			return err
+		graph.parents[candidate] = parent
+		return nil
+	}
+
+	if fileutils2.Exists(diskPath) {
+		if err := probe(diskPath); err != nil {
+			return nil, err
 		}
-		if err = procutils.NewCommand("mv", "-f", output, diskPath).Run(); err != nil {
-			log.Errorf("mv disk file %s to %s: %s", output, diskPath, err)
-			return err
+	}
+	for candidate := range managed {
+		if err := probe(candidate); err != nil {
+			return nil, err
 		}
-	} else if len(convertSnapshot) > 0 {
-		if !fileutils2.Exists(snapshotDir) {
-			err := procutils.NewCommand("mkdir", "-p", snapshotDir).Run()
-			if err != nil {
-				log.Errorln(err)
-				return err
+	}
+
+	visited := make(map[string]struct{})
+	walk := func(start string) ([]string, error) {
+		chain := make([]string, 0)
+		current := filepath.Clean(start)
+		inChain := make(map[string]struct{})
+		for current != "" {
+			if _, ok := inChain[current]; ok {
+				return nil, errors.Errorf("snapshot backing cycle at %s", current)
+			}
+			inChain[current] = struct{}{}
+			visited[current] = struct{}{}
+			chain = append(chain, current)
+			parent, ok := graph.parents[current]
+			if !ok {
+				if !fileutils2.Exists(current) {
+					return nil, errors.Errorf("snapshot backing file %s is missing", current)
+				}
+				if err := probe(current); err != nil {
+					return nil, err
+				}
+				parent = graph.parents[current]
+			}
+			current = parent
+		}
+		return chain, nil
+	}
+
+	if fileutils2.Exists(diskPath) {
+		chain, err := walk(diskPath)
+		if err != nil {
+			return nil, err
+		}
+		graph.chains = append(graph.chains, chain)
+	}
+	for {
+		remaining := make(map[string]struct{})
+		for candidate := range managed {
+			if _, ok := visited[candidate]; !ok {
+				remaining[candidate] = struct{}{}
 			}
 		}
-		convertSnapshotPath := path.Join(snapshotDir, convertSnapshot)
-		output := convertSnapshotPath + ".tmp"
-		if fileutils2.Exists(output) {
-			procutils.NewCommand("rm", "-f", output).Run()
+		if len(remaining) == 0 {
+			break
 		}
-		img, err := qemuimg.NewQemuImage(convertSnapshotPath)
-		if err != nil {
-			return errors.Wrap(err, "NewQemuImage")
+		hasChild := make(map[string]bool)
+		for candidate := range remaining {
+			if _, ok := remaining[graph.parents[candidate]]; ok {
+				hasChild[graph.parents[candidate]] = true
+			}
 		}
-		if err = img.Convert2Qcow2To(output, false, "", "", ""); err != nil {
-			log.Errorf("convert image %s to %s: %s", img.Path, output, err)
-			procutils.NewCommand("rm", "-f", output).Run()
-			return err
+		heads := make([]string, 0)
+		for candidate := range remaining {
+			if !hasChild[candidate] {
+				heads = append(heads, candidate)
+			}
 		}
-		if err = procutils.NewCommand("rm", "-f", convertSnapshotPath).Run(); err != nil {
-			log.Errorf("rm convert snapshot file %s: %s", convertSnapshotPath, err)
-			return err
+		if len(heads) == 0 {
+			return nil, errors.Errorf("cannot find head for remaining snapshot graph nodes")
 		}
-		if err = procutils.NewCommand("mv", "-f", output, convertSnapshotPath).Run(); err != nil {
-			log.Errorf("mv snapshot file %s to %s: %s", output, convertSnapshotPath, err)
-			return err
+		sort.Strings(heads)
+		for _, head := range heads {
+			if _, ok := visited[head]; ok {
+				continue
+			}
+			chain, err := walk(head)
+			if err != nil {
+				return nil, err
+			}
+			graph.chains = append(graph.chains, chain)
 		}
 	}
-	if fileutils2.Exists(snapshotPath) {
-		out, err := procutils.NewCommand("rm", "-f", snapshotPath).Output()
-		if err != nil {
-			log.Errorf("rm snapshot file: %s %s", out, err)
-			return errors.Wrap(err, "rm snapshot file")
+	return graph, nil
+}
+
+func logLocalSnapshotGraph(diskPath string, snapshotIds []string, graph *localSnapshotGraph) {
+	chains := make([]string, 0, len(graph.chains))
+	for i, chain := range graph.chains {
+		chains = append(chains, fmt.Sprintf("chain[%d]=%s", i, strings.Join(chain, " -> ")))
+	}
+	log.Infof("local snapshot backing graph disk=%s snapshots=%v: %s", diskPath, snapshotIds, strings.Join(chains, "; "))
+}
+
+// ResolveLocalSnapshotDeletePlan finds target's physical parent and children
+// from the backing graph rooted at the disk and every disconnected chain head.
+func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds []string, diskPath string) (*LocalSnapshotDeletePlan, error) {
+	target := path.Join(snapshotDir, snapshotId)
+	if !fileutils2.Exists(target) {
+		remainingIds := make([]string, 0, len(snapshotIds))
+		for _, id := range snapshotIds {
+			if filepath.Clean(path.Join(snapshotDir, id)) != filepath.Clean(target) {
+				remainingIds = append(remainingIds, id)
+			}
+		}
+		if graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, remainingIds); err == nil {
+			logLocalSnapshotGraph(diskPath, snapshotIds, graph)
+		} else {
+			log.Warningf("failed to load snapshot graph while target %s is missing: %s", target, err)
+		}
+		log.Warningf("delete snapshot target %s is missing", target)
+		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target}, nil
+	}
+	graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, snapshotIds)
+	if err != nil {
+		return nil, err
+	}
+	logLocalSnapshotGraph(diskPath, snapshotIds, graph)
+	parent, ok := graph.parents[filepath.Clean(target)]
+	if !ok {
+		return nil, errors.Errorf("delete snapshot %s is not present in physical snapshot graph", snapshotId)
+	}
+	children := make([]string, 0, 1)
+	for candidate, candidateParent := range graph.parents {
+		if candidateParent == filepath.Clean(target) {
+			children = append(children, candidate)
 		}
 	}
-	return nil
+	if len(children) == 0 {
+		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: parent}, nil
+	}
+	if len(children) > 1 {
+		sort.Strings(children)
+		return nil, errors.Errorf("snapshot %s has multiple physical children: %s", snapshotId, strings.Join(children, ", "))
+	}
+	child := children[0]
+	base := path.Join(snapshotDir, snapshotBaseName(diskPath))
+	legacyBase := path.Join(snapshotDir, legacySnapshotBaseName)
+	baseExists := fileutils2.Exists(base)
+	if filepath.Clean(parent) == filepath.Clean(legacyBase) {
+		base = legacyBase
+		baseExists = fileutils2.Exists(legacyBase)
+	} else if filepath.Clean(parent) != filepath.Clean(base) && !baseExists && fileutils2.Exists(legacyBase) {
+		base = legacyBase
+		baseExists = true
+	}
+	return resolveLocalSnapshotDeleteEdges(target, parent, child, base, baseExists), nil
+}
+
+func snapshotBasePath(snapshotDir, diskPath, backingPath string) string {
+	for _, candidate := range []string{
+		path.Join(snapshotDir, snapshotBaseName(diskPath)),
+		path.Join(snapshotDir, legacySnapshotBaseName),
+	} {
+		if filepath.Clean(backingPath) == filepath.Clean(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func cleanupLocalSnapshotBase(snapshotDir, diskPath, backingPath string, skipRecycle bool, deleteFile func(string, bool) error) error {
+	base := snapshotBasePath(snapshotDir, diskPath, backingPath)
+	if base == "" || !fileutils2.Exists(base) {
+		return nil
+	}
+	if fileutils2.Exists(diskPath) {
+		img, err := qemuimg.NewQemuImage(diskPath)
+		if err != nil {
+			return errors.Wrap(err, "probe disk while cleaning snapshot base")
+		}
+		if filepath.Clean(img.BackFilePath) == filepath.Clean(base) {
+			return nil
+		}
+	}
+	hasReferences, err := snapshotHasBackingReferences(snapshotDir, base)
+	if err != nil {
+		return err
+	}
+	if hasReferences {
+		return nil
+	}
+	return deleteFile(base, skipRecycle)
+}
+
+func resolveLocalSnapshotDeleteEdges(target, parent, child, base string, baseExists bool) *LocalSnapshotDeletePlan {
+	plan := &LocalSnapshotDeletePlan{Target: target, Parent: parent, Child: child, Base: base}
+	if filepath.Clean(plan.Parent) == filepath.Clean(plan.Base) {
+		plan.Action = LocalSnapshotCommit
+		return plan
+	}
+	if filepath.Dir(filepath.Clean(parent)) == filepath.Dir(filepath.Clean(target)) {
+		plan.Action = LocalSnapshotRebase
+		return plan
+	}
+	if baseExists {
+		plan.Action = LocalSnapshotRebase
+		return plan
+	}
+	// The target starts a physical chain segment (for example after a legacy
+	// convert), even when an older database snapshot exists.
+	plan.Action = LocalSnapshotPromote
+	return plan
+}
+
+func snapshotHasBackingReferences(snapshotDir, target string) (bool, error) {
+	entries, err := ioutil.ReadDir(snapshotDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, errors.Wrap(err, "list snapshot directory")
+	}
+	for _, entry := range entries {
+		candidate := path.Join(snapshotDir, entry.Name())
+		if entry.IsDir() || filepath.Clean(candidate) == filepath.Clean(target) {
+			continue
+		}
+		img, err := qemuimg.NewQemuImage(candidate)
+		if err != nil {
+			continue
+		}
+		if filepath.Clean(img.BackFilePath) == filepath.Clean(target) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func qcow2HasBackingReference(candidate, target string) (bool, error) {
+	if !fileutils2.Exists(candidate) || filepath.Clean(candidate) == filepath.Clean(target) {
+		return false, nil
+	}
+	img, err := qemuimg.NewQemuImage(candidate)
+	if err != nil {
+		return false, errors.Wrapf(err, "probe backing reference %s", candidate)
+	}
+	return filepath.Clean(img.BackFilePath) == filepath.Clean(target), nil
+}
+
+func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo) error {
+	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath)
+	if err != nil {
+		return err
+	}
+	if plan.Action == LocalSnapshotRemove {
+		diskReferences, err := qcow2HasBackingReference(diskPath, plan.Target)
+		if err != nil {
+			return err
+		}
+		if diskReferences {
+			return errors.Errorf("snapshot %s is referenced by disk %s", snapshotId, diskPath)
+		}
+		hasReferences, err := snapshotHasBackingReferences(snapshotDir, plan.Target)
+		if err != nil {
+			return err
+		}
+		if hasReferences {
+			return errors.Errorf("snapshot %s is referenced by an out-of-chain qcow2 image", snapshotId)
+		}
+		if err := procutils.NewCommand("rm", "-f", plan.Target).Run(); err != nil {
+			return err
+		}
+		return cleanupLocalSnapshotBase(snapshotDir, diskPath, plan.Parent, true, func(filePath string, _ bool) error {
+			return procutils.NewCommand("rm", "-f", filePath).Run()
+		})
+	}
+	child, err := qemuimg.NewQemuImage(plan.Child)
+	if err != nil {
+		return errors.Wrap(err, "probe snapshot child")
+	}
+	if encryptInfo.Key != "" {
+		child.SetPassword(encryptInfo.Key)
+	}
+	switch plan.Action {
+	case LocalSnapshotPromote:
+		if fileutils2.Exists(plan.Base) {
+			return errors.Errorf("snapshot base %s already exists", plan.Base)
+		}
+		if err := procutils.NewCommand("mv", "-f", plan.Target, plan.Base).Run(); err != nil {
+			return errors.Wrap(err, "promote snapshot base")
+		}
+		if err := child.Rebase(plan.Base, true); err != nil {
+			procutils.NewCommand("mv", "-f", plan.Base, plan.Target).Run()
+			return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, plan.Child)
+		}
+		return nil
+	case LocalSnapshotCommit:
+		target, err := qemuimg.NewQemuImage(plan.Target)
+		if err != nil {
+			return errors.Wrap(err, "probe commit snapshot")
+		}
+		if encryptInfo.Key != "" {
+			target.SetPassword(encryptInfo.Key)
+		}
+		if err := target.Commit(); err != nil {
+			return wrapSnapshotOperationCheckError(err, "commit snapshot to base", encryptInfo, plan.Base)
+		}
+		if err := child.Rebase(plan.Base, true); err != nil {
+			return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, plan.Child)
+		}
+	case LocalSnapshotRebase:
+		if err := child.Rebase(plan.Parent, false); err != nil {
+			return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, plan.Child)
+		}
+	}
+	if err := procutils.NewCommand("rm", "-f", plan.Target).Run(); err != nil {
+		return err
+	}
+	return cleanupLocalSnapshotBase(snapshotDir, diskPath, plan.Parent, true, func(filePath string, _ bool) error {
+		return procutils.NewCommand("rm", "-f", filePath).Run()
+	})
+}
+
+func wrapSnapshotOperationCheckError(operationErr error, operation string, encryptInfo apis.SEncryptInfo, imagePaths ...string) error {
+	checkErrs := make([]error, 0)
+	for _, imagePath := range imagePaths {
+		img, err := qemuimg.NewQemuImage(imagePath)
+		if err == nil {
+			if encryptInfo.Key != "" {
+				img.SetPassword(encryptInfo.Key)
+			}
+			err = img.Check()
+		}
+		if err != nil {
+			checkErrs = append(checkErrs, errors.Wrapf(err, "check %s", imagePath))
+		}
+	}
+	if len(checkErrs) > 0 {
+		return errors.Wrapf(operationErr, "%s; integrity check failed: %s", operation, errors.NewAggregate(checkErrs))
+	}
+	return errors.Wrapf(operationErr, "%s; integrity check passed", operation)
 }
 
 func (s *SLocalStorage) DestinationPrepareMigrate(

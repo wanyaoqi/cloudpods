@@ -119,6 +119,8 @@ type QmpMonitor struct {
 	commandQueue  []*Command
 	callbackQueue []qmpMonitorCallBack
 	jobs          map[string]BlockJob
+	blockJobWatch map[string]map[uint64]BlockJobEventCallback
+	nextWatchId   uint64
 }
 
 func NewQmpMonitor(server, sid string, OnMonitorDisConnect, OnMonitorTimeout MonitorErrorFunc,
@@ -129,6 +131,7 @@ func NewQmpMonitor(server, sid string, OnMonitorDisConnect, OnMonitorTimeout Mon
 		commandQueue:  make([]*Command, 0),
 		callbackQueue: make([]qmpMonitorCallBack, 0),
 		jobs:          map[string]BlockJob{},
+		blockJobWatch: make(map[string]map[uint64]BlockJobEventCallback),
 	}
 
 	// On qmp init must set capabilities
@@ -256,6 +259,39 @@ func (m *QmpMonitor) watchEvent(event *Event) {
 	if m.qmpEventFunc != nil {
 		go m.qmpEventFunc(event)
 	}
+	if device, ok := event.Data["device"].(string); ok {
+		m.mutex.Lock()
+		watchers := make([]BlockJobEventCallback, 0, len(m.blockJobWatch[device]))
+		for _, callback := range m.blockJobWatch[device] {
+			watchers = append(watchers, callback)
+		}
+		m.mutex.Unlock()
+		for _, callback := range watchers {
+			go callback(event)
+		}
+	}
+}
+
+func (m *QmpMonitor) WatchBlockJob(device string, callback BlockJobEventCallback) (func(), error) {
+	if device == "" || callback == nil {
+		return nil, errors.Errorf("invalid block job watcher device=%q", device)
+	}
+	m.mutex.Lock()
+	m.nextWatchId++
+	id := m.nextWatchId
+	if m.blockJobWatch[device] == nil {
+		m.blockJobWatch[device] = make(map[uint64]BlockJobEventCallback)
+	}
+	m.blockJobWatch[device][id] = callback
+	m.mutex.Unlock()
+	return func() {
+		m.mutex.Lock()
+		delete(m.blockJobWatch[device], id)
+		if len(m.blockJobWatch[device]) == 0 {
+			delete(m.blockJobWatch, device)
+		}
+		m.mutex.Unlock()
+	}, nil
 }
 
 func (m *QmpMonitor) write(cmd []byte) error {
@@ -462,6 +498,32 @@ func (m *QmpMonitor) GetBlocks(callback func([]QemuBlock)) {
 
 	cmd := &Command{Execute: "query-block"}
 	m.Query(cmd, cb)
+}
+
+func (m *QmpMonitor) GetNamedBlockNodes(callback func([]QemuNamedBlockNode, error)) {
+	cb := func(res *Response) {
+		if res.ErrorVal != nil {
+			callback(nil, errors.Errorf("query-named-block-nodes: %s", jsonutils.Marshal(res.ErrorVal)))
+			return
+		}
+		nodes := []QemuNamedBlockNode{}
+		if err := json.Unmarshal(res.Return, &nodes); err != nil {
+			callback(nil, errors.Wrap(err, "unmarshal query-named-block-nodes"))
+			return
+		}
+		callback(filterQcow2NamedBlockNodes(nodes), nil)
+	}
+	m.Query(&Command{Execute: "query-named-block-nodes"}, cb)
+}
+
+func filterQcow2NamedBlockNodes(nodes []QemuNamedBlockNode) []QemuNamedBlockNode {
+	qcow2Nodes := make([]QemuNamedBlockNode, 0, len(nodes))
+	for i := range nodes {
+		if nodes[i].Driver == "qcow2" && nodes[i].NodeName != "" && nodes[i].Filename() != "" {
+			qcow2Nodes = append(qcow2Nodes, nodes[i])
+		}
+	}
+	return qcow2Nodes
 }
 
 func (m *QmpMonitor) ChangeCdrom(dev string, path string, callback StringCallback) {
@@ -787,6 +849,13 @@ func (m *QmpMonitor) GetBlockJobs(callback func([]BlockJob)) {
 	m.Query(&Command{Execute: "query-block-jobs"}, cb)
 }
 
+func (m *QmpMonitor) GetBlockJobsWithError(callback func([]BlockJob, error)) {
+	m.Query(&Command{Execute: "query-block-jobs"}, func(res *Response) {
+		jobs, err := m.blockJobs(res)
+		callback(jobs, err)
+	})
+}
+
 func (m *QmpMonitor) ReloadDiskBlkdev(device, path string, callback StringCallback) {
 	var (
 		cb = func(res *Response) {
@@ -868,6 +937,29 @@ func (m *QmpMonitor) BlockStream(drive string, callback StringCallback) {
 		}
 	)
 	m.Query(cmd, cb)
+}
+
+func (m *QmpMonitor) BlockStreamToBase(device, base string, callback StringCallback) {
+	args := map[string]interface{}{
+		"device":    device,
+		"base-node": base,
+		"speed":     5 * 100 * 1024 * 1024,
+	}
+	m.Query(&Command{Execute: "block-stream", Args: args}, func(res *Response) {
+		callback(m.actionResult(res))
+	})
+}
+
+func (m *QmpMonitor) BlockCommit(device, top, base string, callback StringCallback) {
+	args := map[string]interface{}{
+		"device": device,
+		"top":    top,
+		"base":   base,
+		"speed":  5 * 100 * 1024 * 1024,
+	}
+	m.Query(&Command{Execute: "block-commit", Args: args}, func(res *Response) {
+		callback(m.actionResult(res))
+	})
 }
 
 func (m *QmpMonitor) SetVncPassword(proto, password string, callback StringCallback) {
