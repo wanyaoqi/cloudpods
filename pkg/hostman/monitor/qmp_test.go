@@ -43,3 +43,13 @@ func TestQmpMonitor_Connect(t *testing.T) {
 	m.Disconnect()
 	time.Sleep(3 * time.Second)
 }
+
+func TestFilterQcow2NamedBlockNodes(t *testing.T) {
+	qcow2 := QemuNamedBlockNode{NodeName: "node-snap", Driver: "qcow2", File: "/snapshots/s1"}
+	file := QemuNamedBlockNode{NodeName: "file-snap", Driver: "file", File: "/snapshots/s1"}
+	unnamed := QemuNamedBlockNode{Driver: "qcow2", File: "/snapshots/s2"}
+	nodes := filterQcow2NamedBlockNodes([]QemuNamedBlockNode{file, unnamed, qcow2})
+	if len(nodes) != 1 || nodes[0].NodeName != qcow2.NodeName {
+		t.Fatalf("unexpected qcow2 nodes: %#v", nodes)
+	}
+}

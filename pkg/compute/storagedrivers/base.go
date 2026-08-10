@@ -90,6 +90,18 @@ func (self *SBaseStorageDriver) RequestCreateSnapshot(ctx context.Context, snaps
 }
 
 func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snapshot *models.SSnapshot, task taskman.ITask) error {
+	previous, next, err := models.SnapshotManager.GetAdjacentSnapshots(snapshot)
+	if err != nil {
+		return errors.Wrap(err, "get adjacent snapshots")
+	}
+	setAdjacentSnapshots := func(params *jsonutils.JSONDict) {
+		if previous != nil {
+			params.Set("previous_snapshot_id", jsonutils.NewString(previous.Id))
+		}
+		if next != nil {
+			params.Set("next_snapshot_id", jsonutils.NewString(next.Id))
+		}
+	}
 	guest, err := snapshot.GetGuest()
 	if err != nil {
 		if err != sql.ErrNoRows {
@@ -120,13 +132,10 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 			}
 		}
 
-		convertSnapshot, err := models.SnapshotManager.GetConvertSnapshot(snapshot)
-		if err != nil && err != sql.ErrNoRows {
-			return errors.Wrap(err, "get convert snapshot")
-		}
 		params := jsonutils.NewDict()
 		params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
 		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
+		setAdjacentSnapshots(params)
 
 		if disk != nil {
 			sDisk, _ := disk.(*models.SDisk)
@@ -137,17 +146,6 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 					params.Set("encrypt_info", jsonutils.Marshal(encryptInfo))
 				}
 			}
-		}
-		if !snapshot.OutOfChain {
-			if convertSnapshot != nil {
-				params.Set("convert_snapshot", jsonutils.NewString(convertSnapshot.Id))
-			} else if disk != nil {
-				params.Set("block_stream", jsonutils.JSONTrue)
-			} else {
-				params.Set("auto_deleted", jsonutils.JSONTrue)
-			}
-		} else {
-			params.Set("auto_deleted", jsonutils.JSONTrue)
 		}
 
 		drv, err := host.GetHostDriver()
@@ -169,14 +167,11 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
 		return drv.RequestReloadDiskSnapshot(ctx, guest, task, params)
 	} else {
-		convertSnapshot, err := models.SnapshotManager.GetConvertSnapshot(snapshot)
-		if err != nil && err != sql.ErrNoRows {
-			return errors.Wrap(err, "get convert snapshot")
-		}
 		snapshot.SetStatus(ctx, task.GetUserCred(), api.SNAPSHOT_DELETING, "On SnapshotDeleteTask StartDeleteSnapshot")
 		params := jsonutils.NewDict()
 		params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
 		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
+		setAdjacentSnapshots(params)
 
 		disk, err := models.DiskManager.FetchById(snapshot.DiskId)
 		if err != nil && err != sql.ErrNoRows {
@@ -191,15 +186,6 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 			}
 		}
 
-		if !snapshot.OutOfChain {
-			if convertSnapshot != nil {
-				params.Set("convert_snapshot", jsonutils.NewString(convertSnapshot.Id))
-			} else {
-				params.Set("block_stream", jsonutils.JSONTrue)
-			}
-		} else {
-			params.Set("auto_deleted", jsonutils.JSONTrue)
-		}
 		taskParams := task.GetParams()
 		if taskParams.Contains("snapshot_total_count") {
 			totalCnt, _ := taskParams.Get("snapshot_total_count")

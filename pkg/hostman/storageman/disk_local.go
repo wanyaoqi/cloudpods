@@ -131,12 +131,23 @@ func (d *SLocalDisk) UmountFuseImage() {
 func (d *SLocalDisk) Delete(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {
 	p := params.(api.DiskDeleteInput)
 	dpath := d.GetPath()
+	backingPath := ""
+	if fileutils2.Exists(dpath) {
+		img, err := qemuimg.NewQemuImage(dpath)
+		if err != nil {
+			return nil, errors.Wrap(err, "probe disk before delete")
+		}
+		backingPath = img.BackFilePath
+	}
 	if err := d.cleanLoopDevice(dpath); err != nil {
 		return nil, errors.Wrapf(err, "clean loop device")
 	}
 	log.Infof("Delete guest disk %s", dpath)
 	if err := d.Storage.DeleteDiskfile(dpath, p.SkipRecycle != nil && *p.SkipRecycle); err != nil {
 		return nil, err
+	}
+	if err := cleanupLocalSnapshotBase(d.GetSnapshotDir(), dpath, backingPath, p.SkipRecycle != nil && *p.SkipRecycle, d.Storage.DeleteDiskfile); err != nil {
+		return nil, errors.Wrap(err, "cleanup snapshot base")
 	}
 	d.UmountFuseImage()
 	if p.EsxiFlatFilePath != "" {
@@ -538,9 +549,9 @@ func (d *SLocalDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, e
 	return nil, nil
 }
 
-func (d *SLocalDisk) DeleteSnapshot(snapshotId, convertSnapshot string, blockStream bool, encryptInfo apis.SEncryptInfo) error {
+func (d *SLocalDisk) DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo) error {
 	snapshotDir := d.GetSnapshotDir()
-	return DeleteLocalSnapshot(snapshotDir, snapshotId, d.getPath(), convertSnapshot, blockStream)
+	return DeleteLocalSnapshot(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, d.getPath(), encryptInfo)
 }
 
 func (d *SLocalDisk) PrepareSaveToGlance(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {

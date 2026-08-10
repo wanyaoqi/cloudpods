@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -2227,42 +2228,118 @@ func (s *SGuestDiskSnapshotTask) onResumeSucc(res string) {
 
 type SGuestSnapshotDeleteTask struct {
 	*SGuestReloadDiskTask
-	deleteSnapshot  string
-	convertSnapshot string
-	blockStream     bool
-	encryptInfo     apis.SEncryptInfo
-
-	tmpPath string
-
-	delSnapshotPathAfterReload func() error
+	deleteSnapshot   string
+	previousSnapshot string
+	nextSnapshot     string
+	encryptInfo      apis.SEncryptInfo
 }
 
 func NewGuestSnapshotDeleteTask(
 	ctx context.Context, s *SKVMGuestInstance, disk storageman.IDisk,
-	deleteSnapshot, convertSnapshot string, blockStream bool, encryptInfo apis.SEncryptInfo,
+	deleteSnapshot, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo,
 ) *SGuestSnapshotDeleteTask {
 	return &SGuestSnapshotDeleteTask{
 		SGuestReloadDiskTask: NewGuestReloadDiskTask(ctx, s, disk),
 		deleteSnapshot:       deleteSnapshot,
-		convertSnapshot:      convertSnapshot,
-		blockStream:          blockStream,
+		previousSnapshot:     previousSnapshot,
+		nextSnapshot:         nextSnapshot,
 		encryptInfo:          encryptInfo,
 	}
 }
 
 func (s *SGuestSnapshotDeleteTask) Start(totalDeleteSnapshotCount, deletedSnapshotCount int) {
-	if s.blockStream {
-		s.startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount)
-		return
-	}
+	s.startResolveBackingChain(totalDeleteSnapshotCount, deletedSnapshotCount)
+}
 
-	cb, err := s.disk.ConvertSnapshotRelyOnReloadDisk(s.convertSnapshot, s.encryptInfo)
+func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotCount, deletedSnapshotCount int) {
+	snapshotDir := s.disk.GetSnapshotDir()
+	deleteSnapshot := s.deleteSnapshot
+	previousSnapshot := s.previousSnapshot
+	nextSnapshot := s.nextSnapshot
+	if utils.IsInStringArray(s.disk.GetType(), []string{api.STORAGE_LVM, api.STORAGE_SLVM}) {
+		snapshotDir = path.Dir(snapshotDir)
+		deleteSnapshot = "snap_" + deleteSnapshot
+		if previousSnapshot != "" {
+			previousSnapshot = "snap_" + previousSnapshot
+		}
+		if nextSnapshot != "" {
+			nextSnapshot = "snap_" + nextSnapshot
+		}
+	}
+	plan, err := storageman.ResolveLocalSnapshotDeletePlan(snapshotDir, deleteSnapshot, previousSnapshot, nextSnapshot, s.disk.GetPath())
 	if err != nil {
 		s.taskFailed(err.Error())
 		return
 	}
-	s.delSnapshotPathAfterReload = cb
-	s.fetchDisksInfo(s.doReloadDisk)
+	if plan.Action == storageman.LocalSnapshotRemove {
+		s.deleteInactiveSnapshot()
+		return
+	}
+	s.Monitor.GetNamedBlockNodes(func(nodes []monitor.QemuNamedBlockNode, err error) {
+		if err != nil {
+			s.taskFailed(err.Error())
+			return
+		}
+		nodeForPath := func(filePath string) string {
+			for i := range nodes {
+				if filepath.Clean(nodes[i].Filename()) == filepath.Clean(filePath) {
+					return nodes[i].NodeName
+				}
+			}
+			return ""
+		}
+		childNode := nodeForPath(plan.Child)
+		parentNode := nodeForPath(plan.Parent)
+		targetNode := nodeForPath(plan.Target)
+		if childNode == "" && targetNode == "" {
+			s.deleteInactiveSnapshot()
+			return
+		}
+		if plan.Action == storageman.LocalSnapshotPromote {
+			// Renaming an open backing file leaves QEMU and the qcow2 header with
+			// different paths. Keep the existing flattening fallback for active chains.
+			s.startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount)
+			return
+		}
+		if childNode == "" || parentNode == "" || targetNode == "" {
+			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
+			return
+		}
+		started := func(res string) {
+			if res != "" {
+				s.taskFailed(res)
+				return
+			}
+			s.waitResolvedBlockJob()
+		}
+		if plan.Action == storageman.LocalSnapshotCommit {
+			s.Monitor.BlockCommit(childNode, targetNode, parentNode, started)
+		} else {
+			s.Monitor.BlockStreamToBase(childNode, parentNode, started)
+		}
+	})
+}
+
+func (s *SGuestSnapshotDeleteTask) deleteInactiveSnapshot() {
+	if err := s.disk.DeleteSnapshot(s.deleteSnapshot, s.previousSnapshot, s.nextSnapshot, s.encryptInfo); err != nil {
+		s.taskFailed(err.Error())
+		return
+	}
+	body := jsonutils.NewDict()
+	body.Set("deleted", jsonutils.JSONTrue)
+	hostutils.TaskComplete(s.ctx, body)
+}
+
+func (s *SGuestSnapshotDeleteTask) waitResolvedBlockJob() {
+	time.AfterFunc(time.Second, func() {
+		s.Monitor.GetBlockJobs(func(jobs []monitor.BlockJob) {
+			if len(jobs) > 0 {
+				s.waitResolvedBlockJob()
+				return
+			}
+			s.onStreamDiskComplete()
+		})
+	})
 }
 
 func (s *SGuestSnapshotDeleteTask) startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount int) {
@@ -2282,48 +2359,6 @@ func (s *SGuestSnapshotDeleteTask) onStreamDiskComplete() {
 		hostutils.TaskFailed(s.ctx, err.Error())
 		return
 	}
-	body := jsonutils.NewDict()
-	body.Set("deleted", jsonutils.JSONTrue)
-	hostutils.TaskComplete(s.ctx, body)
-}
-
-func (s *SGuestSnapshotDeleteTask) doReloadDisk(device string) {
-	s.SGuestReloadDiskTask.doReloadDisk(device, s.onReloadBlkdevSucc)
-}
-
-func (s *SGuestSnapshotDeleteTask) onReloadBlkdevSucc(err string) {
-	if s.delSnapshotPathAfterReload != nil {
-		if e := s.delSnapshotPathAfterReload(); e != nil {
-			log.Errorf("failed do delSnapshotPathAfterReload: %s", e)
-		}
-	}
-
-	var callback = s.onResumeSucc
-	if len(err) > 0 {
-		callback = func(string) {
-			s.onSnapshotBlkdevFail(fmt.Sprintf("onReloadBlkdevFail %s", err))
-		}
-	}
-	s.Monitor.SimpleCommand("cont", callback)
-}
-
-func (s *SGuestSnapshotDeleteTask) onSnapshotBlkdevFail(res string) {
-	snapshotPath := path.Join(s.disk.GetSnapshotDir(), s.convertSnapshot)
-	if output, err := procutils.NewCommand("mv", "-f", s.tmpPath, snapshotPath).Output(); err != nil {
-		log.Errorf("mv %s to %s failed: %s, %s", s.tmpPath, snapshotPath, err, output)
-	}
-	s.taskFailed(fmt.Sprintf("Reload blkdev failed %s", res))
-}
-
-func (s *SGuestSnapshotDeleteTask) onResumeSucc(res string) {
-	log.Infof("guest do new snapshot task resume succ %s", res)
-	if len(s.tmpPath) > 0 {
-		output, err := procutils.NewCommand("rm", "-f", s.tmpPath).Output()
-		if err != nil {
-			log.Errorf("rm %s failed: %s, %s", s.tmpPath, err, output)
-		}
-	}
-	s.disk.DoDeleteSnapshot(s.deleteSnapshot)
 	body := jsonutils.NewDict()
 	body.Set("deleted", jsonutils.JSONTrue)
 	hostutils.TaskComplete(s.ctx, body)

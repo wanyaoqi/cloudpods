@@ -191,6 +191,9 @@ func (s *SLVMStorage) GetSnapshotDir() string {
 }
 
 func (s *SLVMStorage) GetSnapshotPathByIds(diskId, snapshotId string) string {
+	if isSnapshotBaseName(snapshotId) {
+		return path.Join("/dev", s.GetPath(), snapshotId)
+	}
 	disk, err := s.GetDiskById(diskId)
 	if err != nil {
 		log.Errorf("lvm failed get disk by id %s: %s", diskId, err)
@@ -202,7 +205,11 @@ func (s *SLVMStorage) GetSnapshotPathByIds(diskId, snapshotId string) string {
 func (s *SLVMStorage) DeleteSnapshots(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {
 	input := params.(*SStorageDeleteSnapshots)
 	for i := range input.SnapshotIds {
-		lvPath := path.Join("/dev", s.GetPath(), "snap_"+input.SnapshotIds[i])
+		lvName := "snap_" + input.SnapshotIds[i]
+		if isSnapshotBaseName(input.SnapshotIds[i]) {
+			lvName = input.SnapshotIds[i]
+		}
+		lvPath := path.Join("/dev", s.GetPath(), lvName)
 		if err := lvmutils.LvRemove(lvPath); err != nil {
 			return nil, err
 		}
@@ -215,20 +222,15 @@ func (s *SLVMStorage) DeleteSnapshot(ctx context.Context, params interface{}) (j
 	if !ok {
 		return nil, hostutils.ParamsError
 	}
-	if input.BlockStream {
-		if err := ConvertLVMDisk(s.GetPath(), input.DiskId, input.EncryptInfo); err != nil {
-			return nil, err
-		}
-	} else if len(input.ConvertSnapshot) > 0 {
-		convertSnapshotName := "snap_" + input.ConvertSnapshot
-		if err := ConvertLVMDisk(s.GetPath(), convertSnapshotName, input.EncryptInfo); err != nil {
-			return nil, err
-		}
+	previousSnapshot, nextSnapshot := "", ""
+	if input.PreviousSnapshot != "" {
+		previousSnapshot = "snap_" + input.PreviousSnapshot
 	}
-
-	snapName := "snap_" + input.SnapshotId
-	snapId := path.Join("/dev", s.GetPath(), snapName)
-	err := lvmutils.LvRemove(snapId)
+	if input.NextSnapshot != "" {
+		nextSnapshot = "snap_" + input.NextSnapshot
+	}
+	err := deleteLVMSnapshotByBackingChain(path.Join("/dev", s.GetPath()), "snap_"+input.SnapshotId,
+		previousSnapshot, nextSnapshot, path.Join("/dev", s.GetPath(), input.DiskId), input.EncryptInfo, false)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +402,11 @@ func (s *SLVMStorage) DestinationPrepareMigrate(
 		snapId, _ := snapshotId.GetString()
 		snapshotUrl := fmt.Sprintf("%s/%s/%s/%s",
 			snapshotsUri, diskStorageId, diskId, snapId)
-		snapshotPath := path.Join("/dev", s.GetPath(), "snap_"+snapId)
+		snapshotName := "snap_" + snapId
+		if isSnapshotBaseName(snapId) {
+			snapshotName = snapId
+		}
+		snapshotPath := path.Join("/dev", s.GetPath(), snapshotName)
 		log.Infof("Disk %s snapshot %s url: %s", diskId, snapId, snapshotUrl)
 		if err := s.CreateSnapshotFormUrl(ctx, snapshotUrl, diskId, snapshotPath); err != nil {
 			return errors.Wrap(err, "create from snapshot url failed")
