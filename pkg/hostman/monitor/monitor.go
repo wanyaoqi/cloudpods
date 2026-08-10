@@ -105,6 +105,23 @@ type QemuBlock struct {
 	}
 }
 
+type QemuNamedBlockNode struct {
+	NodeName    string `json:"node-name"`
+	Driver      string `json:"drv"`
+	File        string `json:"file"`
+	BackingFile string `json:"backing_file"`
+	Image       struct {
+		Filename string `json:"filename"`
+	} `json:"image"`
+}
+
+func (n QemuNamedBlockNode) Filename() string {
+	if n.Image.Filename != "" {
+		return n.Image.Filename
+	}
+	return n.File
+}
+
 type MigrationInfo struct {
 	Status                *MigrationStatus  `json:"status,omitempty"`
 	RAM                   *MigrationStats   `json:"ram,omitempty"`
@@ -210,6 +227,7 @@ type Monitor interface {
 	GetMemdevList(MemdevListCallback)
 
 	GetBlocks(callback func([]QemuBlock))
+	GetNamedBlockNodes(callback func([]QemuNamedBlockNode, error))
 	EjectCdrom(dev string, callback StringCallback)
 	ChangeCdrom(dev string, path string, callback StringCallback)
 
@@ -224,6 +242,8 @@ type Monitor interface {
 
 	XBlockdevChange(parent, node, child string, callback StringCallback)
 	BlockStream(drive string, callback StringCallback)
+	BlockStreamToBase(device, base string, callback StringCallback)
+	BlockCommit(device, top, base string, callback StringCallback)
 	DriveMirror(callback StringCallback, drive, target, syncMode, format string, unmap, blockReplication bool, speed int64)
 	DriveBackup(callback StringCallback, drive, target, syncMode, format string)
 	BlockJobComplete(drive string, cb StringCallback)

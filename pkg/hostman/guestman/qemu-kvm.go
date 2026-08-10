@@ -3317,10 +3317,11 @@ func (s *SKVMGuestInstance) StaticSaveSnapshot(
 }
 
 func (s *SKVMGuestInstance) DeleteSnapshot(ctx context.Context, delParams *SDeleteDiskSnapshot) (jsonutils.JSONObject, error) {
-	if len(delParams.ConvertSnapshot) > 0 || delParams.BlockStream {
+	if len(delParams.ConvertSnapshot) > 0 || delParams.BlockStream || delParams.ResolveBackingChain {
 		return s.ExecDeleteSnapshotTask(ctx, delParams.Disk, delParams.DeleteSnapshot,
 			delParams.ConvertSnapshot, delParams.BlockStream, delParams.EncryptInfo,
-			delParams.TotalDeleteSnapshotCount, delParams.DeletedSnapshotCount)
+			delParams.TotalDeleteSnapshotCount, delParams.DeletedSnapshotCount,
+			delParams.ResolveBackingChain)
 	} else {
 		res := jsonutils.NewDict()
 		res.Set("deleted", jsonutils.JSONTrue)
@@ -3332,10 +3333,11 @@ func (s *SKVMGuestInstance) ExecDeleteSnapshotTask(
 	ctx context.Context, disk storageman.IDisk,
 	deleteSnapshot string, convertSnapshot string, blockStream bool, encryptInfo apis.SEncryptInfo,
 	totalDeleteSnapshotCount, deletedSnapshotCount int,
+	resolveBackingChain bool,
 ) (jsonutils.JSONObject, error) {
 	if s.IsRunning() {
 		if s.isLiveSnapshotEnabled() {
-			task := NewGuestSnapshotDeleteTask(ctx, s, disk, deleteSnapshot, convertSnapshot, blockStream, encryptInfo)
+			task := NewGuestSnapshotDeleteTask(ctx, s, disk, deleteSnapshot, convertSnapshot, blockStream, encryptInfo, resolveBackingChain)
 			task.Start(totalDeleteSnapshotCount, deletedSnapshotCount)
 			return nil, nil
 		} else {

@@ -766,7 +766,8 @@ func guestDeleteSnapshot(ctx context.Context, userCred mcclient.TokenCredential,
 	blockStream := jsonutils.QueryBoolean(body, "block_stream", false)
 	autoDeleted := jsonutils.QueryBoolean(body, "auto_deleted", false)
 
-	if !blockStream && !autoDeleted {
+	resolveBackingChain := jsonutils.QueryBoolean(body, "resolve_backing_chain", false)
+	if !blockStream && !autoDeleted && !resolveBackingChain {
 		convertSnapshot, err := body.GetString("convert_snapshot")
 		if err != nil {
 			return nil, httperrors.NewMissingParameterError("convert_snapshot")
@@ -774,6 +775,7 @@ func guestDeleteSnapshot(ctx context.Context, userCred mcclient.TokenCredential,
 		params.ConvertSnapshot = convertSnapshot
 	}
 	params.BlockStream = blockStream
+	params.ResolveBackingChain = resolveBackingChain
 	hostutils.DelayTask(ctx, guestman.GetGuestManager().DeleteSnapshot, params)
 	return nil, nil
 }

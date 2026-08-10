@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -2227,10 +2228,11 @@ func (s *SGuestDiskSnapshotTask) onResumeSucc(res string) {
 
 type SGuestSnapshotDeleteTask struct {
 	*SGuestReloadDiskTask
-	deleteSnapshot  string
-	convertSnapshot string
-	blockStream     bool
-	encryptInfo     apis.SEncryptInfo
+	deleteSnapshot      string
+	convertSnapshot     string
+	blockStream         bool
+	resolveBackingChain bool
+	encryptInfo         apis.SEncryptInfo
 
 	tmpPath string
 
@@ -2240,17 +2242,23 @@ type SGuestSnapshotDeleteTask struct {
 func NewGuestSnapshotDeleteTask(
 	ctx context.Context, s *SKVMGuestInstance, disk storageman.IDisk,
 	deleteSnapshot, convertSnapshot string, blockStream bool, encryptInfo apis.SEncryptInfo,
+	resolveBackingChain bool,
 ) *SGuestSnapshotDeleteTask {
 	return &SGuestSnapshotDeleteTask{
 		SGuestReloadDiskTask: NewGuestReloadDiskTask(ctx, s, disk),
 		deleteSnapshot:       deleteSnapshot,
 		convertSnapshot:      convertSnapshot,
 		blockStream:          blockStream,
+		resolveBackingChain:  resolveBackingChain,
 		encryptInfo:          encryptInfo,
 	}
 }
 
 func (s *SGuestSnapshotDeleteTask) Start(totalDeleteSnapshotCount, deletedSnapshotCount int) {
+	if s.resolveBackingChain {
+		s.startResolveBackingChain(totalDeleteSnapshotCount, deletedSnapshotCount)
+		return
+	}
 	if s.blockStream {
 		s.startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount)
 		return
@@ -2263,6 +2271,80 @@ func (s *SGuestSnapshotDeleteTask) Start(totalDeleteSnapshotCount, deletedSnapsh
 	}
 	s.delSnapshotPathAfterReload = cb
 	s.fetchDisksInfo(s.doReloadDisk)
+}
+
+func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotCount, deletedSnapshotCount int) {
+	img, err := qemuimg.NewQemuImage(s.disk.GetPath())
+	if err != nil {
+		s.taskFailed(errors.Wrap(err, "probe disk backing chain").Error())
+		return
+	}
+	chain, err := img.GetBackingChain()
+	if err != nil {
+		s.taskFailed(errors.Wrap(err, "get disk backing chain").Error())
+		return
+	}
+	chain = append(chain, s.disk.GetPath())
+	plan, err := storageman.PlanLocalSnapshotDelete(chain, s.disk.GetSnapshotDir(), s.deleteSnapshot)
+	if err != nil {
+		s.taskFailed(err.Error())
+		return
+	}
+	if plan.Action == storageman.LocalSnapshotRemove {
+		s.onStreamDiskComplete()
+		return
+	}
+	if plan.Action == storageman.LocalSnapshotPromote {
+		// Renaming an open backing file leaves QEMU and the qcow2 header with
+		// different paths. Keep the existing safe flattening fallback online.
+		s.startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount)
+		return
+	}
+	s.Monitor.GetNamedBlockNodes(func(nodes []monitor.QemuNamedBlockNode, err error) {
+		if err != nil {
+			s.taskFailed(err.Error())
+			return
+		}
+		nodeForPath := func(filePath string) string {
+			for i := range nodes {
+				if filepath.Clean(nodes[i].Filename()) == filepath.Clean(filePath) {
+					return nodes[i].NodeName
+				}
+			}
+			return ""
+		}
+		childNode := nodeForPath(plan.Child)
+		parentNode := nodeForPath(plan.Parent)
+		targetNode := nodeForPath(plan.Target)
+		if childNode == "" || parentNode == "" || targetNode == "" {
+			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
+			return
+		}
+		started := func(res string) {
+			if res != "" {
+				s.taskFailed(res)
+				return
+			}
+			s.waitResolvedBlockJob()
+		}
+		if plan.Action == storageman.LocalSnapshotCommit {
+			s.Monitor.BlockCommit(childNode, targetNode, parentNode, started)
+		} else {
+			s.Monitor.BlockStreamToBase(childNode, parentNode, started)
+		}
+	})
+}
+
+func (s *SGuestSnapshotDeleteTask) waitResolvedBlockJob() {
+	time.AfterFunc(time.Second, func() {
+		s.Monitor.GetBlockJobs(func(jobs []monitor.BlockJob) {
+			if len(jobs) > 0 {
+				s.waitResolvedBlockJob()
+				return
+			}
+			s.onStreamDiskComplete()
+		})
+	})
 }
 
 func (s *SGuestSnapshotDeleteTask) startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount int) {

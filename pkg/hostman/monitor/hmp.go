@@ -439,6 +439,18 @@ func (m *HmpMonitor) BlockStream(drive string, callback StringCallback) {
 	m.Query(cmd, callback)
 }
 
+func (m *HmpMonitor) GetNamedBlockNodes(callback func([]QemuNamedBlockNode, error)) {
+	callback(nil, errors.Errorf("query-named-block-nodes requires QMP"))
+}
+
+func (m *HmpMonitor) BlockStreamToBase(device, base string, callback StringCallback) {
+	callback("block-stream with base requires QMP")
+}
+
+func (m *HmpMonitor) BlockCommit(device, top, base string, callback StringCallback) {
+	callback("block-commit requires QMP")
+}
+
 func (m *HmpMonitor) BlockJobComplete(drive string, callback StringCallback) {
 	m.Query("block_job_complete", callback)
 }

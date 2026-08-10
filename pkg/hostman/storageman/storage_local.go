@@ -651,7 +651,7 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	log.Errorf("input %s", jsonutils.Marshal(input))
 	snapshotDir := path.Join(s.GetSnapshotDir(), input.DiskId+options.HostOptions.SnapshotDirSuffix)
 	diskPath := path.Join(s.GetPath(), input.DiskId)
-	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, diskPath, input.ConvertSnapshot, input.BlockStream)
+	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, diskPath, input.ConvertSnapshot, input.BlockStream, input.EncryptInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -660,7 +660,10 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	return res, nil
 }
 
-func DeleteLocalSnapshot(snapshotDir, snapshotId, diskPath, convertSnapshot string, blockStream bool) error {
+func DeleteLocalSnapshot(snapshotDir, snapshotId, diskPath, convertSnapshot string, blockStream bool, encryptInfo apis.SEncryptInfo) error {
+	if len(convertSnapshot) == 0 && !blockStream {
+		return deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, diskPath, encryptInfo)
+	}
 	//snapshotDir := d.GetSnapshotDir()
 	snapshotPath := path.Join(snapshotDir, snapshotId)
 	if blockStream {
@@ -725,6 +728,155 @@ func DeleteLocalSnapshot(snapshotDir, snapshotId, diskPath, convertSnapshot stri
 		}
 	}
 	return nil
+}
+
+const localSnapshotBaseName = "snap_base"
+
+type LocalSnapshotDeleteAction string
+
+const (
+	LocalSnapshotRemove  LocalSnapshotDeleteAction = "remove"
+	LocalSnapshotPromote LocalSnapshotDeleteAction = "promote"
+	LocalSnapshotCommit  LocalSnapshotDeleteAction = "commit"
+	LocalSnapshotRebase  LocalSnapshotDeleteAction = "rebase"
+)
+
+type LocalSnapshotDeletePlan struct {
+	Action LocalSnapshotDeleteAction
+	Target string
+	Parent string
+	Child  string
+	Base   string
+}
+
+func PlanLocalSnapshotDelete(chain []string, snapshotDir, snapshotId string) (*LocalSnapshotDeletePlan, error) {
+	target := path.Join(snapshotDir, snapshotId)
+	idx := -1
+	for i := range chain {
+		if filepath.Clean(chain[i]) == filepath.Clean(target) {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target}, nil
+	}
+	if idx+1 >= len(chain) {
+		return nil, errors.Errorf("snapshot %s has no child in backing chain", snapshotId)
+	}
+
+	base := path.Join(snapshotDir, localSnapshotBaseName)
+	baseInChain := false
+	for i := range chain {
+		if filepath.Clean(chain[i]) == filepath.Clean(base) {
+			baseInChain = true
+			break
+		}
+	}
+	plan := &LocalSnapshotDeletePlan{Target: target, Child: chain[idx+1], Base: base}
+	if idx > 0 {
+		plan.Parent = chain[idx-1]
+	}
+	if filepath.Clean(target) == filepath.Clean(base) {
+		return nil, errors.Errorf("cannot delete internal snapshot base")
+	}
+	hasEarlierSnapshot := false
+	for i := 0; i < idx; i++ {
+		if filepath.Dir(filepath.Clean(chain[i])) == filepath.Clean(snapshotDir) && filepath.Base(chain[i]) != localSnapshotBaseName {
+			hasEarlierSnapshot = true
+			break
+		}
+	}
+	if !baseInChain && !hasEarlierSnapshot {
+		plan.Action = LocalSnapshotPromote
+		return plan, nil
+	}
+	if filepath.Clean(plan.Parent) == filepath.Clean(base) {
+		plan.Action = LocalSnapshotCommit
+		return plan, nil
+	}
+	plan.Action = LocalSnapshotRebase
+	return plan, nil
+}
+
+func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, diskPath string, encryptInfo apis.SEncryptInfo) error {
+	disk, err := qemuimg.NewQemuImage(diskPath)
+	if err != nil {
+		return errors.Wrap(err, "probe disk backing chain")
+	}
+	chain, err := disk.GetBackingChain()
+	if err != nil {
+		return errors.Wrap(err, "get disk backing chain")
+	}
+	chain = append(chain, diskPath)
+	plan, err := PlanLocalSnapshotDelete(chain, snapshotDir, snapshotId)
+	if err != nil {
+		return err
+	}
+	if plan.Action == LocalSnapshotRemove {
+		return procutils.NewCommand("rm", "-f", plan.Target).Run()
+	}
+
+	child, err := qemuimg.NewQemuImage(plan.Child)
+	if err != nil {
+		return errors.Wrap(err, "probe snapshot child")
+	}
+	if encryptInfo.Key != "" {
+		child.SetPassword(encryptInfo.Key)
+	}
+	switch plan.Action {
+	case LocalSnapshotPromote:
+		if fileutils2.Exists(plan.Base) {
+			return errors.Errorf("snapshot base %s already exists", plan.Base)
+		}
+		if err := procutils.NewCommand("mv", "-f", plan.Target, plan.Base).Run(); err != nil {
+			return errors.Wrap(err, "promote snapshot base")
+		}
+		if err := child.Rebase(plan.Base, true); err != nil {
+			procutils.NewCommand("mv", "-f", plan.Base, plan.Target).Run()
+			return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, plan.Child)
+		}
+		return nil
+	case LocalSnapshotCommit:
+		target, err := qemuimg.NewQemuImage(plan.Target)
+		if err != nil {
+			return errors.Wrap(err, "probe commit snapshot")
+		}
+		if encryptInfo.Key != "" {
+			target.SetPassword(encryptInfo.Key)
+		}
+		if err := target.Commit(); err != nil {
+			return wrapSnapshotOperationCheckError(err, "commit snapshot to base", encryptInfo, plan.Base)
+		}
+		if err := child.Rebase(plan.Base, true); err != nil {
+			return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, plan.Child)
+		}
+	case LocalSnapshotRebase:
+		if err := child.Rebase(plan.Parent, false); err != nil {
+			return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, plan.Child)
+		}
+	}
+	return procutils.NewCommand("rm", "-f", plan.Target).Run()
+}
+
+func wrapSnapshotOperationCheckError(operationErr error, operation string, encryptInfo apis.SEncryptInfo, imagePaths ...string) error {
+	checkErrs := make([]error, 0)
+	for _, imagePath := range imagePaths {
+		img, err := qemuimg.NewQemuImage(imagePath)
+		if err == nil {
+			if encryptInfo.Key != "" {
+				img.SetPassword(encryptInfo.Key)
+			}
+			err = img.Check()
+		}
+		if err != nil {
+			checkErrs = append(checkErrs, errors.Wrapf(err, "check %s", imagePath))
+		}
+	}
+	if len(checkErrs) > 0 {
+		return errors.Wrapf(operationErr, "%s; integrity check failed: %s", operation, errors.NewAggregate(checkErrs))
+	}
+	return errors.Wrapf(operationErr, "%s; integrity check passed", operation)
 }
 
 func (s *SLocalStorage) DestinationPrepareMigrate(

@@ -120,10 +120,6 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 			}
 		}
 
-		convertSnapshot, err := models.SnapshotManager.GetConvertSnapshot(snapshot)
-		if err != nil && err != sql.ErrNoRows {
-			return errors.Wrap(err, "get convert snapshot")
-		}
 		params := jsonutils.NewDict()
 		params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
 		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
@@ -138,7 +134,14 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 				}
 			}
 		}
-		if !snapshot.OutOfChain {
+		if snapshot.GetStorageType() == api.STORAGE_LOCAL && disk != nil {
+			// The host derives the operation from the actual qcow2 backing chain.
+			params.Set("resolve_backing_chain", jsonutils.JSONTrue)
+		} else if !snapshot.OutOfChain {
+			convertSnapshot, err := models.SnapshotManager.GetConvertSnapshot(snapshot)
+			if err != nil && err != sql.ErrNoRows {
+				return errors.Wrap(err, "get convert snapshot")
+			}
 			if convertSnapshot != nil {
 				params.Set("convert_snapshot", jsonutils.NewString(convertSnapshot.Id))
 			} else if disk != nil {
@@ -169,10 +172,6 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
 		return drv.RequestReloadDiskSnapshot(ctx, guest, task, params)
 	} else {
-		convertSnapshot, err := models.SnapshotManager.GetConvertSnapshot(snapshot)
-		if err != nil && err != sql.ErrNoRows {
-			return errors.Wrap(err, "get convert snapshot")
-		}
 		snapshot.SetStatus(ctx, task.GetUserCred(), api.SNAPSHOT_DELETING, "On SnapshotDeleteTask StartDeleteSnapshot")
 		params := jsonutils.NewDict()
 		params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
@@ -191,7 +190,14 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 			}
 		}
 
-		if !snapshot.OutOfChain {
+		if snapshot.GetStorageType() == api.STORAGE_LOCAL {
+			// The host derives the operation from the actual qcow2 backing chain.
+			params.Set("resolve_backing_chain", jsonutils.JSONTrue)
+		} else if !snapshot.OutOfChain {
+			convertSnapshot, err := models.SnapshotManager.GetConvertSnapshot(snapshot)
+			if err != nil && err != sql.ErrNoRows {
+				return errors.Wrap(err, "get convert snapshot")
+			}
 			if convertSnapshot != nil {
 				params.Set("convert_snapshot", jsonutils.NewString(convertSnapshot.Id))
 			} else {

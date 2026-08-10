@@ -152,12 +152,13 @@ type SDiskBackup struct {
 }
 
 type SDeleteDiskSnapshot struct {
-	Sid             string
-	DeleteSnapshot  string
-	Disk            storageman.IDisk
-	ConvertSnapshot string
-	BlockStream     bool
-	EncryptInfo     apis.SEncryptInfo
+	Sid                 string
+	DeleteSnapshot      string
+	Disk                storageman.IDisk
+	ConvertSnapshot     string
+	BlockStream         bool
+	ResolveBackingChain bool
+	EncryptInfo         apis.SEncryptInfo
 
 	TotalDeleteSnapshotCount int
 	DeletedSnapshotCount     int

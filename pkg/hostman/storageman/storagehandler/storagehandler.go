@@ -464,6 +464,7 @@ func storageDeleteSnapshot(ctx context.Context, w http.ResponseWriter, r *http.R
 	// blockStream indicate snapshot<-disk
 	blockStream := jsonutils.QueryBoolean(body, "block_stream", false)
 	autoDeleted := jsonutils.QueryBoolean(body, "auto_deleted", false)
+	resolveBackingChain := jsonutils.QueryBoolean(body, "resolve_backing_chain", false)
 
 	input := &storageman.SStorageDeleteSnapshot{
 		DiskId:      diskId,
@@ -480,7 +481,7 @@ func storageDeleteSnapshot(ctx context.Context, w http.ResponseWriter, r *http.R
 		input.EncryptInfo = encryptInfo
 	}
 
-	if !blockStream && !autoDeleted {
+	if !blockStream && !autoDeleted && !resolveBackingChain {
 		convertSnapshot, err := body.GetString("convert_snapshot")
 		if err != nil {
 			hostutils.Response(ctx, w, httperrors.NewMissingParameterError("convert_snapshot"))

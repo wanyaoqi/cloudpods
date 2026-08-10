@@ -464,6 +464,32 @@ func (m *QmpMonitor) GetBlocks(callback func([]QemuBlock)) {
 	m.Query(cmd, cb)
 }
 
+func (m *QmpMonitor) GetNamedBlockNodes(callback func([]QemuNamedBlockNode, error)) {
+	cb := func(res *Response) {
+		if res.ErrorVal != nil {
+			callback(nil, errors.Errorf("query-named-block-nodes: %s", jsonutils.Marshal(res.ErrorVal)))
+			return
+		}
+		nodes := []QemuNamedBlockNode{}
+		if err := json.Unmarshal(res.Return, &nodes); err != nil {
+			callback(nil, errors.Wrap(err, "unmarshal query-named-block-nodes"))
+			return
+		}
+		callback(filterQcow2NamedBlockNodes(nodes), nil)
+	}
+	m.Query(&Command{Execute: "query-named-block-nodes"}, cb)
+}
+
+func filterQcow2NamedBlockNodes(nodes []QemuNamedBlockNode) []QemuNamedBlockNode {
+	qcow2Nodes := make([]QemuNamedBlockNode, 0, len(nodes))
+	for i := range nodes {
+		if nodes[i].Driver == "qcow2" && nodes[i].NodeName != "" && nodes[i].Filename() != "" {
+			qcow2Nodes = append(qcow2Nodes, nodes[i])
+		}
+	}
+	return qcow2Nodes
+}
+
 func (m *QmpMonitor) ChangeCdrom(dev string, path string, callback StringCallback) {
 	m.HumanMonitorCommand(fmt.Sprintf("change %s %s", dev, path), callback)
 }
@@ -868,6 +894,29 @@ func (m *QmpMonitor) BlockStream(drive string, callback StringCallback) {
 		}
 	)
 	m.Query(cmd, cb)
+}
+
+func (m *QmpMonitor) BlockStreamToBase(device, base string, callback StringCallback) {
+	args := map[string]interface{}{
+		"device":    device,
+		"base-node": base,
+		"speed":     5 * 100 * 1024 * 1024,
+	}
+	m.Query(&Command{Execute: "block-stream", Args: args}, func(res *Response) {
+		callback(m.actionResult(res))
+	})
+}
+
+func (m *QmpMonitor) BlockCommit(device, top, base string, callback StringCallback) {
+	args := map[string]interface{}{
+		"device": device,
+		"top":    top,
+		"base":   base,
+		"speed":  5 * 100 * 1024 * 1024,
+	}
+	m.Query(&Command{Execute: "block-commit", Args: args}, func(res *Response) {
+		callback(m.actionResult(res))
+	})
 }
 
 func (m *QmpMonitor) SetVncPassword(proto, password string, callback StringCallback) {
