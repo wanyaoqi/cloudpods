@@ -3330,6 +3330,10 @@ func (self *SGuest) PerformStatus(ctx context.Context, userCred mcclient.TokenCr
 
 func (self *SGuest) PerformStop(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject,
 	input api.ServerStopInput) (jsonutils.JSONObject, error) {
+	if self.IsDaemon.IsTrue() {
+		return nil, httperrors.NewBadRequestError("Is daemon guest, can't manual stop")
+	}
+
 	// XXX if is force, force stop guest
 	if input.IsForce || utils.IsInStringArray(self.Status, []string{api.VM_RUNNING, api.VM_STOP_FAILED}) {
 		if err := self.ValidateEncryption(ctx, userCred); err != nil {
