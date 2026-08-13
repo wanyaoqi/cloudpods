@@ -733,6 +733,9 @@ func (d *SLocalDisk) GetSnapshotPath(snapshotId string) string {
 
 func (d *SLocalDisk) DoDeleteSnapshot(snapshotId string) error {
 	snapshotPath := d.GetSnapshotPath(snapshotId)
+	if !fileutils2.Exists(snapshotPath) {
+		return nil
+	}
 	return d.Storage.DeleteDiskfile(snapshotPath, false)
 }
 
