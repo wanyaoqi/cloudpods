@@ -399,10 +399,16 @@ func getDiskDeviceOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName, mach
 	return optDrv.Device(opt)
 }
 
-func generateCdromOptions(optDrv QemuOptions, cdroms []*desc.SGuestCdrom) []string {
+func generateCdromOptions(optDrv QemuOptions, cdroms []*desc.SGuestCdrom, disks []*desc.SGuestDisk, machine string) []string {
 	opts := make([]string, 0)
+	ideDisksCnt := 0
+	for _, disk := range disks {
+		if disk.Driver == DISK_DRIVER_IDE {
+			ideDisksCnt += 1
+		}
+	}
 
-	for _, cdrom := range cdroms {
+	for idx, cdrom := range cdroms {
 		//cdromDriveId := cdrom
 		driveOpt := fmt.Sprintf("id=%s", cdrom.Id)
 		driveOpt += desc.OptionsToString(cdrom.DriveOptions)
@@ -413,9 +419,21 @@ func generateCdromOptions(optDrv QemuOptions, cdroms []*desc.SGuestCdrom) []stri
 		}
 
 		if cdrom.Ide != nil {
+			var devOpt string
 			opts = append(opts, optDrv.Drive(driveOpt))
-			devOpt := fmt.Sprintf("%s,drive=%s,bus=ide.1",
-				cdrom.Ide.DevType, cdrom.Id)
+			if machine == api.VM_MACHINE_TYPE_Q35 {
+				busNum := idx + ideDisksCnt
+				if busNum == 0 {
+					busNum = 1
+				}
+				devOpt = fmt.Sprintf("%s,drive=%s,bus=ide.%d",
+					cdrom.Ide.DevType, cdrom.Id, busNum)
+			} else {
+				devOpt = fmt.Sprintf("%s,drive=%s,bus=ide.1",
+					cdrom.Ide.DevType, cdrom.Id)
+
+			}
+
 			if len(cdromPath) > 0 {
 				if cdrom.BootIndex != nil && *cdrom.BootIndex >= 0 {
 					devOpt += fmt.Sprintf(",bootindex=%d", *cdrom.BootIndex)
@@ -882,7 +900,7 @@ func GenerateStartOptions(
 		drvOpt, input.GuestDesc.Disks, isEncrypt, input.GuestDesc.IsMaster, input.OsName, input.GuestDesc.Machine)...)
 
 	// cdrom
-	opts = append(opts, generateCdromOptions(drvOpt, input.GuestDesc.Cdroms)...)
+	opts = append(opts, generateCdromOptions(drvOpt, input.GuestDesc.Cdroms, input.GuestDesc.Disks, input.GuestDesc.Machine)...)
 
 	//floppy
 	opts = append(opts, generateFloppyOptions(drvOpt, input.GuestDesc.Floppys)...)
