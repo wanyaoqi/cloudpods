@@ -533,7 +533,7 @@ func (d *SGuestDiskSyncTask) startAddDisk(disk *desc.SGuestDisk) {
 		cacheMode  = disk.CacheMode
 	)
 
-	var params = map[string]interface{}{
+	var params = map[string]string{
 		"file":  iDisk.GetPath(),
 		"if":    "none",
 		"id":    fmt.Sprintf("drive_%d", diskIndex),
@@ -604,7 +604,7 @@ func (d *SGuestDiskSyncTask) onAddDiskSucc(disk *desc.SGuestDisk, results string
 	}
 
 	d.guest.Desc.Disks = append(d.guest.Desc.Disks, disk)
-	var params = map[string]string{
+	var params = map[string]interface{}{
 		"drive": fmt.Sprintf("drive_%d", diskIndex),
 		"id":    fmt.Sprintf("drive_%d", diskIndex),
 	}
