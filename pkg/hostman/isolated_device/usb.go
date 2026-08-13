@@ -78,12 +78,12 @@ func getUSBDevQemuOptions(vendorId, deviceId string, bus, addr, port string) (ma
 	if err != nil {
 		return nil, errors.Wrapf(err, "parse addr to int %q", bus)
 	}
-	if len(port) > 0 {
-		return map[string]interface{}{
-			"hostbus":  uint64(busI),
-			"hostport": port,
-		}, nil
-	}
+	//if len(port) > 0 {
+	//	return map[string]interface{}{
+	//		"hostbus":  uint64(busI),
+	//		"hostport": port,
+	//	}, nil
+	//}
 
 	vendorIDI, err := strconv.ParseUint(vendorId, 16, 32)
 	if err != nil {
