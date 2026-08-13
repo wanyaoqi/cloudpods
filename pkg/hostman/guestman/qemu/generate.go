@@ -273,7 +273,7 @@ func generateKickstartBootOptions(drvOpt QemuOptions, kickstartBoot *KickstartBo
 	return opts
 }
 
-func generateDisksOptions(drvOpt QemuOptions, disks []*desc.SGuestDisk, isEncrypt, isMaster bool, osName string) []string {
+func generateDisksOptions(drvOpt QemuOptions, disks []*desc.SGuestDisk, isEncrypt, isMaster bool, osName, machineType string) []string {
 	opts := make([]string, 0)
 	for _, disk := range disks {
 		if disk.Driver == api.DISK_DRIVER_VFIO {
@@ -285,7 +285,7 @@ func generateDisksOptions(drvOpt QemuOptions, disks []*desc.SGuestDisk, isEncryp
 		} else {
 			opts = append(opts, getDiskDriveOption(drvOpt, disk, isEncrypt))
 		}
-		opts = append(opts, getDiskDeviceOption(drvOpt, disk, osName))
+		opts = append(opts, getDiskDeviceOption(drvOpt, disk, osName, machineType))
 	}
 	return opts
 }
@@ -352,7 +352,7 @@ func isLocalStorage(disk *desc.SGuestDisk) bool {
 	}
 }
 
-func getDiskDeviceOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName string) string {
+func getDiskDeviceOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName, machineType string) string {
 	diskIndex := disk.Index
 	diskDriver := disk.Driver
 	numQueues := disk.NumQueues
@@ -379,7 +379,11 @@ func getDiskDeviceOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName strin
 	} else if utils.IsInStringArray(diskDriver, []string{DISK_DRIVER_SCSI, DISK_DRIVER_PVSCSI}) {
 		opt += ",bus=scsi.0"
 	} else if diskDriver == DISK_DRIVER_IDE {
-		opt += fmt.Sprintf(",bus=ide.%d,unit=%d", diskIndex/2, diskIndex%2)
+		if machineType == api.VM_MACHINE_TYPE_Q35 {
+			opt += fmt.Sprintf(",bus=ide.%d,unit=%d", diskIndex, 0)
+		} else {
+			opt += fmt.Sprintf(",bus=ide.%d,unit=%d", diskIndex/2, diskIndex%2)
+		}
 	} else if diskDriver == DISK_DRIVER_SATA {
 		opt += fmt.Sprintf(",bus=ahci0.%d", diskIndex)
 	}
@@ -875,7 +879,7 @@ func GenerateStartOptions(
 
 	// generate disk options
 	opts = append(opts, generateDisksOptions(
-		drvOpt, input.GuestDesc.Disks, isEncrypt, input.GuestDesc.IsMaster, input.OsName)...)
+		drvOpt, input.GuestDesc.Disks, isEncrypt, input.GuestDesc.IsMaster, input.OsName, input.GuestDesc.Machine)...)
 
 	// cdrom
 	opts = append(opts, generateCdromOptions(drvOpt, input.GuestDesc.Cdroms)...)
