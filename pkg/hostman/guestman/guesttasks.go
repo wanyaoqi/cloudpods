@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"yunion.io/x/jsonutils"
@@ -2231,6 +2232,14 @@ type SGuestSnapshotDeleteTask struct {
 	deleteSnapshot string
 	snapshotIds    []string
 	encryptInfo    apis.SEncryptInfo
+
+	blockJobLock        sync.Mutex
+	blockJobDevice      string
+	blockJobObserved    bool
+	blockJobCompleted   bool
+	blockJobMissingPoll int
+	blockJobDone        bool
+	unwatchBlockJob     func()
 }
 
 func snapshotIdsForDelete(snapshotIds []string, storageType string) []string {
@@ -2302,25 +2311,25 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			s.deleteInactiveSnapshot()
 			return
 		}
-		if plan.Action == storageman.LocalSnapshotPromote {
-			// Renaming an open backing file leaves QEMU and the qcow2 header with
-			// different paths. Keep the existing flattening fallback for active chains.
-			s.startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount)
+		if childNode == "" || targetNode == "" || (plan.Action != storageman.LocalSnapshotPromote && parentNode == "") {
+			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
 			return
 		}
-		if childNode == "" || parentNode == "" || targetNode == "" {
-			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
+		if err := s.watchResolvedBlockJob(childNode); err != nil {
+			s.taskFailed(err.Error())
 			return
 		}
 		started := func(res string) {
 			if res != "" {
-				s.taskFailed(res)
+				s.finishResolvedBlockJob(errors.Errorf("start block job: %s", res))
 				return
 			}
 			s.waitResolvedBlockJob()
 		}
 		if plan.Action == storageman.LocalSnapshotCommit {
 			s.Monitor.BlockCommit(childNode, targetNode, parentNode, started)
+		} else if plan.Action == storageman.LocalSnapshotPromote {
+			s.Monitor.BlockStream(childNode, started)
 		} else {
 			s.Monitor.BlockStreamToBase(childNode, parentNode, started)
 		}
@@ -2337,16 +2346,128 @@ func (s *SGuestSnapshotDeleteTask) deleteInactiveSnapshot() {
 	hostutils.TaskComplete(s.ctx, body)
 }
 
+func (s *SGuestSnapshotDeleteTask) watchResolvedBlockJob(device string) error {
+	unwatch, err := s.Monitor.WatchBlockJob(device, s.onResolvedBlockJobEvent)
+	if err != nil {
+		return err
+	}
+	s.blockJobLock.Lock()
+	s.blockJobDevice = device
+	s.unwatchBlockJob = unwatch
+	s.blockJobLock.Unlock()
+	return nil
+}
+
+func (s *SGuestSnapshotDeleteTask) onResolvedBlockJobEvent(event *monitor.Event) {
+	switch event.Event {
+	case `"BLOCK_JOB_COMPLETED"`:
+		if eventErr, ok := event.Data["error"].(string); ok && eventErr != "" {
+			s.finishResolvedBlockJob(errors.Errorf("block job completed with error: %s", eventErr))
+			return
+		}
+		s.blockJobLock.Lock()
+		s.blockJobCompleted = true
+		s.blockJobLock.Unlock()
+		s.waitResolvedBlockJob()
+	case `"BLOCK_JOB_ERROR"`, `"BLOCK_JOB_CANCELLED"`:
+		err := errors.Errorf("block job failed: %s", event.String())
+		if event.Event == `"BLOCK_JOB_ERROR"` {
+			s.cancelResolvedBlockJob(err)
+		} else {
+			s.finishResolvedBlockJob(err)
+		}
+	}
+}
+
 func (s *SGuestSnapshotDeleteTask) waitResolvedBlockJob() {
 	time.AfterFunc(time.Second, func() {
-		s.Monitor.GetBlockJobs(func(jobs []monitor.BlockJob) {
-			if len(jobs) > 0 {
+		s.Monitor.GetBlockJobsWithError(func(jobs []monitor.BlockJob, err error) {
+			if err != nil {
+				s.cancelResolvedBlockJob(errors.Wrap(err, "query block jobs"))
+				return
+			}
+			s.blockJobLock.Lock()
+			if s.blockJobDone {
+				s.blockJobLock.Unlock()
+				return
+			}
+			device := s.blockJobDevice
+			completed := s.blockJobCompleted
+			var current *monitor.BlockJob
+			for i := range jobs {
+				if jobs[i].Device == device {
+					job := jobs[i]
+					current = &job
+					break
+				}
+			}
+			if current != nil {
+				s.blockJobObserved = true
+				s.blockJobMissingPoll = 0
+			}
+			observed := s.blockJobObserved
+			if current == nil {
+				s.blockJobMissingPoll++
+			}
+			missingPolls := s.blockJobMissingPoll
+			s.blockJobLock.Unlock()
+			if current != nil {
+				if current.IoStatus != "" && current.IoStatus != "ok" {
+					s.cancelResolvedBlockJob(errors.Errorf("block job %s io-status=%s", device, current.IoStatus))
+					return
+				}
 				s.waitResolvedBlockJob()
 				return
 			}
-			s.onStreamDiskComplete()
+			if completed {
+				s.finishResolvedBlockJob(nil)
+				return
+			}
+			if observed || missingPolls >= 2 {
+				s.finishResolvedBlockJob(errors.Errorf("block job %s disappeared without completion event", device))
+				return
+			}
+			s.waitResolvedBlockJob()
 		})
 	})
+}
+
+func (s *SGuestSnapshotDeleteTask) cancelResolvedBlockJob(reason error) {
+	s.blockJobLock.Lock()
+	if s.blockJobDone {
+		s.blockJobLock.Unlock()
+		return
+	}
+	device := s.blockJobDevice
+	s.blockJobLock.Unlock()
+	if device != "" {
+		s.Monitor.CancelBlockJob(device, true, func(res string) {
+			if res != "" {
+				log.Errorf("cancel failed snapshot delete block job %s: %s", device, res)
+			}
+		})
+	}
+	s.finishResolvedBlockJob(reason)
+}
+
+func (s *SGuestSnapshotDeleteTask) finishResolvedBlockJob(err error) {
+	s.blockJobLock.Lock()
+	if s.blockJobDone {
+		s.blockJobLock.Unlock()
+		return
+	}
+	s.blockJobDone = true
+	unwatch := s.unwatchBlockJob
+	s.unwatchBlockJob = nil
+	s.blockJobLock.Unlock()
+	if unwatch != nil {
+		unwatch()
+	}
+	if err != nil {
+		s.taskFailed(err.Error())
+		return
+	}
+	s.onStreamDiskComplete()
 }
 
 func (s *SGuestSnapshotDeleteTask) startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount int) {

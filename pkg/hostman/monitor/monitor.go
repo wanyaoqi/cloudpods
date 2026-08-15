@@ -26,6 +26,7 @@ import (
 )
 
 type StringCallback func(string)
+type BlockJobEventCallback func(*Event)
 
 type BlockJob struct {
 	server string
@@ -216,6 +217,8 @@ type Monitor interface {
 	GetVersion(StringCallback)
 	GetBlockJobCounts(func(jobs int))
 	GetBlockJobs(func([]BlockJob))
+	GetBlockJobsWithError(func([]BlockJob, error))
+	WatchBlockJob(device string, callback BlockJobEventCallback) (func(), error)
 	QueryPci(callback QueryPciCallback)
 	InfoQtree(cb StringCallback)
 
