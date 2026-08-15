@@ -2228,21 +2228,30 @@ func (s *SGuestDiskSnapshotTask) onResumeSucc(res string) {
 
 type SGuestSnapshotDeleteTask struct {
 	*SGuestReloadDiskTask
-	deleteSnapshot   string
-	previousSnapshot string
-	nextSnapshot     string
-	encryptInfo      apis.SEncryptInfo
+	deleteSnapshot string
+	snapshotIds    []string
+	encryptInfo    apis.SEncryptInfo
+}
+
+func snapshotIdsForDelete(snapshotIds []string, storageType string) []string {
+	if !utils.IsInStringArray(storageType, []string{api.STORAGE_LVM, api.STORAGE_SLVM}) {
+		return snapshotIds
+	}
+	ret := make([]string, 0, len(snapshotIds))
+	for _, snapshotId := range snapshotIds {
+		ret = append(ret, "snap_"+snapshotId)
+	}
+	return ret
 }
 
 func NewGuestSnapshotDeleteTask(
 	ctx context.Context, s *SKVMGuestInstance, disk storageman.IDisk,
-	deleteSnapshot, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo,
+	deleteSnapshot string, snapshotIds []string, encryptInfo apis.SEncryptInfo,
 ) *SGuestSnapshotDeleteTask {
 	return &SGuestSnapshotDeleteTask{
 		SGuestReloadDiskTask: NewGuestReloadDiskTask(ctx, s, disk),
 		deleteSnapshot:       deleteSnapshot,
-		previousSnapshot:     previousSnapshot,
-		nextSnapshot:         nextSnapshot,
+		snapshotIds:          snapshotIds,
 		encryptInfo:          encryptInfo,
 	}
 }
@@ -2252,21 +2261,19 @@ func (s *SGuestSnapshotDeleteTask) Start(totalDeleteSnapshotCount, deletedSnapsh
 }
 
 func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotCount, deletedSnapshotCount int) {
+	cleanupGraph, err := storageman.PrepareLocalSnapshotGraph(s.disk, s.snapshotIds)
+	if err != nil {
+		s.taskFailed(err.Error())
+		return
+	}
 	snapshotDir := s.disk.GetSnapshotDir()
 	deleteSnapshot := s.deleteSnapshot
-	previousSnapshot := s.previousSnapshot
-	nextSnapshot := s.nextSnapshot
 	if utils.IsInStringArray(s.disk.GetType(), []string{api.STORAGE_LVM, api.STORAGE_SLVM}) {
 		snapshotDir = path.Dir(snapshotDir)
 		deleteSnapshot = "snap_" + deleteSnapshot
-		if previousSnapshot != "" {
-			previousSnapshot = "snap_" + previousSnapshot
-		}
-		if nextSnapshot != "" {
-			nextSnapshot = "snap_" + nextSnapshot
-		}
 	}
-	plan, err := storageman.ResolveLocalSnapshotDeletePlan(snapshotDir, deleteSnapshot, previousSnapshot, nextSnapshot, s.disk.GetPath())
+	plan, err := storageman.ResolveLocalSnapshotDeletePlan(snapshotDir, deleteSnapshot, snapshotIdsForDelete(s.snapshotIds, s.disk.GetType()), s.disk.GetPath())
+	cleanupGraph()
 	if err != nil {
 		s.taskFailed(err.Error())
 		return
@@ -2321,7 +2328,7 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 }
 
 func (s *SGuestSnapshotDeleteTask) deleteInactiveSnapshot() {
-	if err := s.disk.DeleteSnapshot(s.deleteSnapshot, s.previousSnapshot, s.nextSnapshot, s.encryptInfo); err != nil {
+	if err := s.disk.DeleteSnapshot(s.deleteSnapshot, s.snapshotIds, s.encryptInfo); err != nil {
 		s.taskFailed(err.Error())
 		return
 	}

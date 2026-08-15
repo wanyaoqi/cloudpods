@@ -222,15 +222,8 @@ func (s *SLVMStorage) DeleteSnapshot(ctx context.Context, params interface{}) (j
 	if !ok {
 		return nil, hostutils.ParamsError
 	}
-	previousSnapshot, nextSnapshot := "", ""
-	if input.PreviousSnapshot != "" {
-		previousSnapshot = "snap_" + input.PreviousSnapshot
-	}
-	if input.NextSnapshot != "" {
-		nextSnapshot = "snap_" + input.NextSnapshot
-	}
 	err := deleteLVMSnapshotByBackingChain(path.Join("/dev", s.GetPath()), "snap_"+input.SnapshotId,
-		previousSnapshot, nextSnapshot, path.Join("/dev", s.GetPath(), input.DiskId), input.EncryptInfo, false)
+		prefixSnapshotIds(input.SnapshotIds), path.Join("/dev", s.GetPath(), input.DiskId), input.EncryptInfo, false)
 	if err != nil {
 		return nil, err
 	}

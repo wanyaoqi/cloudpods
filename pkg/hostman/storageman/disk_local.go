@@ -549,9 +549,9 @@ func (d *SLocalDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, e
 	return nil, nil
 }
 
-func (d *SLocalDisk) DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo) error {
+func (d *SLocalDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	snapshotDir := d.GetSnapshotDir()
-	return DeleteLocalSnapshot(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, d.getPath(), encryptInfo)
+	return DeleteLocalSnapshot(snapshotDir, snapshotId, snapshotIds, d.getPath(), encryptInfo)
 }
 
 func (d *SLocalDisk) PrepareSaveToGlance(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {

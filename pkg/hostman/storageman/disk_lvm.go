@@ -627,22 +627,18 @@ func (d *SLVMDisk) ResetFromSnapshot(ctx context.Context, params interface{}) (j
 	return nil, nil
 }
 
-func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, diskPath string, encryptInfo apis.SEncryptInfo, lvmlockd bool) error {
+func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo, lvmlockd bool) error {
 	vgName := path.Base(path.Dir(diskPath))
 	lvNames, err := lvmutils.GetLvNames(vgName)
 	if err != nil {
 		return errors.Wrap(err, "list LVs before deleting snapshot")
 	}
 	probePaths := []string{path.Join(snapshotDir, snapshotId)}
-	if previousSnapshot != "" {
-		probePaths = append(probePaths, path.Join(snapshotDir, previousSnapshot))
+	for _, chainSnapshot := range snapshotIds {
+		probePaths = append(probePaths, path.Join(snapshotDir, chainSnapshot))
 	}
-	if nextSnapshot != "" {
-		probePaths = append(probePaths, path.Join(snapshotDir, nextSnapshot))
-	} else {
-		if utils.IsInStringArray(path.Base(diskPath), lvNames) {
-			probePaths = append(probePaths, diskPath)
-		}
+	if utils.IsInStringArray(path.Base(diskPath), lvNames) {
+		probePaths = append(probePaths, diskPath)
 	}
 	for _, lvPath := range probePaths {
 		if !utils.IsInStringArray(path.Base(lvPath), lvNames) {
@@ -652,11 +648,18 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId, previousSnapshot, 
 			return errors.Wrapf(err, "activate LV %s before resolving snapshot graph", lvPath)
 		}
 	}
-	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, diskPath)
+	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath)
 	if err != nil {
 		return err
 	}
 	if plan.Action == LocalSnapshotRemove {
+		diskReferences, err := qcow2HasBackingReference(diskPath, plan.Target)
+		if err != nil {
+			return err
+		}
+		if diskReferences {
+			return errors.Errorf("snapshot %s is referenced by disk %s", snapshotId, diskPath)
+		}
 		for _, lvName := range lvNames {
 			candidate := path.Join(snapshotDir, lvName)
 			if candidate == plan.Target || !strings.HasPrefix(lvName, "snap_") {
@@ -746,7 +749,67 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId, previousSnapshot, 
 	return cleanupLVMSnapshotBase(snapshotDir, diskPath, plan.Parent, lvmlockd)
 }
 
-func (d *SLVMDisk) DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo) error {
+// PrepareLocalSnapshotGraph temporarily activates LVM graph nodes that are not
+// already active. Shared LVM nodes use shared activation so running QEMU disks
+// keep their existing lock mode.
+func PrepareLocalSnapshotGraph(disk IDisk, snapshotIds []string) (func(), error) {
+	if !utils.IsInStringArray(disk.GetType(), []string{api.STORAGE_LVM, api.STORAGE_SLVM}) {
+		return func() {}, nil
+	}
+	vgName := path.Base(path.Dir(disk.GetPath()))
+	lvNames, err := lvmutils.GetLvNames(vgName)
+	if err != nil {
+		return nil, errors.Wrap(err, "list LVs before preparing snapshot graph")
+	}
+	paths := []string{disk.GetPath()}
+	for _, snapshotId := range prefixSnapshotIds(snapshotIds) {
+		paths = append(paths, path.Join(path.Dir(disk.GetSnapshotDir()), snapshotId))
+	}
+	activated := make([]string, 0)
+	seen := make(map[string]struct{})
+	cleanup := func() {
+		for _, lvPath := range activated {
+			if err := lvmutils.LVDeactivate(lvPath); err != nil {
+				log.Errorf("deactivate snapshot graph LV %s: %s", lvPath, err)
+			}
+		}
+	}
+	for len(paths) > 0 {
+		lvPath := filepath.Clean(paths[0])
+		paths = paths[1:]
+		if _, ok := seen[lvPath]; ok {
+			continue
+		}
+		seen[lvPath] = struct{}{}
+		if !utils.IsInStringArray(path.Base(lvPath), lvNames) {
+			continue
+		}
+		active, err := lvmutils.LvIsActivated(lvPath)
+		if err != nil {
+			cleanup()
+			return nil, errors.Wrapf(err, "check snapshot graph LV %s", lvPath)
+		}
+		if active {
+		} else {
+			if err := lvmutils.LVActive(lvPath, disk.GetStorage().Lvmlockd(), false); err != nil {
+				cleanup()
+				return nil, errors.Wrapf(err, "activate snapshot graph LV %s", lvPath)
+			}
+			activated = append(activated, lvPath)
+		}
+		img, err := qemuimg.NewQemuImage(lvPath)
+		if err != nil {
+			cleanup()
+			return nil, errors.Wrapf(err, "probe snapshot graph LV %s", lvPath)
+		}
+		if img.BackFilePath != "" && filepath.Clean(path.Dir(img.BackFilePath)) == filepath.Clean(path.Dir(disk.GetPath())) {
+			paths = append(paths, img.BackFilePath)
+		}
+	}
+	return cleanup, nil
+}
+
+func (d *SLVMDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	snapshotDir := path.Join("/dev", d.Storage.GetPath())
 	prefix := func(id string) string {
 		if id == "" {
@@ -754,7 +817,7 @@ func (d *SLVMDisk) DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot str
 		}
 		return "snap_" + id
 	}
-	return deleteLVMSnapshotByBackingChain(snapshotDir, prefix(snapshotId), prefix(previousSnapshot), prefix(nextSnapshot), d.GetPath(), encryptInfo, d.Storage.Lvmlockd())
+	return deleteLVMSnapshotByBackingChain(snapshotDir, prefix(snapshotId), prefixSnapshotIds(snapshotIds), d.GetPath(), encryptInfo, d.Storage.Lvmlockd())
 }
 
 func (d *SLVMDisk) DeleteAllSnapshot(skipRecycle bool) error {

@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -651,7 +652,7 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	log.Errorf("input %s", jsonutils.Marshal(input))
 	snapshotDir := path.Join(s.GetSnapshotDir(), input.DiskId+options.HostOptions.SnapshotDirSuffix)
 	diskPath := path.Join(s.GetPath(), input.DiskId)
-	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, input.PreviousSnapshot, input.NextSnapshot, diskPath, input.EncryptInfo)
+	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, input.SnapshotIds, diskPath, input.EncryptInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -660,14 +661,26 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	return res, nil
 }
 
-func DeleteLocalSnapshot(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, diskPath string, encryptInfo apis.SEncryptInfo) error {
-	return deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, diskPath, encryptInfo)
+func DeleteLocalSnapshot(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo) error {
+	return deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, snapshotIds, diskPath, encryptInfo)
 }
 
 const legacySnapshotBaseName = "snap_base"
 
 func snapshotBaseName(diskPath string) string {
 	return path.Base(diskPath) + "_snap_base"
+}
+
+func prefixSnapshotIds(snapshotIds []string) []string {
+	prefixed := make([]string, 0, len(snapshotIds))
+	for _, snapshotId := range snapshotIds {
+		if isSnapshotBaseName(snapshotId) {
+			prefixed = append(prefixed, snapshotId)
+		} else {
+			prefixed = append(prefixed, "snap_"+snapshotId)
+		}
+	}
+	return prefixed
 }
 
 func isSnapshotBaseName(name string) bool {
@@ -691,42 +704,184 @@ type LocalSnapshotDeletePlan struct {
 	Base   string
 }
 
-// ResolveLocalSnapshotDeletePlan builds a deletion plan from the two local
-// graph edges around target. It intentionally does not require target to be
-// reachable from the current disk, because historical convert operations may
-// have split one database timeline into multiple physical chains.
-func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, diskPath string) (*LocalSnapshotDeletePlan, error) {
+type localSnapshotGraph struct {
+	parents map[string]string
+	chains  [][]string
+}
+
+func loadLocalSnapshotGraph(snapshotDir, diskPath string, snapshotIds []string) (*localSnapshotGraph, error) {
+	graph := &localSnapshotGraph{parents: make(map[string]string)}
+	managed := make(map[string]struct{}, len(snapshotIds))
+	for _, snapshotId := range snapshotIds {
+		managed[filepath.Clean(path.Join(snapshotDir, snapshotId))] = struct{}{}
+	}
+
+	probe := func(candidate string) error {
+		candidate = filepath.Clean(candidate)
+		if _, ok := graph.parents[candidate]; ok {
+			return nil
+		}
+		if !fileutils2.Exists(candidate) {
+			return errors.Errorf("snapshot graph node %s is missing", candidate)
+		}
+		img, err := qemuimg.NewQemuImage(candidate)
+		if err != nil {
+			return errors.Wrapf(err, "probe snapshot graph node %s", candidate)
+		}
+		parent := img.BackFilePath
+		if parent != "" {
+			parent = filepath.Clean(parent)
+		}
+		graph.parents[candidate] = parent
+		return nil
+	}
+
+	if fileutils2.Exists(diskPath) {
+		if err := probe(diskPath); err != nil {
+			return nil, err
+		}
+	}
+	for candidate := range managed {
+		if err := probe(candidate); err != nil {
+			return nil, err
+		}
+	}
+
+	visited := make(map[string]struct{})
+	walk := func(start string) ([]string, error) {
+		chain := make([]string, 0)
+		current := filepath.Clean(start)
+		inChain := make(map[string]struct{})
+		for current != "" {
+			if _, ok := inChain[current]; ok {
+				return nil, errors.Errorf("snapshot backing cycle at %s", current)
+			}
+			inChain[current] = struct{}{}
+			visited[current] = struct{}{}
+			chain = append(chain, current)
+			parent, ok := graph.parents[current]
+			if !ok {
+				if !fileutils2.Exists(current) {
+					return nil, errors.Errorf("snapshot backing file %s is missing", current)
+				}
+				if err := probe(current); err != nil {
+					return nil, err
+				}
+				parent = graph.parents[current]
+			}
+			current = parent
+		}
+		return chain, nil
+	}
+
+	if fileutils2.Exists(diskPath) {
+		chain, err := walk(diskPath)
+		if err != nil {
+			return nil, err
+		}
+		graph.chains = append(graph.chains, chain)
+	}
+	for {
+		remaining := make(map[string]struct{})
+		for candidate := range managed {
+			if _, ok := visited[candidate]; !ok {
+				remaining[candidate] = struct{}{}
+			}
+		}
+		if len(remaining) == 0 {
+			break
+		}
+		hasChild := make(map[string]bool)
+		for candidate := range remaining {
+			if _, ok := remaining[graph.parents[candidate]]; ok {
+				hasChild[graph.parents[candidate]] = true
+			}
+		}
+		heads := make([]string, 0)
+		for candidate := range remaining {
+			if !hasChild[candidate] {
+				heads = append(heads, candidate)
+			}
+		}
+		if len(heads) == 0 {
+			return nil, errors.Errorf("cannot find head for remaining snapshot graph nodes")
+		}
+		sort.Strings(heads)
+		for _, head := range heads {
+			if _, ok := visited[head]; ok {
+				continue
+			}
+			chain, err := walk(head)
+			if err != nil {
+				return nil, err
+			}
+			graph.chains = append(graph.chains, chain)
+		}
+	}
+	return graph, nil
+}
+
+func logLocalSnapshotGraph(diskPath string, snapshotIds []string, graph *localSnapshotGraph) {
+	chains := make([]string, 0, len(graph.chains))
+	for i, chain := range graph.chains {
+		chains = append(chains, fmt.Sprintf("chain[%d]=%s", i, strings.Join(chain, " -> ")))
+	}
+	log.Infof("local snapshot backing graph disk=%s snapshots=%v: %s", diskPath, snapshotIds, strings.Join(chains, "; "))
+}
+
+// ResolveLocalSnapshotDeletePlan finds target's physical parent and children
+// from the backing graph rooted at the disk and every disconnected chain head.
+func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds []string, diskPath string) (*LocalSnapshotDeletePlan, error) {
 	target := path.Join(snapshotDir, snapshotId)
 	if !fileutils2.Exists(target) {
+		remainingIds := make([]string, 0, len(snapshotIds))
+		for _, id := range snapshotIds {
+			if filepath.Clean(path.Join(snapshotDir, id)) != filepath.Clean(target) {
+				remainingIds = append(remainingIds, id)
+			}
+		}
+		if graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, remainingIds); err == nil {
+			logLocalSnapshotGraph(diskPath, snapshotIds, graph)
+		} else {
+			log.Warningf("failed to load snapshot graph while target %s is missing: %s", target, err)
+		}
+		log.Warningf("delete snapshot target %s is missing", target)
 		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target}, nil
 	}
-	targetImg, err := qemuimg.NewQemuImage(target)
+	graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, snapshotIds)
 	if err != nil {
-		return nil, errors.Wrap(err, "probe target snapshot")
+		return nil, err
 	}
-	child := diskPath
-	if nextSnapshot != "" {
-		child = path.Join(snapshotDir, nextSnapshot)
+	logLocalSnapshotGraph(diskPath, snapshotIds, graph)
+	parent, ok := graph.parents[filepath.Clean(target)]
+	if !ok {
+		return nil, errors.Errorf("delete snapshot %s is not present in physical snapshot graph", snapshotId)
 	}
-	if !fileutils2.Exists(child) {
-		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: targetImg.BackFilePath}, nil
+	children := make([]string, 0, 1)
+	for candidate, candidateParent := range graph.parents {
+		if candidateParent == filepath.Clean(target) {
+			children = append(children, candidate)
+		}
 	}
-	childImg, err := qemuimg.NewQemuImage(child)
-	if err != nil {
-		return nil, errors.Wrap(err, "probe snapshot child")
+	if len(children) == 0 {
+		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: parent}, nil
 	}
+	if len(children) > 1 {
+		sort.Strings(children)
+		return nil, errors.Errorf("snapshot %s has multiple physical children: %s", snapshotId, strings.Join(children, ", "))
+	}
+	child := children[0]
 	base := path.Join(snapshotDir, snapshotBaseName(diskPath))
 	legacyBase := path.Join(snapshotDir, legacySnapshotBaseName)
 	baseExists := fileutils2.Exists(base)
-	if filepath.Clean(targetImg.BackFilePath) == filepath.Clean(legacyBase) || fileutils2.Exists(legacyBase) {
+	if filepath.Clean(parent) == filepath.Clean(legacyBase) {
+		base = legacyBase
+		baseExists = fileutils2.Exists(legacyBase)
+	} else if filepath.Clean(parent) != filepath.Clean(base) && !baseExists && fileutils2.Exists(legacyBase) {
 		base = legacyBase
 		baseExists = true
 	}
-	expectedPrevious := ""
-	if previousSnapshot != "" {
-		expectedPrevious = path.Join(snapshotDir, previousSnapshot)
-	}
-	return resolveLocalSnapshotDeleteEdges(target, targetImg.BackFilePath, child, childImg.BackFilePath, expectedPrevious, base, baseExists)
+	return resolveLocalSnapshotDeleteEdges(target, parent, child, base, baseExists), nil
 }
 
 func snapshotBasePath(snapshotDir, diskPath, backingPath string) string {
@@ -765,31 +920,24 @@ func cleanupLocalSnapshotBase(snapshotDir, diskPath, backingPath string, skipRec
 	return deleteFile(base, skipRecycle)
 }
 
-func resolveLocalSnapshotDeleteEdges(target, parent, child, childBacking, expectedPrevious, base string, baseExists bool) (*LocalSnapshotDeletePlan, error) {
-	if filepath.Clean(childBacking) != filepath.Clean(target) {
-		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: parent}, nil
-	}
+func resolveLocalSnapshotDeleteEdges(target, parent, child, base string, baseExists bool) *LocalSnapshotDeletePlan {
 	plan := &LocalSnapshotDeletePlan{Target: target, Parent: parent, Child: child, Base: base}
-	if isSnapshotBaseName(filepath.Base(plan.Parent)) {
-		plan.Base = plan.Parent
+	if filepath.Clean(plan.Parent) == filepath.Clean(plan.Base) {
 		plan.Action = LocalSnapshotCommit
-		return plan, nil
+		return plan
 	}
-	if expectedPrevious != "" && filepath.Clean(plan.Parent) == filepath.Clean(expectedPrevious) {
+	if filepath.Dir(filepath.Clean(parent)) == filepath.Dir(filepath.Clean(target)) {
 		plan.Action = LocalSnapshotRebase
-		return plan, nil
-	}
-	if filepath.Dir(filepath.Clean(parent)) == filepath.Dir(filepath.Clean(target)) && !isSnapshotBaseName(filepath.Base(parent)) {
-		return nil, errors.Errorf("snapshot parent mismatch: region=%s host=%s", expectedPrevious, parent)
+		return plan
 	}
 	if baseExists {
 		plan.Action = LocalSnapshotRebase
-		return plan, nil
+		return plan
 	}
 	// The target starts a physical chain segment (for example after a legacy
 	// convert), even when an older database snapshot exists.
 	plan.Action = LocalSnapshotPromote
-	return plan, nil
+	return plan
 }
 
 func snapshotHasBackingReferences(snapshotDir, target string) (bool, error) {
@@ -816,12 +964,30 @@ func snapshotHasBackingReferences(snapshotDir, target string) (bool, error) {
 	return false, nil
 }
 
-func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, diskPath string, encryptInfo apis.SEncryptInfo) error {
-	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, previousSnapshot, nextSnapshot, diskPath)
+func qcow2HasBackingReference(candidate, target string) (bool, error) {
+	if !fileutils2.Exists(candidate) || filepath.Clean(candidate) == filepath.Clean(target) {
+		return false, nil
+	}
+	img, err := qemuimg.NewQemuImage(candidate)
+	if err != nil {
+		return false, errors.Wrapf(err, "probe backing reference %s", candidate)
+	}
+	return filepath.Clean(img.BackFilePath) == filepath.Clean(target), nil
+}
+
+func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo) error {
+	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath)
 	if err != nil {
 		return err
 	}
 	if plan.Action == LocalSnapshotRemove {
+		diskReferences, err := qcow2HasBackingReference(diskPath, plan.Target)
+		if err != nil {
+			return err
+		}
+		if diskReferences {
+			return errors.Errorf("snapshot %s is referenced by disk %s", snapshotId, diskPath)
+		}
 		hasReferences, err := snapshotHasBackingReferences(snapshotDir, plan.Target)
 		if err != nil {
 			return err

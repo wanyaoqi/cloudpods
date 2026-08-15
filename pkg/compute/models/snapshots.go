@@ -860,36 +860,6 @@ func (self *SSnapshotManager) GetConvertSnapshot(deleteSnapshot *SSnapshot) (*SS
 	return dest, nil
 }
 
-// GetAdjacentSnapshots returns the nearest in-chain snapshots around target.
-// The physical backing chain is still validated by hostman before mutation.
-func (self *SSnapshotManager) GetAdjacentSnapshots(target *SSnapshot) (*SSnapshot, *SSnapshot, error) {
-	newQuery := func() *sqlchemy.SQuery {
-		q := self.Query()
-		return q.Filter(sqlchemy.AND(
-			sqlchemy.Equals(q.Field("disk_id"), target.DiskId),
-			sqlchemy.In(q.Field("status"), []string{api.SNAPSHOT_READY, api.SNAPSHOT_DELETING}),
-			sqlchemy.Equals(q.Field("out_of_chain"), false),
-		))
-	}
-	previous := &SSnapshot{}
-	err := newQuery().LT("created_at", target.CreatedAt).Desc("created_at").First(previous)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, nil, err
-	}
-	if err == sql.ErrNoRows {
-		previous = nil
-	}
-	next := &SSnapshot{}
-	err = newQuery().GT("created_at", target.CreatedAt).Asc("created_at").First(next)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, nil, err
-	}
-	if err == sql.ErrNoRows {
-		next = nil
-	}
-	return previous, next, nil
-}
-
 func (self *SSnapshotManager) PerformDeleteDiskSnapshots(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	diskId, err := data.GetString("disk_id")
 	if err != nil {

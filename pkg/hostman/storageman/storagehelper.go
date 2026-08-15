@@ -69,11 +69,10 @@ type SStorageDeleteSnapshots struct {
 }
 
 type SStorageDeleteSnapshot struct {
-	DiskId           string
-	SnapshotId       string
-	PreviousSnapshot string
-	NextSnapshot     string
-	EncryptInfo      apis.SEncryptInfo
+	DiskId      string
+	SnapshotId  string
+	SnapshotIds []string
+	EncryptInfo apis.SEncryptInfo
 }
 
 type SDiskBackup struct {

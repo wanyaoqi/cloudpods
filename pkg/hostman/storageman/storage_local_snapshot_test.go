@@ -22,65 +22,54 @@ func TestSnapshotBasePath(t *testing.T) {
 	}
 }
 
-func TestResolveLocalSnapshotDeleteEdgesForDisconnectedChain(t *testing.T) {
+func TestPrefixSnapshotIds(t *testing.T) {
+	ids := prefixSnapshotIds([]string{"s1", "snap_base", "disk_snap_base"})
+	want := []string{"snap_s1", "snap_base", "disk_snap_base"}
+	if len(ids) != len(want) {
+		t.Fatalf("expected %v, got %v", want, ids)
+	}
+	for i := range want {
+		if ids[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, ids)
+		}
+	}
+}
+
+func TestResolveLocalSnapshotDeleteEdges(t *testing.T) {
 	dir := "/storage/snapshots/disk_snap"
 	target := filepath.Join(dir, "s2")
 	parent := filepath.Join(dir, "s1")
 	child := filepath.Join(dir, "s3")
 	base := filepath.Join(dir, "disk_snap_base")
 
-	plan, err := resolveLocalSnapshotDeleteEdges(target, parent, child, target, parent, base, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	plan := resolveLocalSnapshotDeleteEdges(target, parent, child, base, false)
 	if plan.Action != LocalSnapshotRebase || plan.Parent != parent || plan.Child != child {
 		t.Fatalf("unexpected disconnected-chain plan: %#v", plan)
 	}
 
-	plan, err = resolveLocalSnapshotDeleteEdges(target, base, child, target, "", base, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	plan = resolveLocalSnapshotDeleteEdges(target, base, child, base, true)
 	if plan.Action != LocalSnapshotCommit || plan.Base != base {
 		t.Fatalf("expected base commit, got %#v", plan)
 	}
 
 	legacyBase := filepath.Join(dir, legacySnapshotBaseName)
-	plan, err = resolveLocalSnapshotDeleteEdges(target, legacyBase, child, target, "", base, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	plan = resolveLocalSnapshotDeleteEdges(target, legacyBase, child, legacyBase, true)
 	if plan.Action != LocalSnapshotCommit || plan.Base != legacyBase {
 		t.Fatalf("expected legacy-base commit, got %#v", plan)
 	}
 
-	plan, err = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", child, target, parent, base, false)
-	if err != nil {
-		t.Fatal(err)
+	otherBase := filepath.Join(dir, "other-disk_snap_base")
+	plan = resolveLocalSnapshotDeleteEdges(target, otherBase, child, base, true)
+	if plan.Action == LocalSnapshotCommit {
+		t.Fatalf("must not commit into another disk's base: %#v", plan)
 	}
+
+	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", child, base, false)
 	if plan.Action != LocalSnapshotPromote {
 		t.Fatalf("expected segment-head promotion, got %#v", plan)
 	}
 
-	if _, err = resolveLocalSnapshotDeleteEdges(target, filepath.Join(dir, "wrong"), child, target, parent, base, false); err == nil {
-		t.Fatal("expected managed snapshot parent mismatch")
-	}
-
-	plan, err = resolveLocalSnapshotDeleteEdges(target, parent, child, "/other/backing", parent, base, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plan.Action != LocalSnapshotRemove {
-		t.Fatalf("expected unreferenced removal, got %#v", plan)
-	}
-	if plan.Parent != parent {
-		t.Fatalf("remove plan must preserve parent for base cleanup, got %#v", plan)
-	}
-
-	plan, err = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", child, target, parent, base, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", child, base, true)
 	if plan.Action != LocalSnapshotRebase {
 		t.Fatalf("expected safe rebase when another chain owns base, got %#v", plan)
 	}

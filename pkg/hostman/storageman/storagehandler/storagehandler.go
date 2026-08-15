@@ -466,8 +466,13 @@ func storageDeleteSnapshot(ctx context.Context, w http.ResponseWriter, r *http.R
 		DiskId:     diskId,
 		SnapshotId: snapshotId,
 	}
-	input.PreviousSnapshot, _ = body.GetString("previous_snapshot_id")
-	input.NextSnapshot, _ = body.GetString("next_snapshot_id")
+	if snapshotIds, err := body.GetArray("snapshot_ids"); err == nil {
+		for _, snapshotId := range snapshotIds {
+			if id, err := snapshotId.GetString(); err == nil {
+				input.SnapshotIds = append(input.SnapshotIds, id)
+			}
+		}
+	}
 
 	if body.Contains("encrypt_info") {
 		encryptInfo := apis.SEncryptInfo{}

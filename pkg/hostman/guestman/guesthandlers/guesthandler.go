@@ -753,8 +753,13 @@ func guestDeleteSnapshot(ctx context.Context, userCred mcclient.TokenCredential,
 		TotalDeleteSnapshotCount: int(totalCnt),
 		DeletedSnapshotCount:     int(deletedCnt),
 	}
-	params.PreviousSnapshot, _ = body.GetString("previous_snapshot_id")
-	params.NextSnapshot, _ = body.GetString("next_snapshot_id")
+	if snapshotIds, err := body.GetArray("snapshot_ids"); err == nil {
+		for _, snapshotId := range snapshotIds {
+			if id, err := snapshotId.GetString(); err == nil {
+				params.SnapshotIds = append(params.SnapshotIds, id)
+			}
+		}
+	}
 
 	if body.Contains("encrypt_info") {
 		encryptInfo := apis.SEncryptInfo{}

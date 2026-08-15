@@ -337,6 +337,6 @@ func (d *SSLVMDisk) PostCreateFromRemoteHostImage(diskUrl string, snapshotId str
 	}
 }
 
-func (d *SSLVMDisk) DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo) error {
-	return d.SLVMDisk.DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot, encryptInfo)
+func (d *SSLVMDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
+	return d.SLVMDisk.DeleteSnapshot(snapshotId, snapshotIds, encryptInfo)
 }

@@ -74,7 +74,7 @@ type IDisk interface {
 	CreateRaw(ctx context.Context, sizeMb int, diskFormat string, fsFormat string, fsFeatures *api.DiskFsFeatures, encryptInfo *apis.SEncryptInfo, diskId string, back string) (jsonutils.JSONObject, error)
 	PostCreateFromRemoteHostImage(diskUrl string, snapshotId string)
 	CreateSnapshot(snapshotId string, encryptKey string, encFormat qemuimg.TEncryptFormat, encAlg seclib2.TSymEncAlg) error
-	DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo) error
+	DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error
 	DeployGuestFs(diskInfo *deployapi.DiskInfo, guestDesc *desc.SGuestDesc,
 		deployInfo *deployapi.DeployInfo) (jsonutils.JSONObject, error)
 	ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, encryptInfo apis.SEncryptInfo) (func() error, error)
@@ -151,7 +151,7 @@ func (d *SBaseDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, en
 	return nil, errors.Errorf("unsupported operation")
 }
 
-func (d *SBaseDisk) DeleteSnapshot(snapshotId, previousSnapshot, nextSnapshot string, encryptInfo apis.SEncryptInfo) error {
+func (d *SBaseDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	return errors.Errorf("unsupported operation")
 }
 
