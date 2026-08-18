@@ -1,21 +1,134 @@
 package storageman
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+type snapshotImageDriverMock struct {
+	backing map[string]string
+	errPath string
+}
+
+func (m *snapshotImageDriverMock) GetBackingFile(imgPath string) (string, error) {
+	if imgPath == m.errPath {
+		return "", errors.New("mock probe error")
+	}
+	return m.backing[filepath.Clean(imgPath)], nil
+}
+
+func makeSnapshotFiles(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, p := range paths {
+		if err := os.WriteFile(p, []byte("snapshot"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestLoadLocalSnapshotGraph(t *testing.T) {
+	dir := t.TempDir()
+	disk := filepath.Join(dir, "disk")
+	s1 := filepath.Join(dir, "snap_s1")
+	s2 := filepath.Join(dir, "snap_s2")
+	s3 := filepath.Join(dir, "snap_s3")
+	orphan := filepath.Join(dir, "snap_orphan")
+	makeSnapshotFiles(t, disk, s1, s2, s3, orphan)
+	driver := &snapshotImageDriverMock{backing: map[string]string{
+		disk: s3, s3: s2, s2: s1, s1: "", orphan: "",
+	}}
+	graph, err := loadLocalSnapshotGraph(dir, disk, []string{"snap_s1", "snap_s2", "snap_s3", "snap_orphan"}, driver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := graph.parents[disk], s3; got != want {
+		t.Fatalf("disk parent: got %q, want %q", got, want)
+	}
+	if len(graph.chains) != 2 || len(graph.chains[0]) != 4 || graph.chains[0][0] != disk {
+		t.Fatalf("unexpected chains: %#v", graph.chains)
+	}
+	if graph.chains[1][0] != orphan {
+		t.Fatalf("unexpected orphan chain: %#v", graph.chains)
+	}
+}
+
+func TestLoadLocalSnapshotGraphErrors(t *testing.T) {
+	dir := t.TempDir()
+	disk := filepath.Join(dir, "disk")
+	s1 := filepath.Join(dir, "snap_s1")
+	makeSnapshotFiles(t, disk, s1)
+	tests := []struct {
+		name string
+		back map[string]string
+		err  string
+	}{
+		{"missing backing", map[string]string{disk: filepath.Join(dir, "missing")}, "missing"},
+		{"cycle", map[string]string{disk: s1, s1: disk}, "cycle"},
+		{"driver error", map[string]string{disk: ""}, "mock probe error"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &snapshotImageDriverMock{backing: tt.back}
+			if tt.name == "driver error" {
+				mock.errPath = disk
+			}
+			_, err := loadLocalSnapshotGraph(dir, disk, []string{"snap_s1"}, mock)
+			if err == nil || !strings.Contains(err.Error(), tt.err) {
+				t.Fatalf("expected %q error, got %v", tt.err, err)
+			}
+		})
+	}
+}
+
+func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
+	dir := t.TempDir()
+	disk := filepath.Join(dir, "disk")
+	base := filepath.Join(dir, "disk_snap_base")
+	target := filepath.Join(dir, "snap_target")
+	child := filepath.Join(dir, "snap_child")
+	makeSnapshotFiles(t, disk, base, target, child)
+
+	plan, err := ResolveLocalSnapshotDeletePlan(dir, "target", []string{"disk_snap_base", "snap_target", "snap_child"}, disk,
+		&snapshotImageDriverMock{backing: map[string]string{disk: child, child: target, target: base, base: ""}})
+	if err != nil || plan.Action != LocalSnapshotCommit || plan.Parent != base || plan.Child != child {
+		t.Fatalf("unexpected commit plan: %#v, %v", plan, err)
+	}
+
+	if err := os.Remove(child); err != nil {
+		t.Fatal(err)
+	}
+	plan, err = ResolveLocalSnapshotDeletePlan(dir, "target", []string{"disk_snap_base", "snap_target"}, disk,
+		&snapshotImageDriverMock{backing: map[string]string{disk: target, target: base, base: ""}})
+	if err != nil || plan.Action != LocalSnapshotRemove {
+		t.Fatalf("unexpected remove plan: %#v, %v", plan, err)
+	}
+
+	child = filepath.Join(dir, "snap_child_again")
+	child2 := filepath.Join(dir, "snap_child_second")
+	makeSnapshotFiles(t, child, child2)
+	_, err = ResolveLocalSnapshotDeletePlan(dir, "target", []string{"disk_snap_base", "snap_target", "snap_child_again", "snap_child_second"}, disk,
+		&snapshotImageDriverMock{backing: map[string]string{disk: child, child: target, child2: target, target: base, base: ""}})
+	if err == nil || !strings.Contains(err.Error(), "multiple physical children") {
+		t.Fatalf("expected multiple-child error, got %v", err)
+	}
+
+	missing, err := ResolveLocalSnapshotDeletePlan(dir, "does-not-exist", []string{"disk_snap_base"}, disk,
+		&snapshotImageDriverMock{backing: map[string]string{disk: base, base: ""}})
+	if err != nil || missing.Action != LocalSnapshotRemove {
+		t.Fatalf("unexpected missing-target plan: %#v, %v", missing, err)
+	}
+}
 
 func TestSnapshotBasePath(t *testing.T) {
 	dir := "/storage/snapshots/disk-id_snapshots"
 	disk := "/storage/disks/disk-id"
 	base := filepath.Join(dir, "disk-id_snap_base")
-	legacyBase := filepath.Join(dir, legacySnapshotBaseName)
 
 	if got := snapshotBasePath(dir, disk, base); got != base {
 		t.Fatalf("expected base %q, got %q", base, got)
-	}
-	if got := snapshotBasePath(dir, disk, legacyBase); got != legacyBase {
-		t.Fatalf("expected legacy base %q, got %q", legacyBase, got)
 	}
 	if got := snapshotBasePath(dir, disk, filepath.Join(dir, "other_snap_base")); got != "" {
 		t.Fatalf("must not accept another disk's base: %q", got)
@@ -50,12 +163,6 @@ func TestResolveLocalSnapshotDeleteEdges(t *testing.T) {
 	plan = resolveLocalSnapshotDeleteEdges(target, base, child, base, true)
 	if plan.Action != LocalSnapshotCommit || plan.Base != base {
 		t.Fatalf("expected base commit, got %#v", plan)
-	}
-
-	legacyBase := filepath.Join(dir, legacySnapshotBaseName)
-	plan = resolveLocalSnapshotDeleteEdges(target, legacyBase, child, legacyBase, true)
-	if plan.Action != LocalSnapshotCommit || plan.Base != legacyBase {
-		t.Fatalf("expected legacy-base commit, got %#v", plan)
 	}
 
 	otherBase := filepath.Join(dir, "other-disk_snap_base")

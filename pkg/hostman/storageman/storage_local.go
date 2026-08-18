@@ -665,8 +665,6 @@ func DeleteLocalSnapshot(snapshotDir, snapshotId string, snapshotIds []string, d
 	return deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, snapshotIds, diskPath, encryptInfo)
 }
 
-const legacySnapshotBaseName = "snap_base"
-
 func snapshotBaseName(diskPath string) string {
 	return path.Base(diskPath) + "_snap_base"
 }
@@ -684,7 +682,7 @@ func prefixSnapshotIds(snapshotIds []string) []string {
 }
 
 func isSnapshotBaseName(name string) bool {
-	return name == legacySnapshotBaseName || strings.HasSuffix(name, "_snap_base")
+	return strings.HasSuffix(name, "_snap_base")
 }
 
 type IImageDriver interface {
@@ -885,31 +883,19 @@ func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds 
 		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: parent}, nil
 	}
 	if len(children) > 1 {
-		sort.Strings(children)
+		//sort.Strings(children)
 		return nil, errors.Errorf("snapshot %s has multiple physical children: %s", snapshotId, strings.Join(children, ", "))
 	}
 	child := children[0]
 	base := path.Join(snapshotDir, snapshotBaseName(diskPath))
-	legacyBase := path.Join(snapshotDir, legacySnapshotBaseName)
 	baseExists := fileutils2.Exists(base)
-	if filepath.Clean(parent) == filepath.Clean(legacyBase) {
-		base = legacyBase
-		baseExists = fileutils2.Exists(legacyBase)
-	} else if filepath.Clean(parent) != filepath.Clean(base) && !baseExists && fileutils2.Exists(legacyBase) {
-		base = legacyBase
-		baseExists = true
-	}
 	return resolveLocalSnapshotDeleteEdges(target, parent, child, base, baseExists), nil
 }
 
 func snapshotBasePath(snapshotDir, diskPath, backingPath string) string {
-	for _, candidate := range []string{
-		path.Join(snapshotDir, snapshotBaseName(diskPath)),
-		path.Join(snapshotDir, legacySnapshotBaseName),
-	} {
-		if filepath.Clean(backingPath) == filepath.Clean(candidate) {
-			return candidate
-		}
+	basePath := path.Join(snapshotDir, snapshotBaseName(diskPath))
+	if filepath.Clean(backingPath) == filepath.Clean(basePath) {
+		return basePath
 	}
 	return ""
 }
