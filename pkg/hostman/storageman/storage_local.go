@@ -687,6 +687,20 @@ func isSnapshotBaseName(name string) bool {
 	return name == legacySnapshotBaseName || strings.HasSuffix(name, "_snap_base")
 }
 
+type IImageDriver interface {
+	GetBackingFile(imgPath string) (string, error)
+}
+
+type SImageDriverQemu struct{}
+
+func (*SImageDriverQemu) GetBackingFile(imgPath string) (string, error) {
+	img, err := qemuimg.NewQemuImage(imgPath)
+	if err != nil {
+		return "", err
+	}
+	return img.BackFilePath, nil
+}
+
 type LocalSnapshotDeleteAction string
 
 const (
@@ -709,7 +723,7 @@ type localSnapshotGraph struct {
 	chains  [][]string
 }
 
-func loadLocalSnapshotGraph(snapshotDir, diskPath string, snapshotIds []string) (*localSnapshotGraph, error) {
+func loadLocalSnapshotGraph(snapshotDir, diskPath string, snapshotIds []string, imgDriver IImageDriver) (*localSnapshotGraph, error) {
 	graph := &localSnapshotGraph{parents: make(map[string]string)}
 	managed := make(map[string]struct{}, len(snapshotIds))
 	for _, snapshotId := range snapshotIds {
@@ -724,11 +738,11 @@ func loadLocalSnapshotGraph(snapshotDir, diskPath string, snapshotIds []string) 
 		if !fileutils2.Exists(candidate) {
 			return errors.Errorf("snapshot graph node %s is missing", candidate)
 		}
-		img, err := qemuimg.NewQemuImage(candidate)
+		backingFile, err := imgDriver.GetBackingFile(candidate)
 		if err != nil {
 			return errors.Wrapf(err, "probe snapshot graph node %s", candidate)
 		}
-		parent := img.BackFilePath
+		parent := backingFile
 		if parent != "" {
 			parent = filepath.Clean(parent)
 		}
@@ -829,9 +843,13 @@ func logLocalSnapshotGraph(diskPath string, snapshotIds []string, graph *localSn
 	log.Infof("local snapshot backing graph disk=%s snapshots=%v: %s", diskPath, snapshotIds, strings.Join(chains, "; "))
 }
 
-// ResolveLocalSnapshotDeletePlan finds target's physical parent and children
+// Finds target's physical parent and children
 // from the backing graph rooted at the disk and every disconnected chain head.
-func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds []string, diskPath string) (*LocalSnapshotDeletePlan, error) {
+func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, imgDriver IImageDriver) (*LocalSnapshotDeletePlan, error) {
+	if imgDriver == nil {
+		imgDriver = &SImageDriverQemu{}
+	}
+
 	target := path.Join(snapshotDir, snapshotId)
 	if !fileutils2.Exists(target) {
 		remainingIds := make([]string, 0, len(snapshotIds))
@@ -840,7 +858,7 @@ func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds 
 				remainingIds = append(remainingIds, id)
 			}
 		}
-		if graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, remainingIds); err == nil {
+		if graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, remainingIds, imgDriver); err == nil {
 			logLocalSnapshotGraph(diskPath, snapshotIds, graph)
 		} else {
 			log.Warningf("failed to load snapshot graph while target %s is missing: %s", target, err)
@@ -848,7 +866,7 @@ func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds 
 		log.Warningf("delete snapshot target %s is missing", target)
 		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target}, nil
 	}
-	graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, snapshotIds)
+	graph, err := loadLocalSnapshotGraph(snapshotDir, diskPath, snapshotIds, imgDriver)
 	if err != nil {
 		return nil, err
 	}
@@ -976,7 +994,7 @@ func qcow2HasBackingReference(candidate, target string) (bool, error) {
 }
 
 func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo) error {
-	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath)
+	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath, nil)
 	if err != nil {
 		return err
 	}

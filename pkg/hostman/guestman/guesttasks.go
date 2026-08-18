@@ -2281,7 +2281,7 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 		snapshotDir = path.Dir(snapshotDir)
 		deleteSnapshot = "snap_" + deleteSnapshot
 	}
-	plan, err := storageman.ResolveLocalSnapshotDeletePlan(snapshotDir, deleteSnapshot, snapshotIdsForDelete(s.snapshotIds, s.disk.GetType()), s.disk.GetPath())
+	plan, err := storageman.ResolveLocalSnapshotDeletePlan(snapshotDir, deleteSnapshot, snapshotIdsForDelete(s.snapshotIds, s.disk.GetType()), s.disk.GetPath(), nil)
 	cleanupGraph()
 	if err != nil {
 		s.taskFailed(err.Error())

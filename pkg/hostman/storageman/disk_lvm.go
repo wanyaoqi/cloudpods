@@ -648,7 +648,7 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 			return errors.Wrapf(err, "activate LV %s before resolving snapshot graph", lvPath)
 		}
 	}
-	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath)
+	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath, nil)
 	if err != nil {
 		return err
 	}
