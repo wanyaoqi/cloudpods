@@ -2304,6 +2304,26 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			}
 			return ""
 		}
+		// block-commit operates on the active chain head. The child in the
+		// delete plan may itself have newer descendants (for example, disk).
+		chainHead := func(nodeName string) string {
+			seen := make(map[string]bool)
+			for nodeName != "" && !seen[nodeName] {
+				seen[nodeName] = true
+				next := ""
+				for i := range nodes {
+					if nodes[i].BackingFile == nodeName {
+						next = nodes[i].NodeName
+						break
+					}
+				}
+				if next == "" {
+					return nodeName
+				}
+				nodeName = next
+			}
+			return nodeName
+		}
 		childNode := nodeForPath(plan.Child)
 		parentNode := nodeForPath(plan.Parent)
 		targetNode := nodeForPath(plan.Target)
@@ -2315,7 +2335,8 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
 			return
 		}
-		if err := s.watchResolvedBlockJob(childNode); err != nil {
+		deviceNode := chainHead(childNode)
+		if err := s.watchResolvedBlockJob(deviceNode); err != nil {
 			s.taskFailed(err.Error())
 			return
 		}
@@ -2327,11 +2348,11 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			s.waitResolvedBlockJob()
 		}
 		if plan.Action == storageman.LocalSnapshotCommit {
-			s.Monitor.BlockCommit(childNode, targetNode, parentNode, started)
+			s.Monitor.BlockCommit(deviceNode, targetNode, parentNode, started)
 		} else if plan.Action == storageman.LocalSnapshotPromote {
-			s.Monitor.BlockStream(childNode, started)
+			s.Monitor.BlockStream(deviceNode, started)
 		} else {
-			s.Monitor.BlockStreamToBase(childNode, parentNode, started)
+			s.Monitor.BlockStreamToBase(deviceNode, parentNode, started)
 		}
 	})
 }

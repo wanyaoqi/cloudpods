@@ -128,9 +128,17 @@ func (self *SnapshotDeleteTask) OnReloadDiskSnapshot(ctx context.Context, snapsh
 			}
 		}
 
+		setSnapshotChain := func(params *jsonutils.JSONDict) {
+			ids := jsonutils.NewArray()
+			for _, candidate := range models.SnapshotManager.GetDiskSnapshots(snapshot.DiskId) {
+				ids.Add(jsonutils.NewString(candidate.Id))
+			}
+			params.Set("snapshot_ids", ids)
+		}
+
 		params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
 		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
-		params.Set("auto_deleted", jsonutils.JSONTrue)
+		setSnapshotChain(params)
 		self.SetStage("OnDeleteSnapshot", nil)
 		drv, err := guest.GetDriver()
 		if err != nil {

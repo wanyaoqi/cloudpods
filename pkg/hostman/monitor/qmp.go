@@ -952,10 +952,10 @@ func (m *QmpMonitor) BlockStreamToBase(device, base string, callback StringCallb
 
 func (m *QmpMonitor) BlockCommit(device, top, base string, callback StringCallback) {
 	args := map[string]interface{}{
-		"device": device,
-		"top":    top,
-		"base":   base,
-		"speed":  5 * 100 * 1024 * 1024,
+		"device":   device,
+		"top-node": top,
+		"base-node": base,
+		"speed":    5 * 100 * 1024 * 1024,
 	}
 	m.Query(&Command{Execute: "block-commit", Args: args}, func(res *Response) {
 		callback(m.actionResult(res))
