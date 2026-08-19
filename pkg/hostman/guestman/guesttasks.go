@@ -2240,6 +2240,7 @@ type SGuestSnapshotDeleteTask struct {
 	blockJobMissingPoll int
 	blockJobDone        bool
 	unwatchBlockJob     func()
+	onBlockJobComplete  func() error
 }
 
 func snapshotIdsForDelete(snapshotIds []string, storageType string) []string {
@@ -2324,7 +2325,15 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			}
 			return nodeName
 		}
-		childNode := nodeForPath(plan.Child)
+		var childNode string
+		var onlineChild string
+		for _, child := range plan.Children {
+			childNode = nodeForPath(child)
+			if childNode != "" {
+				onlineChild = child
+				break
+			}
+		}
 		parentNode := nodeForPath(plan.Parent)
 		targetNode := nodeForPath(plan.Target)
 		if childNode == "" && targetNode == "" {
@@ -2349,9 +2358,68 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 		}
 		if plan.Action == storageman.LocalSnapshotCommit {
 			s.Monitor.BlockCommit(deviceNode, targetNode, parentNode, started)
+			s.onBlockJobComplete = func() error {
+				children := make([]string, 0)
+				for i := range plan.Children {
+					if plan.Children[i] == onlineChild {
+						continue
+					}
+					children = append(children, plan.Children[i])
+				}
+				// force rebase other child
+				if err := s.disk.RebaseDiskSnapshots(plan.Parent, plan.Children, s.encryptInfo, true); err != nil {
+					log.Errorf("RebaseDiskSnapshots %v to %s failed: %s", children, plan.Parent, err)
+					return errors.Wrap(err, "RebaseDiskSnapshots")
+				}
+				return nil
+			}
+
 		} else if plan.Action == storageman.LocalSnapshotPromote {
 			s.Monitor.BlockStream(deviceNode, started)
+			s.onBlockJobComplete = func() error {
+				children := make([]string, 0)
+				for i := range plan.Children {
+					if plan.Children[i] == onlineChild {
+						continue
+					}
+					children = append(children, plan.Children[i])
+				}
+				// force rebase other child
+				if err := s.disk.RebaseDiskSnapshots(plan.Parent, children, s.encryptInfo, true); err != nil {
+					log.Errorf("RebaseDiskSnapshots %v to %s failed: %s", children, plan.Parent, err)
+					return errors.Wrap(err, "RebaseDiskSnapshots")
+				}
+				return nil
+			}
+		} else if plan.Action == storageman.LocalSnapshotConvert {
+			// convert children not in disk chain
+			children := make([]string, 0)
+			for i := range plan.Children {
+				if plan.Children[i] == onlineChild {
+					continue
+				}
+				children = append(children, plan.Children[i])
+			}
+			if err := s.disk.ConvertSnapshots(children, s.encryptInfo); err != nil {
+				log.Errorf("ConvertSnapshots %v failed: %s", children, err)
+				s.taskFailed(fmt.Sprintf("ConvertSnapshots %v failed: %s", children, err))
+				return
+			}
+			s.onStreamDiskComplete()
 		} else {
+			children := make([]string, 0)
+			for i := range plan.Children {
+				if plan.Children[i] == onlineChild {
+					continue
+				}
+				children = append(children, plan.Children[i])
+			}
+			// force rebase other child
+			if err := s.disk.RebaseDiskSnapshots(plan.Parent, children, s.encryptInfo, false); err != nil {
+				log.Errorf("RebaseDiskSnapshots %v to %s failed: %s", children, plan.Parent, err)
+				s.taskFailed(fmt.Sprintf("RebaseDiskSnapshots %v to %s failed: %s", children, plan.Parent, err))
+				return
+			}
 			s.Monitor.BlockStreamToBase(deviceNode, parentNode, started)
 		}
 	})
@@ -2503,6 +2571,13 @@ func (s *SGuestSnapshotDeleteTask) startBlockStream(totalDeleteSnapshotCount, de
 }
 
 func (s *SGuestSnapshotDeleteTask) onStreamDiskComplete() {
+	if s.onBlockJobComplete != nil {
+		if err := s.onBlockJobComplete(); err != nil {
+			hostutils.TaskFailed(s.ctx, err.Error())
+			return
+		}
+	}
+
 	// remove snapshot file
 	if err := s.disk.DoDeleteSnapshot(s.deleteSnapshot); err != nil {
 		hostutils.TaskFailed(s.ctx, err.Error())

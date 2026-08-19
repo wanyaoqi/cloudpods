@@ -706,14 +706,15 @@ const (
 	LocalSnapshotPromote LocalSnapshotDeleteAction = "promote"
 	LocalSnapshotCommit  LocalSnapshotDeleteAction = "commit"
 	LocalSnapshotRebase  LocalSnapshotDeleteAction = "rebase"
+	LocalSnapshotConvert LocalSnapshotDeleteAction = "convert"
 )
 
 type LocalSnapshotDeletePlan struct {
-	Action LocalSnapshotDeleteAction
-	Target string
-	Parent string
-	Child  string
-	Base   string
+	Action   LocalSnapshotDeleteAction
+	Target   string
+	Parent   string
+	Children []string
+	Base     string
 }
 
 type localSnapshotGraph struct {
@@ -873,7 +874,7 @@ func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds 
 	if !ok {
 		return nil, errors.Errorf("delete snapshot %s is not present in physical snapshot graph", snapshotId)
 	}
-	children := make([]string, 0, 1)
+	children := make([]string, 0)
 	for candidate, candidateParent := range graph.parents {
 		if candidateParent == filepath.Clean(target) {
 			children = append(children, candidate)
@@ -882,14 +883,24 @@ func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds 
 	if len(children) == 0 {
 		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: parent}, nil
 	}
-	if len(children) > 1 {
-		//sort.Strings(children)
-		return nil, errors.Errorf("snapshot %s has multiple physical children: %s", snapshotId, strings.Join(children, ", "))
-	}
-	child := children[0]
 	base := path.Join(snapshotDir, snapshotBaseName(diskPath))
-	baseExists := fileutils2.Exists(base)
-	return resolveLocalSnapshotDeleteEdges(target, parent, child, base, baseExists), nil
+	var targetInDiskChain = false
+	for _, chain := range graph.chains {
+		if len(chain) == 0 {
+			continue
+		}
+		if chain[0] != filepath.Clean(diskPath) {
+			continue
+		}
+		for _, fpath := range chain {
+			if fpath == filepath.Clean(target) {
+				targetInDiskChain = true
+			}
+		}
+		break
+	}
+
+	return resolveLocalSnapshotDeleteEdges(target, parent, base, children, targetInDiskChain), nil
 }
 
 func snapshotBasePath(snapshotDir, diskPath, backingPath string) string {
@@ -924,23 +935,39 @@ func cleanupLocalSnapshotBase(snapshotDir, diskPath, backingPath string, skipRec
 	return deleteFile(base, skipRecycle)
 }
 
-func resolveLocalSnapshotDeleteEdges(target, parent, child, base string, baseExists bool) *LocalSnapshotDeletePlan {
-	plan := &LocalSnapshotDeletePlan{Target: target, Parent: parent, Child: child, Base: base}
+func resolveLocalSnapshotDeleteEdges(target, parent, base string, children []string, isDiskChain bool) *LocalSnapshotDeletePlan {
+	plan := &LocalSnapshotDeletePlan{Target: target, Parent: parent, Children: children, Base: base}
+
+	// snap_base <- target
 	if filepath.Clean(plan.Parent) == filepath.Clean(plan.Base) {
 		plan.Action = LocalSnapshotCommit
 		return plan
 	}
-	if filepath.Dir(filepath.Clean(parent)) == filepath.Dir(filepath.Clean(target)) {
-		plan.Action = LocalSnapshotRebase
+	if !isDiskChain {
+		if parent != "" && len(children) != 0 {
+			// parent <- target <- child. child rebase to parent
+			plan.Action = LocalSnapshotRebase
+		} else if parent == "" && len(children) != 0 {
+			// target <- child. no parents do convert child
+			plan.Action = LocalSnapshotConvert
+		} else {
+			// parent <- target. no child
+			// remove target
+			plan.Action = LocalSnapshotRemove
+		}
 		return plan
 	}
-	if baseExists {
-		plan.Action = LocalSnapshotRebase
+
+	// image_cache(parent) <- target <- child
+	// target <- child
+	if parent == "" || strings.HasPrefix(filepath.Base(parent), IMAGECACHE_PREFIX) {
+		plan.Action = LocalSnapshotPromote
 		return plan
 	}
-	// The target starts a physical chain segment (for example after a legacy
-	// convert), even when an older database snapshot exists.
-	plan.Action = LocalSnapshotPromote
+
+	// disk chain always has child
+	// parent <- target <- child
+	plan.Action = LocalSnapshotRebase
 	return plan
 }
 
@@ -1006,13 +1033,18 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 			return procutils.NewCommand("rm", "-f", filePath).Run()
 		})
 	}
-	child, err := qemuimg.NewQemuImage(plan.Child)
-	if err != nil {
-		return errors.Wrap(err, "probe snapshot child")
+	var children = make([]*qemuimg.SQemuImage, len(snapshotIds))
+	for i := range plan.Children {
+		child, err := qemuimg.NewQemuImage(plan.Children[i])
+		if err != nil {
+			return errors.Wrap(err, "probe snapshot child")
+		}
+		if encryptInfo.Key != "" {
+			child.SetPassword(encryptInfo.Key)
+		}
+		children[i] = child
 	}
-	if encryptInfo.Key != "" {
-		child.SetPassword(encryptInfo.Key)
-	}
+
 	switch plan.Action {
 	case LocalSnapshotPromote:
 		if fileutils2.Exists(plan.Base) {
@@ -1021,10 +1053,13 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 		if err := procutils.NewCommand("mv", "-f", plan.Target, plan.Base).Run(); err != nil {
 			return errors.Wrap(err, "promote snapshot base")
 		}
-		if err := child.Rebase(plan.Base, true); err != nil {
-			procutils.NewCommand("mv", "-f", plan.Base, plan.Target).Run()
-			return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, plan.Child)
+		for _, child := range children {
+			if err := child.Rebase(plan.Base, true); err != nil {
+				procutils.NewCommand("mv", "-f", plan.Base, plan.Target).Run()
+				return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, child.Path)
+			}
 		}
+
 		return nil
 	case LocalSnapshotCommit:
 		target, err := qemuimg.NewQemuImage(plan.Target)
@@ -1037,12 +1072,33 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 		if err := target.Commit(); err != nil {
 			return wrapSnapshotOperationCheckError(err, "commit snapshot to base", encryptInfo, plan.Base)
 		}
-		if err := child.Rebase(plan.Base, true); err != nil {
-			return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, plan.Child)
+		for _, child := range children {
+			if err := child.Rebase(plan.Base, true); err != nil {
+				return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, child.Path)
+			}
 		}
 	case LocalSnapshotRebase:
-		if err := child.Rebase(plan.Parent, false); err != nil {
-			return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, plan.Child)
+		for _, child := range children {
+			if err := child.Rebase(plan.Parent, false); err != nil {
+				return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, child.Path)
+			}
+		}
+	case LocalSnapshotConvert:
+		for _, child := range children {
+			childTmpPath := fmt.Sprintf("%s.tmp", child.Path)
+			err := child.Convert2Qcow2To(childTmpPath, true, encryptInfo.Key, qemuimg.EncryptFormatLuks, encryptInfo.Alg)
+			if err != nil {
+				if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
+					log.Errorf("failed delete child tmp convert path %s: %s", childTmpPath, e)
+				}
+				return errors.Wrapf(err, "convert child path %s", childTmpPath)
+			}
+			if out, err := procutils.NewCommand("mv", "-f", childTmpPath, child.Path).Output(); err != nil {
+				if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
+					log.Errorf("failed delete child tmp convert path %s: %s", childTmpPath, e)
+				}
+				return errors.Wrapf(err, "failed mv %s to %s: %s", childTmpPath, child.Path, out)
+			}
 		}
 	}
 	if err := procutils.NewCommand("rm", "-f", plan.Target).Run(); err != nil {

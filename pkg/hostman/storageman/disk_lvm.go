@@ -678,8 +678,8 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		}
 		return cleanupLVMSnapshotBase(snapshotDir, diskPath, plan.Parent, lvmlockd)
 	}
-	activatedPaths := make([]string, 0, 3)
-	for _, lvPath := range []string{plan.Parent, plan.Target, plan.Child} {
+	activatedPaths := make([]string, 0)
+	for _, lvPath := range append([]string{plan.Parent, plan.Target}, plan.Children...) {
 		if lvPath != "" {
 			if err := lvmutils.LVActive(lvPath, false, lvmlockd); err != nil {
 				return errors.Wrapf(err, "activate snapshot LV %s", lvPath)
@@ -699,12 +699,16 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		}()
 	}
 
-	child, err := qemuimg.NewQemuImage(plan.Child)
-	if err != nil {
-		return errors.Wrap(err, "probe snapshot child")
-	}
-	if encryptInfo.Key != "" {
-		child.SetPassword(encryptInfo.Key)
+	var children = make([]*qemuimg.SQemuImage, len(snapshotIds))
+	for i := range plan.Children {
+		child, err := qemuimg.NewQemuImage(plan.Children[i])
+		if err != nil {
+			return errors.Wrap(err, "probe snapshot child")
+		}
+		if encryptInfo.Key != "" {
+			child.SetPassword(encryptInfo.Key)
+		}
+		children[i] = child
 	}
 	switch plan.Action {
 	case LocalSnapshotPromote:
@@ -719,9 +723,11 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 			return errors.Wrap(err, "promote snapshot base")
 		}
 		activatedPaths = append(activatedPaths, plan.Base)
-		if err := child.Rebase(plan.Base, true); err != nil {
-			lvmutils.LvRename(vgName, path.Base(plan.Base), path.Base(plan.Target))
-			return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, plan.Child)
+		for _, child := range children {
+			if err := child.Rebase(plan.Base, true); err != nil {
+				lvmutils.LvRename(vgName, path.Base(plan.Base), path.Base(plan.Target))
+				return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, child.Path)
+			}
 		}
 		return nil
 	case LocalSnapshotCommit:
@@ -735,12 +741,24 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		if err := target.Commit(); err != nil {
 			return wrapSnapshotOperationCheckError(err, "commit snapshot to base", encryptInfo, plan.Base)
 		}
-		if err := child.Rebase(plan.Base, true); err != nil {
-			return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, plan.Child)
+		for _, child := range children {
+			if err := child.Rebase(plan.Base, true); err != nil {
+				return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, child.Path)
+			}
 		}
 	case LocalSnapshotRebase:
-		if err := child.Rebase(plan.Parent, false); err != nil {
-			return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, plan.Child)
+		for _, child := range children {
+			if err := child.Rebase(plan.Parent, false); err != nil {
+				return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, child.Path)
+			}
+		}
+	case LocalSnapshotConvert:
+		for _, child := range children {
+			vg := filepath.Base(snapshotDir)
+			lv := filepath.Base(child.Path)
+			if err := ConvertLVMDisk(vg, lv, encryptInfo); err != nil {
+				return errors.Wrapf(err, "convert LV %s/%s ", vg, lv)
+			}
 		}
 	}
 	if err := lvmutils.LvRemove(plan.Target); err != nil {
@@ -846,6 +864,87 @@ func (d *SLVMDisk) ConvertSnapshot(convertSnapshot string, encryptInfo apis.SEnc
 func (d *SLVMDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshot string, encryptInfo apis.SEncryptInfo) (func() error, error) {
 	convertSnapshotName := d.GetSnapshotName(convertSnapshot)
 	return ConvertLVMDiskNeedReload(d.Storage.GetPath(), convertSnapshotName, encryptInfo)
+}
+
+func (d *SLVMDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEncryptInfo) error {
+	if len(snapshotPaths) == 0 {
+		return nil
+	}
+	activatedPaths := make([]string, 0)
+	for _, lvPath := range snapshotPaths {
+		if lvPath != "" {
+			if err := lvmutils.LVActive(lvPath, false, d.GetStorage().Lvmlockd()); err != nil {
+				return errors.Wrapf(err, "activate snapshot LV %s", lvPath)
+			}
+			activatedPaths = append(activatedPaths, lvPath)
+		}
+	}
+	if d.GetStorage().Lvmlockd() {
+		defer func() {
+			for _, lvPath := range activatedPaths {
+				if fileutils2.Exists(lvPath) {
+					if err := lvmutils.LVActive(lvPath, true, false); err != nil {
+						log.Errorf("restore shared activation for %s: %s", lvPath, err)
+					}
+				}
+			}
+		}()
+	}
+
+	vg := d.GetStorage().GetPath()
+	for i := range snapshotPaths {
+		lv := filepath.Base(snapshotPaths[i])
+		if err := ConvertLVMDisk(vg, lv, encryptInfo); err != nil {
+			return errors.Wrapf(err, "convert LV %s/%s ", vg, lv)
+		}
+	}
+	return nil
+}
+
+func (d *SLVMDisk) RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error {
+	if len(children) == 0 {
+		return nil
+	}
+	activatedPaths := make([]string, 0)
+	for _, lvPath := range append([]string{parent}, children...) {
+		if lvPath != "" {
+			if err := lvmutils.LVActive(lvPath, false, d.GetStorage().Lvmlockd()); err != nil {
+				return errors.Wrapf(err, "activate snapshot LV %s", lvPath)
+			}
+			activatedPaths = append(activatedPaths, lvPath)
+		}
+	}
+
+	if d.GetStorage().Lvmlockd() {
+		defer func() {
+			for _, lvPath := range activatedPaths {
+				if fileutils2.Exists(lvPath) {
+					if err := lvmutils.LVActive(lvPath, true, false); err != nil {
+						log.Errorf("restore shared activation for %s: %s", lvPath, err)
+					}
+				}
+			}
+		}()
+	}
+
+	var childrenImg = make([]*qemuimg.SQemuImage, len(children))
+	for i := range children {
+		child, err := qemuimg.NewQemuImage(children[i])
+		if err != nil {
+			return errors.Wrap(err, "probe snapshot child")
+		}
+		if encryptInfo.Key != "" {
+			child.SetPassword(encryptInfo.Key)
+		}
+		childrenImg[i] = child
+	}
+	for _, child := range childrenImg {
+		if err := child.Rebase(parent, unsafeRebase); err != nil {
+			return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, child.Path)
+		}
+		log.Infof("rebased snapshot %s to parent %s", child.Path, parent)
+	}
+	return nil
 }
 
 func (d *SLVMDisk) DoDeleteSnapshot(snapshotId string) error {

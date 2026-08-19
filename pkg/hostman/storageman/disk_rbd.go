@@ -263,6 +263,14 @@ func (d *SRBDDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, enc
 	return nil, nil
 }
 
+func (d *SRBDDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEncryptInfo) error {
+	return nil
+}
+
+func (d *SRBDDisk) RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error {
+	return nil
+}
+
 func (d *SRBDDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	storage := d.Storage.(*SRbdStorage)
 	return storage.deleteSnapshot(d.Id, snapshotId)

@@ -78,6 +78,8 @@ type IDisk interface {
 	DeployGuestFs(diskInfo *deployapi.DiskInfo, guestDesc *desc.SGuestDesc,
 		deployInfo *deployapi.DeployInfo) (jsonutils.JSONObject, error)
 	ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, encryptInfo apis.SEncryptInfo) (func() error, error)
+	ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEncryptInfo) error
+	RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error
 
 	// GetBackupDir() string
 	DiskBackup(ctx context.Context, params interface{}) (jsonutils.JSONObject, error)
@@ -149,6 +151,14 @@ func (d *SBaseDisk) CreateSnapshot(snapshotId string, encryptKey string, encForm
 
 func (d *SBaseDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, encryptInfo apis.SEncryptInfo) (func() error, error) {
 	return nil, errors.Errorf("unsupported operation")
+}
+
+func (d *SBaseDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEncryptInfo) error {
+	return errors.Errorf("unsupported operation")
+}
+
+func (d *SBaseDisk) RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error {
+	return errors.Errorf("unsupported operation")
 }
 
 func (d *SBaseDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {

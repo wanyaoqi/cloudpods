@@ -549,6 +549,61 @@ func (d *SLocalDisk) ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, e
 	return nil, nil
 }
 
+func (d *SLocalDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEncryptInfo) error {
+	var children = make([]*qemuimg.SQemuImage, len(snapshotPaths))
+	for i := range snapshotPaths {
+		child, err := qemuimg.NewQemuImage(snapshotPaths[i])
+		if err != nil {
+			return errors.Wrap(err, "probe snapshot child")
+		}
+		if encryptInfo.Key != "" {
+			child.SetPassword(encryptInfo.Key)
+		}
+		children[i] = child
+	}
+	for _, child := range children {
+		childTmpPath := fmt.Sprintf("%s.tmp", child.Path)
+		err := child.Convert2Qcow2To(childTmpPath, true, encryptInfo.Key, qemuimg.EncryptFormatLuks, encryptInfo.Alg)
+		if err != nil {
+			if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
+				log.Errorf("failed delete child tmp convert path %s: %s", childTmpPath, e)
+			}
+			return errors.Wrapf(err, "convert child path %s", childTmpPath)
+		}
+		if out, err := procutils.NewCommand("mv", "-f", childTmpPath, child.Path).Output(); err != nil {
+			if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
+				log.Errorf("failed delete child tmp convert path %s: %s", childTmpPath, e)
+			}
+			return errors.Wrapf(err, "failed mv %s to %s: %s", childTmpPath, child.Path, out)
+		}
+	}
+	return nil
+}
+
+func (d *SLocalDisk) RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error {
+	if len(children) == 0 {
+		return nil
+	}
+	var childrenImg = make([]*qemuimg.SQemuImage, len(children))
+	for i := range children {
+		child, err := qemuimg.NewQemuImage(children[i])
+		if err != nil {
+			return errors.Wrap(err, "probe snapshot child")
+		}
+		if encryptInfo.Key != "" {
+			child.SetPassword(encryptInfo.Key)
+		}
+		childrenImg[i] = child
+	}
+	for _, child := range childrenImg {
+		if err := child.Rebase(parent, unsafeRebase); err != nil {
+			return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, child.Path)
+		}
+		log.Infof("rebased snapshot %s to parent %s", child.Path, parent)
+	}
+	return nil
+}
+
 func (d *SLocalDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	snapshotDir := d.GetSnapshotDir()
 	return DeleteLocalSnapshot(snapshotDir, snapshotId, snapshotIds, d.getPath(), encryptInfo)
