@@ -93,7 +93,7 @@ func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
 
 	plan, err := ResolveLocalSnapshotDeletePlan(dir, "target", []string{"disk_snap_base", "snap_target", "snap_child"}, disk,
 		&snapshotImageDriverMock{backing: map[string]string{disk: child, child: target, target: base, base: ""}})
-	if err != nil || plan.Action != LocalSnapshotCommit || plan.Parent != base || plan.Child != child {
+	if err != nil || plan.Action != LocalSnapshotCommit || plan.Parent != base || len(plan.Children) != 1 || plan.Children[0] != child {
 		t.Fatalf("unexpected commit plan: %#v, %v", plan, err)
 	}
 
@@ -119,6 +119,57 @@ func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
 		&snapshotImageDriverMock{backing: map[string]string{disk: base, base: ""}})
 	if err != nil || missing.Action != LocalSnapshotRemove {
 		t.Fatalf("unexpected missing-target plan: %#v, %v", missing, err)
+	}
+}
+
+func TestResolveLocalSnapshotDeletePlanMultipleChains(t *testing.T) {
+	dir := t.TempDir()
+	disk := filepath.Join(dir, "disk")
+	base := filepath.Join(dir, "disk_snap_base")
+	diskSnapshot := filepath.Join(dir, "snap_disk")
+	target := filepath.Join(dir, "snap_target")
+	child1 := filepath.Join(dir, "snap_child1")
+	child2 := filepath.Join(dir, "snap_child2")
+	makeSnapshotFiles(t, disk, base, diskSnapshot, target, child1, child2)
+
+	plan, err := ResolveLocalSnapshotDeletePlan(dir, "target",
+		[]string{"disk_snap_base", "snap_disk", "snap_target", "snap_child1", "snap_child2"}, disk,
+		&snapshotImageDriverMock{backing: map[string]string{
+			disk: diskSnapshot, diskSnapshot: base, base: "",
+			target: base, child1: target, child2: target,
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Action != LocalSnapshotRebase || plan.Parent != base || len(plan.Children) != 2 {
+		t.Fatalf("unexpected disconnected multi-child plan: %#v", plan)
+	}
+	children := map[string]bool{}
+	for _, child := range plan.Children {
+		children[child] = true
+	}
+	if !children[child1] || !children[child2] {
+		t.Fatalf("missing children in plan: %#v", plan)
+	}
+}
+
+func TestResolveLocalSnapshotDeletePlanConvertsRootedNonDiskChain(t *testing.T) {
+	dir := t.TempDir()
+	disk := filepath.Join(dir, "disk")
+	diskSnapshot := filepath.Join(dir, "snap_disk")
+	target := filepath.Join(dir, "snap_target")
+	child := filepath.Join(dir, "snap_child")
+	makeSnapshotFiles(t, disk, diskSnapshot, target, child)
+
+	plan, err := ResolveLocalSnapshotDeletePlan(dir, "target", []string{"snap_disk", "snap_target", "snap_child"}, disk,
+		&snapshotImageDriverMock{backing: map[string]string{
+			disk: diskSnapshot, diskSnapshot: "", target: "", child: target,
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Action != LocalSnapshotConvert || len(plan.Children) != 1 || plan.Children[0] != child {
+		t.Fatalf("unexpected convert plan: %#v", plan)
 	}
 }
 
@@ -155,29 +206,34 @@ func TestResolveLocalSnapshotDeleteEdges(t *testing.T) {
 	child := filepath.Join(dir, "s3")
 	base := filepath.Join(dir, "disk_snap_base")
 
-	plan := resolveLocalSnapshotDeleteEdges(target, parent, child, base, false)
-	if plan.Action != LocalSnapshotRebase || plan.Parent != parent || plan.Child != child {
+	plan := resolveLocalSnapshotDeleteEdges(target, parent, base, []string{child}, false)
+	if plan.Action != LocalSnapshotRebase || plan.Parent != parent || len(plan.Children) != 1 || plan.Children[0] != child {
 		t.Fatalf("unexpected disconnected-chain plan: %#v", plan)
 	}
 
-	plan = resolveLocalSnapshotDeleteEdges(target, base, child, base, true)
+	plan = resolveLocalSnapshotDeleteEdges(target, base, base, []string{child}, true)
 	if plan.Action != LocalSnapshotCommit || plan.Base != base {
 		t.Fatalf("expected base commit, got %#v", plan)
 	}
 
 	otherBase := filepath.Join(dir, "other-disk_snap_base")
-	plan = resolveLocalSnapshotDeleteEdges(target, otherBase, child, base, true)
+	plan = resolveLocalSnapshotDeleteEdges(target, otherBase, base, []string{child}, true)
 	if plan.Action == LocalSnapshotCommit {
 		t.Fatalf("must not commit into another disk's base: %#v", plan)
 	}
 
-	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", child, base, false)
+	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", base, []string{child}, true)
 	if plan.Action != LocalSnapshotPromote {
-		t.Fatalf("expected segment-head promotion, got %#v", plan)
+		t.Fatalf("expected image-cache promotion, got %#v", plan)
 	}
 
-	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", child, base, true)
-	if plan.Action != LocalSnapshotRebase {
-		t.Fatalf("expected safe rebase when another chain owns base, got %#v", plan)
+	plan = resolveLocalSnapshotDeleteEdges(target, "", base, []string{child}, false)
+	if plan.Action != LocalSnapshotConvert {
+		t.Fatalf("expected convert without parent, got %#v", plan)
+	}
+
+	plan = resolveLocalSnapshotDeleteEdges(target, parent, base, []string{"child-1", "child-2"}, true)
+	if plan.Action != LocalSnapshotRebase || len(plan.Children) != 2 {
+		t.Fatalf("expected multi-child rebase, got %#v", plan)
 	}
 }

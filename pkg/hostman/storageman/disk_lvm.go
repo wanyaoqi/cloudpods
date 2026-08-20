@@ -699,7 +699,7 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		}()
 	}
 
-	var children = make([]*qemuimg.SQemuImage, len(snapshotIds))
+	var children = make([]*qemuimg.SQemuImage, len(plan.Children))
 	for i := range plan.Children {
 		child, err := qemuimg.NewQemuImage(plan.Children[i])
 		if err != nil {

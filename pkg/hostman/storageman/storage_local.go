@@ -880,9 +880,6 @@ func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds 
 			children = append(children, candidate)
 		}
 	}
-	if len(children) == 0 {
-		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: parent}, nil
-	}
 	base := path.Join(snapshotDir, snapshotBaseName(diskPath))
 	var targetInDiskChain = false
 	for _, chain := range graph.chains {
@@ -900,6 +897,9 @@ func ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId string, snapshotIds 
 		break
 	}
 
+	if len(children) == 0 && targetInDiskChain {
+		return &LocalSnapshotDeletePlan{Action: LocalSnapshotRemove, Target: target, Parent: parent}, nil
+	}
 	return resolveLocalSnapshotDeleteEdges(target, parent, base, children, targetInDiskChain), nil
 }
 
@@ -939,7 +939,7 @@ func resolveLocalSnapshotDeleteEdges(target, parent, base string, children []str
 	plan := &LocalSnapshotDeletePlan{Target: target, Parent: parent, Children: children, Base: base}
 
 	// snap_base <- target
-	if filepath.Clean(plan.Parent) == filepath.Clean(plan.Base) {
+	if isDiskChain && filepath.Clean(plan.Parent) == filepath.Clean(plan.Base) {
 		plan.Action = LocalSnapshotCommit
 		return plan
 	}
@@ -1033,7 +1033,7 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 			return procutils.NewCommand("rm", "-f", filePath).Run()
 		})
 	}
-	var children = make([]*qemuimg.SQemuImage, len(snapshotIds))
+	var children = make([]*qemuimg.SQemuImage, len(plan.Children))
 	for i := range plan.Children {
 		child, err := qemuimg.NewQemuImage(plan.Children[i])
 		if err != nil {

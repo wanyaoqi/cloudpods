@@ -2292,6 +2292,7 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 		s.deleteInactiveSnapshot()
 		return
 	}
+	s.onBlockJobComplete = nil
 	s.Monitor.GetNamedBlockNodes(func(nodes []monitor.QemuNamedBlockNode, err error) {
 		if err != nil {
 			s.taskFailed(err.Error())
@@ -2336,11 +2337,19 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 		}
 		parentNode := nodeForPath(plan.Parent)
 		targetNode := nodeForPath(plan.Target)
+		if plan.Action == storageman.LocalSnapshotConvert && childNode == "" {
+			if err := s.disk.ConvertSnapshots(plan.Children, s.encryptInfo); err != nil {
+				s.taskFailed(fmt.Sprintf("ConvertSnapshots %v failed: %s", plan.Children, err))
+				return
+			}
+			s.onStreamDiskComplete()
+			return
+		}
 		if childNode == "" && targetNode == "" {
 			s.deleteInactiveSnapshot()
 			return
 		}
-		if childNode == "" || targetNode == "" || (plan.Action != storageman.LocalSnapshotPromote && parentNode == "") {
+		if childNode == "" || targetNode == "" || (plan.Action != storageman.LocalSnapshotPromote && plan.Action != storageman.LocalSnapshotConvert && parentNode == "") {
 			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
 			return
 		}
@@ -2367,7 +2376,7 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 					children = append(children, plan.Children[i])
 				}
 				// force rebase other child
-				if err := s.disk.RebaseDiskSnapshots(plan.Parent, plan.Children, s.encryptInfo, true); err != nil {
+				if err := s.disk.RebaseDiskSnapshots(plan.Parent, children, s.encryptInfo, true); err != nil {
 					log.Errorf("RebaseDiskSnapshots %v to %s failed: %s", children, plan.Parent, err)
 					return errors.Wrap(err, "RebaseDiskSnapshots")
 				}
