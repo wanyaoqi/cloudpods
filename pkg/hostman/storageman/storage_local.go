@@ -836,10 +836,12 @@ func loadLocalSnapshotGraph(snapshotDir, diskPath string, snapshotIds []string, 
 
 func logLocalSnapshotGraph(diskPath string, snapshotIds []string, graph *localSnapshotGraph) {
 	chains := make([]string, 0, len(graph.chains))
+	step := `|
+v`
 	for i, chain := range graph.chains {
-		chains = append(chains, fmt.Sprintf("chain[%d]=%s", i, strings.Join(chain, " -> ")))
+		chains = append(chains, fmt.Sprintf("chain[%d]=\n%s\n", i, strings.Join(chain, step)))
 	}
-	log.Infof("local snapshot backing graph disk=%s snapshots=%v: %s", diskPath, snapshotIds, strings.Join(chains, "; "))
+	log.Infof("local snapshot backing graph disk=%s \nsnapshots=%v\nchains: %s\nchain_printed", diskPath, snapshotIds, strings.Join(chains, "\n"))
 }
 
 // Finds target's physical parent and children

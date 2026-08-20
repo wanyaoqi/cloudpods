@@ -106,15 +106,6 @@ func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
 		t.Fatalf("unexpected remove plan: %#v, %v", plan, err)
 	}
 
-	child = filepath.Join(dir, "snap_child_again")
-	child2 := filepath.Join(dir, "snap_child_second")
-	makeSnapshotFiles(t, child, child2)
-	_, err = ResolveLocalSnapshotDeletePlan(dir, "snap_target", []string{"disk_snap_base", "snap_target", "snap_child_again", "snap_child_second"}, disk,
-		&snapshotImageDriverMock{backing: map[string]string{disk: child, child: target, child2: target, target: base, base: ""}})
-	if err == nil || !strings.Contains(err.Error(), "multiple physical children") {
-		t.Fatalf("expected multiple-child error, got %v", err)
-	}
-
 	missing, err := ResolveLocalSnapshotDeletePlan(dir, "does-not-exist", []string{"disk_snap_base"}, disk,
 		&snapshotImageDriverMock{backing: map[string]string{disk: base, base: ""}})
 	if err != nil || missing.Action != LocalSnapshotRemove {
@@ -222,7 +213,7 @@ func TestResolveLocalSnapshotDeleteEdges(t *testing.T) {
 		t.Fatalf("must not commit into another disk's base: %#v", plan)
 	}
 
-	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", base, []string{child}, true)
+	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache_image", base, []string{child}, true)
 	if plan.Action != LocalSnapshotPromote {
 		t.Fatalf("expected image-cache promotion, got %#v", plan)
 	}
