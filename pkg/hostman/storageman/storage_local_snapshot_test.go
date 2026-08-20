@@ -101,7 +101,7 @@ func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, err = ResolveLocalSnapshotDeletePlan(dir, "snap_target", []string{"disk_snap_base", "snap_target"}, disk,
-		&snapshotImageDriverMock{backing: map[string]string{disk: target, target: base, base: ""}})
+		&snapshotImageDriverMock{backing: map[string]string{disk: base, target: base, base: ""}})
 	if err != nil || plan.Action != LocalSnapshotRemove {
 		t.Fatalf("unexpected remove plan: %#v, %v", plan, err)
 	}
@@ -222,7 +222,7 @@ func TestResolveLocalSnapshotDeleteEdges(t *testing.T) {
 		t.Fatalf("must not commit into another disk's base: %#v", plan)
 	}
 
-	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", base, []string{child}, false)
+	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", base, []string{child}, true)
 	if plan.Action != LocalSnapshotPromote {
 		t.Fatalf("expected image-cache promotion, got %#v", plan)
 	}
