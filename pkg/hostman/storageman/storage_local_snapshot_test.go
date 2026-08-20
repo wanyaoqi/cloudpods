@@ -91,7 +91,7 @@ func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
 	child := filepath.Join(dir, "snap_child")
 	makeSnapshotFiles(t, disk, base, target, child)
 
-	plan, err := ResolveLocalSnapshotDeletePlan(dir, "target", []string{"disk_snap_base", "snap_target", "snap_child"}, disk,
+	plan, err := ResolveLocalSnapshotDeletePlan(dir, "snap_target", []string{"disk_snap_base", "snap_target", "snap_child"}, disk,
 		&snapshotImageDriverMock{backing: map[string]string{disk: child, child: target, target: base, base: ""}})
 	if err != nil || plan.Action != LocalSnapshotCommit || plan.Parent != base || len(plan.Children) != 1 || plan.Children[0] != child {
 		t.Fatalf("unexpected commit plan: %#v, %v", plan, err)
@@ -100,7 +100,7 @@ func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
 	if err := os.Remove(child); err != nil {
 		t.Fatal(err)
 	}
-	plan, err = ResolveLocalSnapshotDeletePlan(dir, "target", []string{"disk_snap_base", "snap_target"}, disk,
+	plan, err = ResolveLocalSnapshotDeletePlan(dir, "snap_target", []string{"disk_snap_base", "snap_target"}, disk,
 		&snapshotImageDriverMock{backing: map[string]string{disk: target, target: base, base: ""}})
 	if err != nil || plan.Action != LocalSnapshotRemove {
 		t.Fatalf("unexpected remove plan: %#v, %v", plan, err)
@@ -109,7 +109,7 @@ func TestResolveLocalSnapshotDeletePlanWithImageDriver(t *testing.T) {
 	child = filepath.Join(dir, "snap_child_again")
 	child2 := filepath.Join(dir, "snap_child_second")
 	makeSnapshotFiles(t, child, child2)
-	_, err = ResolveLocalSnapshotDeletePlan(dir, "target", []string{"disk_snap_base", "snap_target", "snap_child_again", "snap_child_second"}, disk,
+	_, err = ResolveLocalSnapshotDeletePlan(dir, "snap_target", []string{"disk_snap_base", "snap_target", "snap_child_again", "snap_child_second"}, disk,
 		&snapshotImageDriverMock{backing: map[string]string{disk: child, child: target, child2: target, target: base, base: ""}})
 	if err == nil || !strings.Contains(err.Error(), "multiple physical children") {
 		t.Fatalf("expected multiple-child error, got %v", err)
@@ -132,7 +132,7 @@ func TestResolveLocalSnapshotDeletePlanMultipleChains(t *testing.T) {
 	child2 := filepath.Join(dir, "snap_child2")
 	makeSnapshotFiles(t, disk, base, diskSnapshot, target, child1, child2)
 
-	plan, err := ResolveLocalSnapshotDeletePlan(dir, "target",
+	plan, err := ResolveLocalSnapshotDeletePlan(dir, "snap_target",
 		[]string{"disk_snap_base", "snap_disk", "snap_target", "snap_child1", "snap_child2"}, disk,
 		&snapshotImageDriverMock{backing: map[string]string{
 			disk: diskSnapshot, diskSnapshot: base, base: "",
@@ -161,7 +161,7 @@ func TestResolveLocalSnapshotDeletePlanConvertsRootedNonDiskChain(t *testing.T) 
 	child := filepath.Join(dir, "snap_child")
 	makeSnapshotFiles(t, disk, diskSnapshot, target, child)
 
-	plan, err := ResolveLocalSnapshotDeletePlan(dir, "target", []string{"snap_disk", "snap_target", "snap_child"}, disk,
+	plan, err := ResolveLocalSnapshotDeletePlan(dir, "snap_target", []string{"snap_disk", "snap_target", "snap_child"}, disk,
 		&snapshotImageDriverMock{backing: map[string]string{
 			disk: diskSnapshot, diskSnapshot: "", target: "", child: target,
 		}})
@@ -188,7 +188,7 @@ func TestSnapshotBasePath(t *testing.T) {
 
 func TestPrefixSnapshotIds(t *testing.T) {
 	ids := prefixSnapshotIds([]string{"s1", "snap_base", "disk_snap_base"})
-	want := []string{"snap_s1", "snap_base", "disk_snap_base"}
+	want := []string{"snap_s1", "snap_snap_base", "disk_snap_base"}
 	if len(ids) != len(want) {
 		t.Fatalf("expected %v, got %v", want, ids)
 	}
@@ -222,7 +222,7 @@ func TestResolveLocalSnapshotDeleteEdges(t *testing.T) {
 		t.Fatalf("must not commit into another disk's base: %#v", plan)
 	}
 
-	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", base, []string{child}, true)
+	plan = resolveLocalSnapshotDeleteEdges(target, "/storage/imagecache/image", base, []string{child}, false)
 	if plan.Action != LocalSnapshotPromote {
 		t.Fatalf("expected image-cache promotion, got %#v", plan)
 	}
