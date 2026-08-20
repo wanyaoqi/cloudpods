@@ -945,6 +945,7 @@ func (m *QmpMonitor) BlockStreamToBase(device, base string, callback StringCallb
 		"base-node": base,
 		"speed":     5 * 100 * 1024 * 1024,
 	}
+	log.Infof("qmp block-stream device=%s base-node=%s", device, base)
 	m.Query(&Command{Execute: "block-stream", Args: args}, func(res *Response) {
 		callback(m.actionResult(res))
 	})
@@ -952,11 +953,12 @@ func (m *QmpMonitor) BlockStreamToBase(device, base string, callback StringCallb
 
 func (m *QmpMonitor) BlockCommit(device, top, base string, callback StringCallback) {
 	args := map[string]interface{}{
-		"device":   device,
-		"top-node": top,
+		"device":    device,
+		"top-node":  top,
 		"base-node": base,
-		"speed":    5 * 100 * 1024 * 1024,
+		"speed":     5 * 100 * 1024 * 1024,
 	}
+	log.Infof("qmp block-commit device=%s top-node=%s base-node=%s", device, top, base)
 	m.Query(&Command{Execute: "block-commit", Args: args}, func(res *Response) {
 		callback(m.actionResult(res))
 	})

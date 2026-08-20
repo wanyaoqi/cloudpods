@@ -563,6 +563,7 @@ func (d *SLocalDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.S
 	}
 	for _, child := range children {
 		childTmpPath := fmt.Sprintf("%s.tmp", child.Path)
+		log.Infof("convert local snapshot source=%s target=%s", child.Path, childTmpPath)
 		err := child.Convert2Qcow2To(childTmpPath, true, encryptInfo.Key, qemuimg.EncryptFormatLuks, encryptInfo.Alg)
 		if err != nil {
 			if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
@@ -570,6 +571,7 @@ func (d *SLocalDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.S
 			}
 			return errors.Wrapf(err, "convert child path %s", childTmpPath)
 		}
+		log.Infof("convert local snapshot mv source=%s target=%s", childTmpPath, child.Path)
 		if out, err := procutils.NewCommand("mv", "-f", childTmpPath, child.Path).Output(); err != nil {
 			if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
 				log.Errorf("failed delete child tmp convert path %s: %s", childTmpPath, e)

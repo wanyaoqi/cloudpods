@@ -719,12 +719,15 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		if utils.IsInStringArray(path.Base(plan.Base), lvNames) {
 			return errors.Errorf("snapshot base %s already exists", plan.Base)
 		}
+		log.Infof("delete LVM snapshot rename promote source=%s target=%s", plan.Target, plan.Base)
 		if err := lvmutils.LvRename(vgName, path.Base(plan.Target), path.Base(plan.Base)); err != nil {
 			return errors.Wrap(err, "promote snapshot base")
 		}
 		activatedPaths = append(activatedPaths, plan.Base)
 		for _, child := range children {
+			log.Infof("delete LVM snapshot qemu-img rebase child=%s base=%s unsafe=true", child.Path, plan.Base)
 			if err := child.Rebase(plan.Base, true); err != nil {
+				log.Infof("delete LVM snapshot rename rollback source=%s target=%s", plan.Base, plan.Target)
 				lvmutils.LvRename(vgName, path.Base(plan.Base), path.Base(plan.Target))
 				return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, child.Path)
 			}
@@ -738,16 +741,19 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		if encryptInfo.Key != "" {
 			target.SetPassword(encryptInfo.Key)
 		}
+		log.Infof("delete LVM snapshot qemu-img commit target=%s base=%s", plan.Target, plan.Base)
 		if err := target.Commit(); err != nil {
 			return wrapSnapshotOperationCheckError(err, "commit snapshot to base", encryptInfo, plan.Base)
 		}
 		for _, child := range children {
+			log.Infof("delete LVM snapshot qemu-img rebase child=%s base=%s unsafe=true", child.Path, plan.Base)
 			if err := child.Rebase(plan.Base, true); err != nil {
 				return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, child.Path)
 			}
 		}
 	case LocalSnapshotRebase:
 		for _, child := range children {
+			log.Infof("delete LVM snapshot qemu-img rebase child=%s base=%s unsafe=false", child.Path, plan.Parent)
 			if err := child.Rebase(plan.Parent, false); err != nil {
 				return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, child.Path)
 			}
@@ -939,6 +945,7 @@ func (d *SLVMDisk) RebaseDiskSnapshots(parent string, children []string, encrypt
 		childrenImg[i] = child
 	}
 	for _, child := range childrenImg {
+		log.Infof("rebase LVM snapshot child=%s base=%s unsafe=%t", child.Path, parent, unsafeRebase)
 		if err := child.Rebase(parent, unsafeRebase); err != nil {
 			return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, child.Path)
 		}

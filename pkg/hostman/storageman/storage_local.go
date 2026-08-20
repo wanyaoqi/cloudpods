@@ -1050,10 +1050,12 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 		if fileutils2.Exists(plan.Base) {
 			return errors.Errorf("snapshot base %s already exists", plan.Base)
 		}
+		log.Infof("delete snapshot mv promote target=%s base=%s", plan.Target, plan.Base)
 		if err := procutils.NewCommand("mv", "-f", plan.Target, plan.Base).Run(); err != nil {
 			return errors.Wrap(err, "promote snapshot base")
 		}
 		for _, child := range children {
+			log.Infof("delete snapshot qemu-img rebase child=%s base=%s unsafe=true", child.Path, plan.Base)
 			if err := child.Rebase(plan.Base, true); err != nil {
 				procutils.NewCommand("mv", "-f", plan.Base, plan.Target).Run()
 				return wrapSnapshotOperationCheckError(err, "rebase child to promoted snapshot base", encryptInfo, child.Path)
@@ -1069,16 +1071,19 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 		if encryptInfo.Key != "" {
 			target.SetPassword(encryptInfo.Key)
 		}
+		log.Infof("delete snapshot qemu-img commit target=%s base=%s", plan.Target, plan.Base)
 		if err := target.Commit(); err != nil {
 			return wrapSnapshotOperationCheckError(err, "commit snapshot to base", encryptInfo, plan.Base)
 		}
 		for _, child := range children {
+			log.Infof("delete snapshot qemu-img rebase child=%s base=%s unsafe=true", child.Path, plan.Base)
 			if err := child.Rebase(plan.Base, true); err != nil {
 				return wrapSnapshotOperationCheckError(err, "rebase child after commit", encryptInfo, child.Path)
 			}
 		}
 	case LocalSnapshotRebase:
 		for _, child := range children {
+			log.Infof("delete snapshot qemu-img rebase child=%s base=%s unsafe=false", child.Path, plan.Parent)
 			if err := child.Rebase(plan.Parent, false); err != nil {
 				return wrapSnapshotOperationCheckError(err, "rebase snapshot child", encryptInfo, child.Path)
 			}
@@ -1086,6 +1091,7 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 	case LocalSnapshotConvert:
 		for _, child := range children {
 			childTmpPath := fmt.Sprintf("%s.tmp", child.Path)
+			log.Infof("delete snapshot qemu-img convert source=%s target=%s", child.Path, childTmpPath)
 			err := child.Convert2Qcow2To(childTmpPath, true, encryptInfo.Key, qemuimg.EncryptFormatLuks, encryptInfo.Alg)
 			if err != nil {
 				if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
@@ -1093,6 +1099,7 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 				}
 				return errors.Wrapf(err, "convert child path %s", childTmpPath)
 			}
+			log.Infof("delete snapshot mv converted source=%s target=%s", childTmpPath, child.Path)
 			if out, err := procutils.NewCommand("mv", "-f", childTmpPath, child.Path).Output(); err != nil {
 				if e := procutils.NewCommand("rm", "-f", childTmpPath).Run(); e != nil {
 					log.Errorf("failed delete child tmp convert path %s: %s", childTmpPath, e)
