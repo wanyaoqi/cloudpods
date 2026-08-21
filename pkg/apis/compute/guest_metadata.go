@@ -25,7 +25,7 @@ const (
 
 	SSH_PORT = "__ssh_port"
 
-	DEAMON_GUEST_MANUAL_STOP = "__deamon_guest_manual_stop"
+	DAEMON_GUEST_MANUAL_STOP = "daemon_guest_manual_stop"
 )
 
 const BASE_INSTANCE_SNAPSHOT_ID = "__base_instance_snapshot_id"

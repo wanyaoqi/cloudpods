@@ -238,7 +238,7 @@ func (s *SKVMGuestInstance) isDisableAutoMergeSnapshots() bool {
 }
 
 func (s *SKVMGuestInstance) isDaemonGuestManualStop() bool {
-	return s.Desc.Metadata[api.DEAMON_GUEST_MANUAL_STOP] == "true"
+	return s.Desc.Metadata[api.DAEMON_GUEST_MANUAL_STOP] == "true"
 }
 
 func (s *SKVMGuestInstance) getMachine() string {

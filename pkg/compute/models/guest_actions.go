@@ -1107,7 +1107,7 @@ func (self *SGuest) PerformStart(
 		}
 		if self.isAllDisksReady() {
 			if self.IsDaemon.IsTrue() {
-				self.SetMetadata(ctx, api.DEAMON_GUEST_MANUAL_STOP, "", userCred)
+				self.SetMetadata(ctx, api.DAEMON_GUEST_MANUAL_STOP, "", userCred)
 			}
 			kwargs := jsonutils.Marshal(input).(*jsonutils.JSONDict)
 			err := self.GetDriver().PerformStart(ctx, userCred, self, kwargs, "")
@@ -3334,7 +3334,7 @@ func (self *SGuest) PerformStatus(ctx context.Context, userCred mcclient.TokenCr
 func (self *SGuest) PerformStop(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject,
 	input api.ServerStopInput) (jsonutils.JSONObject, error) {
 	if self.IsDaemon.IsTrue() {
-		self.SetMetadata(ctx, api.DEAMON_GUEST_MANUAL_STOP, true, userCred)
+		self.SetMetadata(ctx, api.DAEMON_GUEST_MANUAL_STOP, true, userCred)
 	}
 
 	// XXX if is force, force stop guest

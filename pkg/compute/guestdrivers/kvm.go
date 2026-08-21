@@ -254,7 +254,7 @@ func (self *SKVMGuestDriver) RequestStopOnHost(ctx context.Context, guest *model
 	}
 	body.Add(jsonutils.NewInt(timeout), "timeout")
 	if guest.IsDaemon.IsTrue() {
-		val := guest.GetMetadata(ctx, api.DEAMON_GUEST_MANUAL_STOP, task.GetUserCred())
+		val := guest.GetMetadata(ctx, api.DAEMON_GUEST_MANUAL_STOP, task.GetUserCred())
 		if len(val) > 0 {
 			params.Set("daemon_guest_manual_stop", jsonutils.JSONTrue)
 		}
