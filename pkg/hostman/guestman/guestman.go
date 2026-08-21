@@ -990,8 +990,12 @@ func (m *SGuestManager) GuestStart(ctx context.Context, userCred mcclient.TokenC
 	}
 }
 
-func (m *SGuestManager) GuestStop(ctx context.Context, sid string, timeout int64) error {
+func (m *SGuestManager) GuestStop(ctx context.Context, sid string, timeout int64, daemonGuestManualStop bool) error {
 	if guest, ok := m.GetServer(sid); ok {
+		if daemonGuestManualStop {
+			guest.Desc.Metadata[compute.DEAMON_GUEST_MANUAL_STOP] = "true"
+			guest.SaveDesc(guest.Desc)
+		}
 		hostutils.DelayTaskWithoutReqctx(ctx, guest.ExecStopTask, timeout)
 		return nil
 	} else {
