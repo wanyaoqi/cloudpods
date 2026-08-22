@@ -960,7 +960,9 @@ func resolveLocalSnapshotDeleteEdges(target, parent, base string, children []str
 
 	// image_cache(parent) <- target <- child
 	// target <- child
-	if parent == "" || strings.HasPrefix(filepath.Base(parent), IMAGECACHE_PREFIX) {
+	if parent == "" ||
+		strings.HasPrefix(filepath.Base(parent), IMAGECACHE_PREFIX) ||
+		filepath.Dir(parent) != filepath.Dir(target) {
 		plan.Action = LocalSnapshotPromote
 		return plan
 	}
