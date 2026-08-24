@@ -2288,6 +2288,8 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 		s.taskFailed(err.Error())
 		return
 	}
+	log.Infof("ResolveLocalSnapshotDeletePlan %#v", plan)
+
 	if plan.Action == storageman.LocalSnapshotRemove {
 		s.deleteInactiveSnapshot()
 		return
@@ -2448,6 +2450,11 @@ func (s *SGuestSnapshotDeleteTask) promoteReloadDisk() {
 			if s.isEncrypted() {
 				path = qemuimg.GetQemuFilepath(path, "sec0", qemuimg.EncryptFormatLuks)
 			}
+			if err := s.onBlockJobComplete(); err != nil {
+				s.taskFailed(err.Error())
+				return
+			}
+
 			s.Monitor.ReloadDiskBlkdev(device, path, onReloadGuest)
 		})
 	}
