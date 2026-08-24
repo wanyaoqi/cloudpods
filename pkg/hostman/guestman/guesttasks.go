@@ -2348,20 +2348,9 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			return
 		}
 		deviceNode := chainHead(childNode)
-		if err := s.watchResolvedBlockJob(deviceNode); err != nil {
-			s.taskFailed(err.Error())
-			return
-		}
-		started := func(res string) {
-			if res != "" {
-				s.finishResolvedBlockJob(errors.Errorf("start block job: %s", res))
-				return
-			}
-			s.waitResolvedBlockJob()
-		}
 		if plan.Action == storageman.LocalSnapshotCommit {
 			log.Infof("delete snapshot block-commit target=%s parent=%s device=%s children=%v online-child=%s", plan.Target, plan.Parent, deviceNode, plan.Children, onlineChild)
-			s.Monitor.BlockCommit(deviceNode, targetNode, parentNode, started)
+			s.Monitor.BlockCommit(deviceNode, targetNode, parentNode, s.startWatchBlockJobs)
 			s.onBlockJobComplete = func() error {
 				children := make([]string, 0)
 				for i := range plan.Children {
@@ -2392,7 +2381,6 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 				return nil
 			}
 			s.promoteReloadDisk()
-
 		} else if plan.Action == storageman.LocalSnapshotConvert {
 			// convert children not in disk chain
 			children := make([]string, 0)
@@ -2423,9 +2411,13 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 				return
 			}
 			log.Infof("delete snapshot block-stream rebase target=%s parent=%s device=%s children=%v online-child=%s", plan.Target, plan.Parent, deviceNode, plan.Children, onlineChild)
-			s.Monitor.BlockStreamToBase(deviceNode, parentNode, started)
+			s.Monitor.BlockStreamToBase(deviceNode, parentNode, s.startWatchBlockJobs)
 		}
 	})
+}
+
+func (s *SGuestSnapshotDeleteTask) startWatchBlockJobs(res string) {
+
 }
 
 func (s *SGuestSnapshotDeleteTask) promoteReloadDisk() {
