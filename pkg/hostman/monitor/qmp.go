@@ -119,8 +119,6 @@ type QmpMonitor struct {
 	commandQueue  []*Command
 	callbackQueue []qmpMonitorCallBack
 	jobs          map[string]BlockJob
-	blockJobWatch map[string]map[uint64]BlockJobEventCallback
-	nextWatchId   uint64
 }
 
 func NewQmpMonitor(server, sid string, OnMonitorDisConnect, OnMonitorTimeout MonitorErrorFunc,
@@ -131,7 +129,6 @@ func NewQmpMonitor(server, sid string, OnMonitorDisConnect, OnMonitorTimeout Mon
 		commandQueue:  make([]*Command, 0),
 		callbackQueue: make([]qmpMonitorCallBack, 0),
 		jobs:          map[string]BlockJob{},
-		blockJobWatch: make(map[string]map[uint64]BlockJobEventCallback),
 	}
 
 	// On qmp init must set capabilities
@@ -213,7 +210,6 @@ func (m *QmpMonitor) read(r io.Reader) {
 			if timestamp, ok := objmap["timestamp"]; ok {
 				json.Unmarshal(*timestamp, event.Timestamp)
 			}
-			m.watchEvent(event)
 		} else if val, ok := objmap["QMP"]; ok {
 			// On qmp connected
 			json.Unmarshal(*val, &objmap)
@@ -250,48 +246,6 @@ func (m *QmpMonitor) read(r io.Reader) {
 		}
 	}
 	m.reading = false
-}
-
-func (m *QmpMonitor) watchEvent(event *Event) {
-	if !utils.IsInStringArray(event.Event, ignoreEvents) {
-		log.Infof("QMP event %s: %s", m.server, event.String())
-	}
-	if m.qmpEventFunc != nil {
-		go m.qmpEventFunc(event)
-	}
-	if device, ok := event.Data["device"].(string); ok {
-		m.mutex.Lock()
-		watchers := make([]BlockJobEventCallback, 0, len(m.blockJobWatch[device]))
-		for _, callback := range m.blockJobWatch[device] {
-			watchers = append(watchers, callback)
-		}
-		m.mutex.Unlock()
-		for _, callback := range watchers {
-			go callback(event)
-		}
-	}
-}
-
-func (m *QmpMonitor) WatchBlockJob(device string, callback BlockJobEventCallback) (func(), error) {
-	if device == "" || callback == nil {
-		return nil, errors.Errorf("invalid block job watcher device=%q", device)
-	}
-	m.mutex.Lock()
-	m.nextWatchId++
-	id := m.nextWatchId
-	if m.blockJobWatch[device] == nil {
-		m.blockJobWatch[device] = make(map[uint64]BlockJobEventCallback)
-	}
-	m.blockJobWatch[device][id] = callback
-	m.mutex.Unlock()
-	return func() {
-		m.mutex.Lock()
-		delete(m.blockJobWatch[device], id)
-		if len(m.blockJobWatch[device]) == 0 {
-			delete(m.blockJobWatch, device)
-		}
-		m.mutex.Unlock()
-	}, nil
 }
 
 func (m *QmpMonitor) write(cmd []byte) error {

@@ -25,7 +25,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"yunion.io/x/jsonutils"
@@ -1898,7 +1897,7 @@ func (s *SGuestBlockProgressBaseTask) onGetBlockJobs(jobs []monitor.BlockJob) {
 	streamedDiskCount := s.task.StreamingDiskCompletedCount()
 	if diskCount > 0 {
 		progress = float64(streamedDiskCount)/float64(diskCount)*100.0 + 1.0/float64(diskCount)*progress
-		log.Debugf("stream disk111111 progress %v, streamedDiskCount %v, diskCount %v ", progress, streamedDiskCount, diskCount)
+		log.Debugf("stream disk progress %v, streamedDiskCount %v, diskCount %v ", progress, streamedDiskCount, diskCount)
 	}
 	hostutils.UpdateServerProgress(context.Background(), s.GetId(), progress, mbps)
 	s.task.OnGetBlockJobs(jobs)
@@ -2233,14 +2232,7 @@ type SGuestSnapshotDeleteTask struct {
 	snapshotIds    []string
 	encryptInfo    apis.SEncryptInfo
 
-	blockJobLock        sync.Mutex
-	blockJobDevice      string
-	blockJobObserved    bool
-	blockJobCompleted   bool
-	blockJobMissingPoll int
-	blockJobDone        bool
-	unwatchBlockJob     func()
-	onBlockJobComplete  func() error
+	onBlockJobComplete func() error
 }
 
 func snapshotIdsForDelete(snapshotIds []string, storageType string) []string {
@@ -2477,130 +2469,6 @@ func (s *SGuestSnapshotDeleteTask) deleteInactiveSnapshot() {
 	body := jsonutils.NewDict()
 	body.Set("deleted", jsonutils.JSONTrue)
 	hostutils.TaskComplete(s.ctx, body)
-}
-
-func (s *SGuestSnapshotDeleteTask) watchResolvedBlockJob(device string) error {
-	unwatch, err := s.Monitor.WatchBlockJob(device, s.onResolvedBlockJobEvent)
-	if err != nil {
-		return err
-	}
-	s.blockJobLock.Lock()
-	s.blockJobDevice = device
-	s.unwatchBlockJob = unwatch
-	s.blockJobLock.Unlock()
-	return nil
-}
-
-func (s *SGuestSnapshotDeleteTask) onResolvedBlockJobEvent(event *monitor.Event) {
-	switch event.Event {
-	case `"BLOCK_JOB_COMPLETED"`:
-		if eventErr, ok := event.Data["error"].(string); ok && eventErr != "" {
-			s.finishResolvedBlockJob(errors.Errorf("block job completed with error: %s", eventErr))
-			return
-		}
-		s.blockJobLock.Lock()
-		s.blockJobCompleted = true
-		s.blockJobLock.Unlock()
-		s.waitResolvedBlockJob()
-	case `"BLOCK_JOB_ERROR"`, `"BLOCK_JOB_CANCELLED"`:
-		err := errors.Errorf("block job failed: %s", event.String())
-		if event.Event == `"BLOCK_JOB_ERROR"` {
-			s.cancelResolvedBlockJob(err)
-		} else {
-			s.finishResolvedBlockJob(err)
-		}
-	}
-}
-
-func (s *SGuestSnapshotDeleteTask) waitResolvedBlockJob() {
-	time.AfterFunc(time.Second, func() {
-		s.Monitor.GetBlockJobsWithError(func(jobs []monitor.BlockJob, err error) {
-			if err != nil {
-				s.cancelResolvedBlockJob(errors.Wrap(err, "query block jobs"))
-				return
-			}
-			s.blockJobLock.Lock()
-			if s.blockJobDone {
-				s.blockJobLock.Unlock()
-				return
-			}
-			device := s.blockJobDevice
-			completed := s.blockJobCompleted
-			var current *monitor.BlockJob
-			for i := range jobs {
-				if jobs[i].Device == device {
-					job := jobs[i]
-					current = &job
-					break
-				}
-			}
-			if current != nil {
-				s.blockJobObserved = true
-				s.blockJobMissingPoll = 0
-			}
-			observed := s.blockJobObserved
-			if current == nil {
-				s.blockJobMissingPoll++
-			}
-			missingPolls := s.blockJobMissingPoll
-			s.blockJobLock.Unlock()
-			if current != nil {
-				if current.IoStatus != "" && current.IoStatus != "ok" {
-					s.cancelResolvedBlockJob(errors.Errorf("block job %s io-status=%s", device, current.IoStatus))
-					return
-				}
-				s.waitResolvedBlockJob()
-				return
-			}
-			if completed {
-				s.finishResolvedBlockJob(nil)
-				return
-			}
-			if observed || missingPolls >= 2 {
-				s.finishResolvedBlockJob(errors.Errorf("block job %s disappeared without completion event", device))
-				return
-			}
-			s.waitResolvedBlockJob()
-		})
-	})
-}
-
-func (s *SGuestSnapshotDeleteTask) cancelResolvedBlockJob(reason error) {
-	s.blockJobLock.Lock()
-	if s.blockJobDone {
-		s.blockJobLock.Unlock()
-		return
-	}
-	device := s.blockJobDevice
-	s.blockJobLock.Unlock()
-	if device != "" {
-		s.Monitor.CancelBlockJob(device, true, func(res string) {
-			if res != "" {
-				log.Errorf("cancel failed snapshot delete block job %s: %s", device, res)
-			}
-		})
-	}
-	s.finishResolvedBlockJob(reason)
-}
-
-func (s *SGuestSnapshotDeleteTask) finishResolvedBlockJob(err error) {
-	s.blockJobLock.Lock()
-	if s.blockJobDone {
-		s.blockJobLock.Unlock()
-		return
-	}
-	s.blockJobDone = true
-	unwatch := s.unwatchBlockJob
-	s.unwatchBlockJob = nil
-	s.blockJobLock.Unlock()
-	if unwatch != nil {
-		unwatch()
-	}
-	if err != nil {
-		s.taskFailed(err.Error())
-		return
-	}
-	s.onStreamDiskComplete()
 }
 
 func (s *SGuestSnapshotDeleteTask) startBlockStream(totalDeleteSnapshotCount, deletedSnapshotCount int) {
