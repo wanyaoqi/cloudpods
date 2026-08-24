@@ -2233,6 +2233,7 @@ type SGuestSnapshotDeleteTask struct {
 	encryptInfo    apis.SEncryptInfo
 
 	onBlockJobComplete func() error
+	blockProgressTask  *SGuestBlockProgressBaseTask
 }
 
 func snapshotIdsForDelete(snapshotIds []string, storageType string) []string {
@@ -2350,7 +2351,6 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 		deviceNode := chainHead(childNode)
 		if plan.Action == storageman.LocalSnapshotCommit {
 			log.Infof("delete snapshot block-commit target=%s parent=%s device=%s children=%v online-child=%s", plan.Target, plan.Parent, deviceNode, plan.Children, onlineChild)
-			s.Monitor.BlockCommit(deviceNode, targetNode, parentNode, s.startWatchBlockJobs)
 			s.onBlockJobComplete = func() error {
 				children := make([]string, 0)
 				for i := range plan.Children {
@@ -2366,6 +2366,7 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 				}
 				return nil
 			}
+			s.Monitor.BlockCommit(deviceNode, targetNode, parentNode, s.startWatchBlockJobs)
 
 		} else if plan.Action == storageman.LocalSnapshotPromote {
 			log.Infof("delete snapshot mv promote target=%s base=%s", plan.Target, plan.Base)
@@ -2417,7 +2418,23 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 }
 
 func (s *SGuestSnapshotDeleteTask) startWatchBlockJobs(res string) {
+	s.blockProgressTask = NewGuestBlockProgressBaseTask(s.ctx, s.SKVMGuestInstance, s)
+	s.blockProgressTask.startWaitBlockJob("")
+}
 
+func (s *SGuestSnapshotDeleteTask) OnGetBlockJobs(jobs []monitor.BlockJob) {
+	if len(jobs) == 0 {
+		s.blockProgressTask.cancelWaitBlockJobs()
+		s.onStreamDiskComplete()
+	}
+}
+
+func (s *SGuestSnapshotDeleteTask) StreamingDiskCompletedCount() int {
+	return 1
+}
+
+func (s *SGuestSnapshotDeleteTask) StreamingDiskCount() int {
+	return 1
 }
 
 func (s *SGuestSnapshotDeleteTask) promoteReloadDisk() {
