@@ -2437,11 +2437,18 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 }
 
 func (s *SGuestSnapshotDeleteTask) promoteReloadDisk() {
+	onResumeSucc := func(res string) {
+		log.Infof("onResumeSucc %s", res)
+		body := jsonutils.NewDict()
+		body.Set("deleted", jsonutils.JSONTrue)
+		hostutils.TaskComplete(s.ctx, body)
+	}
+
 	onReloadGuest := func(err string) {
 		if len(err) > 0 {
 			log.Errorf("monitor new snapshot blkdev error: %s", err)
 		}
-		s.Monitor.SimpleCommand("cont", s.onResumeSucc)
+		s.Monitor.SimpleCommand("cont", onResumeSucc)
 	}
 
 	onFetchDisksInfo := func(device string) {
