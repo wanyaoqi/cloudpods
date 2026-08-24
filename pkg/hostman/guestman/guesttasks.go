@@ -2390,19 +2390,15 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 				s.taskFailed(fmt.Sprintf("promote snapshot base failed %s", err))
 				return
 			}
-			children := make([]string, 0)
-			for i := range plan.Children {
-				if plan.Children[i] == onlineChild {
-					continue
+			s.onBlockJobComplete = func() error {
+				// force rebase other child
+				if err := s.disk.RebaseDiskSnapshots(plan.Base, plan.Children, s.encryptInfo, true); err != nil {
+					return errors.Wrapf(err, "RebaseDiskSnapshots %s to %v failed", plan.Base, plan.Children)
 				}
-				children = append(children, plan.Children[i])
+				return nil
 			}
-			// force rebase other child
-			if err := s.disk.RebaseDiskSnapshots(plan.Base, children, s.encryptInfo, true); err != nil {
-				s.taskFailed(fmt.Sprintf("promote snapshot base failed %s", err))
-				return
-			}
-			s.SGuestReloadDiskTask.Start()
+			s.promoteReloadDisk()
+
 		} else if plan.Action == storageman.LocalSnapshotConvert {
 			// convert children not in disk chain
 			children := make([]string, 0)
@@ -2436,6 +2432,27 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			s.Monitor.BlockStreamToBase(deviceNode, parentNode, started)
 		}
 	})
+}
+
+func (s *SGuestSnapshotDeleteTask) promoteReloadDisk() {
+	onReloadGuest := func(err string) {
+		if len(err) > 0 {
+			log.Errorf("monitor new snapshot blkdev error: %s", err)
+		}
+		s.Monitor.SimpleCommand("cont", s.onResumeSucc)
+	}
+
+	onFetchDisksInfo := func(device string) {
+		s.Monitor.SimpleCommand("stop", func(string) {
+			path := s.disk.GetPath()
+			if s.isEncrypted() {
+				path = qemuimg.GetQemuFilepath(path, "sec0", qemuimg.EncryptFormatLuks)
+			}
+			s.Monitor.ReloadDiskBlkdev(device, path, onReloadGuest)
+		})
+	}
+
+	s.fetchDisksInfo(onFetchDisksInfo)
 }
 
 func (s *SGuestSnapshotDeleteTask) deleteInactiveSnapshot() {
