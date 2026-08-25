@@ -104,7 +104,7 @@ func (s *SGuestStopTask) checkGuestRunning() {
 		s.Stop() // force stop
 		s.stopping = false
 		if ctx != nil {
-			hostutils.TaskComplete(s.ctx, nil)
+			hostutils.TaskComplete(ctx, nil)
 		}
 		hostutils.TaskComplete(s.ctx, nil)
 	case <-time.After(time.Second * 1):
