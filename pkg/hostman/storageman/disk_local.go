@@ -608,7 +608,7 @@ func (d *SLocalDisk) RebaseDiskSnapshots(parent string, children []string, encry
 
 func (d *SLocalDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	snapshotDir := d.GetSnapshotDir()
-	return DeleteLocalSnapshot(snapshotDir, snapshotId, snapshotIds, d.getPath(), encryptInfo)
+	return DeleteLocalSnapshot(snapshotDir, snapshotId, snapshotIds, d.getPath(), encryptInfo, d.GetStorage())
 }
 
 func (d *SLocalDisk) PrepareSaveToGlance(ctx context.Context, params interface{}) (jsonutils.JSONObject, error) {

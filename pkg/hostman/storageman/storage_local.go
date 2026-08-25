@@ -652,7 +652,7 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	log.Errorf("input %s", jsonutils.Marshal(input))
 	snapshotDir := path.Join(s.GetSnapshotDir(), input.DiskId+options.HostOptions.SnapshotDirSuffix)
 	diskPath := path.Join(s.GetPath(), input.DiskId)
-	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, input.SnapshotIds, diskPath, input.EncryptInfo)
+	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, input.SnapshotIds, diskPath, input.EncryptInfo, s)
 	if err != nil {
 		return nil, err
 	}
@@ -661,8 +661,11 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 	return res, nil
 }
 
-func DeleteLocalSnapshot(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo) error {
-	return deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, snapshotIds, diskPath, encryptInfo)
+func DeleteLocalSnapshot(
+	snapshotDir, snapshotId string, snapshotIds []string,
+	diskPath string, encryptInfo apis.SEncryptInfo, storage IStorage,
+) error {
+	return deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId, snapshotIds, diskPath, encryptInfo, storage)
 }
 
 func snapshotBaseName(diskPath string) string {
@@ -1008,7 +1011,7 @@ func qcow2HasBackingReference(candidate, target string) (bool, error) {
 	return filepath.Clean(img.BackFilePath) == filepath.Clean(target), nil
 }
 
-func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo) error {
+func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds []string, diskPath string, encryptInfo apis.SEncryptInfo, storage IStorage) error {
 	plan, err := ResolveLocalSnapshotDeletePlan(snapshotDir, snapshotId, snapshotIds, diskPath, nil)
 	if err != nil {
 		return err
@@ -1028,12 +1031,10 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 		if hasReferences {
 			return errors.Errorf("snapshot %s is referenced by an out-of-chain qcow2 image", snapshotId)
 		}
-		if err := procutils.NewCommand("rm", "-f", plan.Target).Run(); err != nil {
+		if err := storage.DeleteDiskfile(plan.Target, false); err != nil {
 			return err
 		}
-		return cleanupLocalSnapshotBase(snapshotDir, diskPath, plan.Parent, true, func(filePath string, _ bool) error {
-			return procutils.NewCommand("rm", "-f", filePath).Run()
-		})
+		return cleanupLocalSnapshotBase(snapshotDir, diskPath, plan.Parent, false, storage.DeleteDiskfile)
 	}
 	var children = make([]*qemuimg.SQemuImage, len(plan.Children))
 	for i := range plan.Children {
@@ -1110,12 +1111,10 @@ func deleteLocalSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotI
 			}
 		}
 	}
-	if err := procutils.NewCommand("rm", "-f", plan.Target).Run(); err != nil {
+	if err := storage.DeleteDiskfile(plan.Target, false); err != nil {
 		return err
 	}
-	return cleanupLocalSnapshotBase(snapshotDir, diskPath, plan.Parent, true, func(filePath string, _ bool) error {
-		return procutils.NewCommand("rm", "-f", filePath).Run()
-	})
+	return cleanupLocalSnapshotBase(snapshotDir, diskPath, plan.Parent, false, storage.DeleteDiskfile)
 }
 
 func wrapSnapshotOperationCheckError(operationErr error, operation string, encryptInfo apis.SEncryptInfo, imagePaths ...string) error {

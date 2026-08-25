@@ -2430,7 +2430,7 @@ func (s *SGuestSnapshotDeleteTask) OnGetBlockJobs(jobs []monitor.BlockJob) {
 }
 
 func (s *SGuestSnapshotDeleteTask) StreamingDiskCompletedCount() int {
-	return 1
+	return 0
 }
 
 func (s *SGuestSnapshotDeleteTask) StreamingDiskCount() int {
