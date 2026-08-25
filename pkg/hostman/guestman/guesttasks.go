@@ -122,7 +122,7 @@ func (s *SGuestStopTask) checkGuestRunning() {
 				hostutils.TaskFailed(s.ctx, fmt.Sprintf("guest stop timeout after %d seconds", s.timeout))
 			}
 		} else {
-			s.checkGuestRunning()
+			go s.checkGuestRunning()
 		}
 	}
 }
