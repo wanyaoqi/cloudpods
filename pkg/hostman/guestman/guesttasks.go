@@ -65,6 +65,7 @@ type SGuestStopTask struct {
 	timeout        int64
 	isFroce        bool
 	startPowerdown time.Time
+	c              chan struct{}
 }
 
 func NewGuestStopTask(guest *SKVMGuestInstance, ctx context.Context, timeout int64, isForce bool) *SGuestStopTask {
@@ -74,6 +75,7 @@ func NewGuestStopTask(guest *SKVMGuestInstance, ctx context.Context, timeout int
 		timeout:           timeout,
 		isFroce:           isForce,
 		startPowerdown:    time.Time{},
+		c:                 make(chan struct{}),
 	}
 }
 
@@ -86,6 +88,10 @@ func (s *SGuestStopTask) Start() {
 	s.checkGuestRunning()
 }
 
+func (s *SGuestStopTask) StopNow() {
+	s.c <- struct{}{}
+}
+
 func (s *SGuestStopTask) onPowerdownGuest(results string) {
 	//s.ExitCleanup(true)
 	log.Debugf("system_powerdown callback successfully")
@@ -93,21 +99,28 @@ func (s *SGuestStopTask) onPowerdownGuest(results string) {
 }
 
 func (s *SGuestStopTask) checkGuestRunning() {
-	if !s.IsRunning() {
+	select {
+	case <-s.c:
 		s.Stop() // force stop
 		s.stopping = false
 		hostutils.TaskComplete(s.ctx, nil)
-	} else if time.Now().Sub(s.startPowerdown) > time.Duration(s.timeout)*time.Second {
-		// timeout
-		if s.isFroce {
+	case <-time.After(time.Second * 1):
+		if !s.IsRunning() {
 			s.Stop() // force stop
 			s.stopping = false
 			hostutils.TaskComplete(s.ctx, nil)
+		} else if time.Now().Sub(s.startPowerdown) > time.Duration(s.timeout)*time.Second {
+			// timeout
+			if s.isFroce {
+				s.Stop() // force stop
+				s.stopping = false
+				hostutils.TaskComplete(s.ctx, nil)
+			} else {
+				hostutils.TaskFailed(s.ctx, fmt.Sprintf("guest stop timeout after %d seconds", s.timeout))
+			}
 		} else {
-			hostutils.TaskFailed(s.ctx, fmt.Sprintf("guest stop timeout after %d seconds", s.timeout))
+			s.checkGuestRunning()
 		}
-	} else {
-		s.CheckGuestRunningLater()
 	}
 }
 
