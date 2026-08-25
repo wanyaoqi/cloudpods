@@ -2353,7 +2353,7 @@ func (s *SKVMGuestInstance) ExecStopTask(ctx context.Context, params interface{}
 		if !input.IsForce {
 			return nil, errors.Errorf("guest %s is stopping", s.GetId())
 		}
-		s.StopTask.StopNow()
+		s.StopTask.StopNow(ctx)
 	} else {
 		s.StopTask = NewGuestStopTask(s, ctx, input.Timeout, input.IsForce)
 		s.StopTask.Start()

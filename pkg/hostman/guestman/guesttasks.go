@@ -65,7 +65,7 @@ type SGuestStopTask struct {
 	timeout        int64
 	isFroce        bool
 	startPowerdown time.Time
-	c              chan struct{}
+	c              chan context.Context
 }
 
 func NewGuestStopTask(guest *SKVMGuestInstance, ctx context.Context, timeout int64, isForce bool) *SGuestStopTask {
@@ -75,7 +75,7 @@ func NewGuestStopTask(guest *SKVMGuestInstance, ctx context.Context, timeout int
 		timeout:           timeout,
 		isFroce:           isForce,
 		startPowerdown:    time.Time{},
-		c:                 make(chan struct{}),
+		c:                 make(chan context.Context),
 	}
 }
 
@@ -88,8 +88,8 @@ func (s *SGuestStopTask) Start() {
 	s.checkGuestRunning()
 }
 
-func (s *SGuestStopTask) StopNow() {
-	s.c <- struct{}{}
+func (s *SGuestStopTask) StopNow(ctx context.Context) {
+	s.c <- ctx
 }
 
 func (s *SGuestStopTask) onPowerdownGuest(results string) {
@@ -100,9 +100,12 @@ func (s *SGuestStopTask) onPowerdownGuest(results string) {
 
 func (s *SGuestStopTask) checkGuestRunning() {
 	select {
-	case <-s.c:
+	case ctx := <-s.c:
 		s.Stop() // force stop
 		s.stopping = false
+		if ctx != nil {
+			hostutils.TaskComplete(s.ctx, nil)
+		}
 		hostutils.TaskComplete(s.ctx, nil)
 	case <-time.After(time.Second * 1):
 		if !s.IsRunning() {
