@@ -262,11 +262,7 @@ func (self *SKVMGuestDriver) RequestStopOnHost(ctx context.Context, guest *model
 	params := task.GetParams()
 	timeout, err := params.Int("timeout")
 	if err != nil {
-		if guest.OsType == osprofile.OS_TYPE_WINDOWS {
-			timeout = int64(options.Options.WindowsGuestStopTimeout)
-		} else {
-			timeout = int64(options.Options.LinuxGuestStopTimeout)
-		}
+		timeout = int64(options.Options.DefaultGuestStopTimeout)
 	}
 	isForce, _ := params.Bool("is_force")
 	if isForce {
