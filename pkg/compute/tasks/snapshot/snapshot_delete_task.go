@@ -16,7 +16,6 @@ package snapshot
 
 import (
 	"context"
-	"database/sql"
 
 	"yunion.io/x/cloudmux/pkg/cloudprovider"
 	"yunion.io/x/jsonutils"
@@ -62,13 +61,9 @@ func (self *SnapshotDeleteTask) OnManagedSnapshotDelete(ctx context.Context, sna
 
 func (self *SnapshotDeleteTask) OnKvmSnapshotDelete(ctx context.Context, snapshot *models.SSnapshot, data jsonutils.JSONObject) {
 	snapshot.SetStatus(ctx, self.UserCred, api.SNAPSHOT_READY, "")
-	if jsonutils.QueryBoolean(self.Params, "reload_disk", false) && snapshot.OutOfChain {
-		self.SetStage("OnReloadDiskSnapshot", nil)
-		self.OnReloadDiskSnapshot(ctx, snapshot, data)
-	} else {
-		self.SetStage("OnDeleteSnapshot", nil)
-		self.OnDeleteSnapshot(ctx, snapshot, data)
-	}
+
+	self.SetStage("OnDeleteSnapshot", nil)
+	self.OnDeleteSnapshot(ctx, snapshot, data)
 }
 
 func (self *SnapshotDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -98,60 +93,6 @@ func (self *SnapshotDeleteTask) OnDeleteSnapshot(ctx context.Context, snapshot *
 
 func (self *SnapshotDeleteTask) OnDeleteSnapshotFailed(ctx context.Context, snapshot *models.SSnapshot, data jsonutils.JSONObject) {
 	self.TaskFailed(ctx, snapshot, data)
-}
-
-func (self *SnapshotDeleteTask) OnReloadDiskSnapshot(ctx context.Context, snapshot *models.SSnapshot, data jsonutils.JSONObject) {
-	if !jsonutils.QueryBoolean(data, "reopen", false) {
-		log.Infof("OnReloadDiskSnapshot with no reopen")
-		return
-	}
-
-	guest, err := snapshot.GetGuest()
-	if err != nil {
-		self.TaskFailed(ctx, snapshot, jsonutils.NewString(err.Error()))
-		return
-	}
-	if snapshot.FakeDeleted {
-		params := jsonutils.NewDict()
-		disk, err := models.DiskManager.FetchById(snapshot.DiskId)
-		if err != nil && err != sql.ErrNoRows {
-			self.TaskFailed(ctx, snapshot, jsonutils.NewString(err.Error()))
-			return
-		}
-		sDisk, _ := disk.(*models.SDisk)
-		if sDisk.IsEncrypted() {
-			if encryptInfo, err := sDisk.GetEncryptInfo(ctx, self.GetUserCred()); err != nil {
-				self.TaskFailed(ctx, snapshot, jsonutils.NewString(err.Error()))
-				return
-			} else {
-				params.Set("encrypt_info", jsonutils.Marshal(encryptInfo))
-			}
-		}
-
-		setSnapshotChain := func(params *jsonutils.JSONDict) {
-			ids := jsonutils.NewArray()
-			for _, candidate := range models.SnapshotManager.GetDiskSnapshots(snapshot.DiskId) {
-				ids.Add(jsonutils.NewString(candidate.Id))
-			}
-			params.Set("snapshot_ids", ids)
-		}
-
-		params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
-		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
-		setSnapshotChain(params)
-		self.SetStage("OnDeleteSnapshot", nil)
-		drv, err := guest.GetDriver()
-		if err != nil {
-			self.TaskFailed(ctx, snapshot, jsonutils.NewString(err.Error()))
-			return
-		}
-		err = drv.RequestDeleteSnapshot(ctx, guest, self, params)
-		if err != nil {
-			self.TaskFailed(ctx, snapshot, jsonutils.NewString(err.Error()))
-		}
-	} else {
-		self.TaskComplete(ctx, snapshot, nil)
-	}
 }
 
 func (self *SnapshotDeleteTask) TaskComplete(ctx context.Context, snapshot *models.SSnapshot, data jsonutils.JSONObject) {
@@ -235,7 +176,13 @@ type GuestDeleteSnapshotsTask struct {
 
 func (self *GuestDeleteSnapshotsTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	guest := obj.(*models.SGuest)
-	instanceSnapshots, _ := guest.GetInstanceSnapshots()
+	deletedPendingSnapshots := jsonutils.QueryBoolean(self.Params, "deleted_pending_snapshots", false)
+	var instanceSnapshots []models.SInstanceSnapshot
+	if deletedPendingSnapshots {
+		instanceSnapshots, _ = guest.GetPendingDeleteInstanceSnapshots()
+	} else {
+		instanceSnapshots, _ = guest.GetInstanceSnapshots()
+	}
 	self.StartDeleteInstanceSnapshots(ctx, guest, instanceSnapshots)
 }
 
@@ -250,7 +197,8 @@ func (self *GuestDeleteSnapshotsTask) StartDeleteInstanceSnapshots(
 		instanceSnapshot.StartInstanceSnapshotDeleteTask(ctx, self.UserCred, self.Id)
 		return
 	}
-	snapshots, _ := guest.GetDiskSnapshotsNotInInstanceSnapshots()
+	deletedPendingSnapshots := jsonutils.QueryBoolean(self.Params, "deleted_pending_snapshots", false)
+	snapshots, _ := guest.GetDiskSnapshotsNotInInstanceSnapshots(deletedPendingSnapshots)
 	self.StartDeleteDiskSnapshots(ctx, guest, snapshots)
 }
 
@@ -275,7 +223,7 @@ func (self *GuestDeleteSnapshotsTask) StartDeleteDiskSnapshots(
 		self.Params.Set("snapshots", jsonutils.Marshal(snapshots))
 		self.SetStage("OnSnapshotDelete", nil)
 		snapshot.SetModelManager(models.SnapshotManager, &snapshot)
-		snapshot.StartSnapshotDeleteTask(ctx, self.UserCred, false, self.Id, 0, 0)
+		snapshot.StartSnapshotDeleteTask(ctx, self.UserCred, self.Id, 0, 0)
 		return
 	}
 	self.SetStageComplete(ctx, nil)
@@ -312,7 +260,7 @@ func (self *DiskDeleteSnapshotsTask) StartDeleteDiskSnapshots(
 		self.Params.Set("snapshots", jsonutils.Marshal(snapshots))
 		self.SetStage("OnSnapshotDelete", nil)
 		snapshot.SetModelManager(models.SnapshotManager, &snapshot)
-		snapshot.StartSnapshotDeleteTask(ctx, self.UserCred, false, self.Id, 0, 0)
+		snapshot.StartSnapshotDeleteTask(ctx, self.UserCred, self.Id, 0, 0)
 		return
 	}
 	self.SetStageComplete(ctx, nil)

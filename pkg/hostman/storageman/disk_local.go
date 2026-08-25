@@ -40,7 +40,6 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/hostutils"
 	"yunion.io/x/onecloud/pkg/hostman/options"
 	"yunion.io/x/onecloud/pkg/hostman/storageman/remotefile"
-	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/losetup"
 	"yunion.io/x/onecloud/pkg/util/mountutils"
@@ -635,11 +634,6 @@ func (d *SLocalDisk) ResetFromSnapshot(ctx context.Context, params interface{}) 
 		return nil, hostutils.ParamsError
 	}
 
-	outOfChain, err := resetParams.Input.Bool("out_of_chain")
-	if err != nil {
-		return nil, httperrors.NewMissingParameterError("out_of_chain")
-	}
-
 	snapshotDir := d.GetSnapshotDir()
 	snapshotPath := path.Join(snapshotDir, resetParams.SnapshotId)
 
@@ -654,10 +648,10 @@ func (d *SLocalDisk) ResetFromSnapshot(ctx context.Context, params interface{}) 
 		}
 	}
 
-	return d.resetFromSnapshot(snapshotPath, outOfChain, encryptInfo)
+	return d.resetFromSnapshot(snapshotPath, encryptInfo)
 }
 
-func (d *SLocalDisk) resetFromSnapshot(snapshotPath string, outOfChain bool, encryptInfo *apis.SEncryptInfo) (jsonutils.JSONObject, error) {
+func (d *SLocalDisk) resetFromSnapshot(snapshotPath string, encryptInfo *apis.SEncryptInfo) (jsonutils.JSONObject, error) {
 	img, err := qemuimg.NewQemuImage(d.GetPath())
 	if err != nil {
 		return nil, err
@@ -669,34 +663,20 @@ func (d *SLocalDisk) resetFromSnapshot(snapshotPath string, outOfChain bool, enc
 		err = errors.Wrapf(err, "mv disk to tmp failed: %s", output)
 		return nil, err
 	}
-	if !outOfChain {
-		img, err := qemuimg.NewQemuImage(d.GetPath())
-		if err != nil {
-			err = errors.Wrap(err, "new qemu img")
-			procutils.NewCommand("mv", "-f", diskTmpPath, d.GetPath()).Run()
-			return nil, err
-		}
-		var (
-			encKey string
-			encAlg seclib2.TSymEncAlg
-			encFmt qemuimg.TEncryptFormat
-		)
-		if encryptInfo != nil {
-			encKey = encryptInfo.Key
-			encFmt = qemuimg.EncryptFormatLuks
-			encAlg = encryptInfo.Alg
-		}
-		if err := img.CreateQcow2(diskSizeMB, false, snapshotPath, encKey, encFmt, encAlg); err != nil {
-			err = errors.Wrap(err, "qemu-img create disk by snapshot")
-			procutils.NewCommand("mv", "-f", diskTmpPath, d.GetPath()).Run()
-			return nil, err
-		}
-	} else {
-		if output, err := procutils.NewCommand("cp", "-f", snapshotPath, d.GetPath()).Output(); err != nil {
-			err = errors.Wrapf(err, "cp snapshot to disk %s", output)
-			procutils.NewCommand("mv", "-f", diskTmpPath, d.GetPath()).Run()
-			return nil, err
-		}
+	var (
+		encKey string
+		encAlg seclib2.TSymEncAlg
+		encFmt qemuimg.TEncryptFormat
+	)
+	if encryptInfo != nil {
+		encKey = encryptInfo.Key
+		encFmt = qemuimg.EncryptFormatLuks
+		encAlg = encryptInfo.Alg
+	}
+	if err := img.CreateQcow2(diskSizeMB, false, snapshotPath, encKey, encFmt, encAlg); err != nil {
+		err = errors.Wrap(err, "qemu-img create disk by snapshot")
+		procutils.NewCommand("mv", "-f", diskTmpPath, d.GetPath()).Run()
+		return nil, err
 	}
 
 	output, err := procutils.NewCommand("rm", "-f", diskTmpPath).Output()

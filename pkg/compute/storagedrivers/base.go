@@ -156,42 +156,35 @@ func (self *SBaseStorageDriver) RequestDeleteSnapshot(ctx context.Context, snaps
 		return err
 	}
 
-	if jsonutils.QueryBoolean(task.GetParams(), "reload_disk", false) && snapshot.OutOfChain {
-		guest.SetStatus(ctx, task.GetUserCred(), api.VM_SNAPSHOT, "Start Reload Snapshot")
-		params := jsonutils.NewDict()
-		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
-		return drv.RequestReloadDiskSnapshot(ctx, guest, task, params)
-	} else {
-		snapshot.SetStatus(ctx, task.GetUserCred(), api.SNAPSHOT_DELETING, "On SnapshotDeleteTask StartDeleteSnapshot")
-		params := jsonutils.NewDict()
-		params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
-		params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
-		setSnapshotChain(params)
+	snapshot.SetStatus(ctx, task.GetUserCred(), api.SNAPSHOT_DELETING, "On SnapshotDeleteTask StartDeleteSnapshot")
+	params := jsonutils.NewDict()
+	params.Set("delete_snapshot", jsonutils.NewString(snapshot.Id))
+	params.Set("disk_id", jsonutils.NewString(snapshot.DiskId))
+	setSnapshotChain(params)
 
-		disk, err := models.DiskManager.FetchById(snapshot.DiskId)
-		if err != nil && err != sql.ErrNoRows {
-			return errors.Wrap(err, "get disk by snapshot")
-		}
-		sDisk, _ := disk.(*models.SDisk)
-		if sDisk.IsEncrypted() {
-			if encryptInfo, err := sDisk.GetEncryptInfo(ctx, task.GetUserCred()); err != nil {
-				return errors.Wrap(err, "faild get encryptInfo")
-			} else {
-				params.Set("encrypt_info", jsonutils.Marshal(encryptInfo))
-			}
-		}
-
-		taskParams := task.GetParams()
-		if taskParams.Contains("snapshot_total_count") {
-			totalCnt, _ := taskParams.Get("snapshot_total_count")
-			params.Set("snapshot_total_count", totalCnt)
-			deletedCnt, _ := taskParams.Get("deleted_snapshot_count")
-			params.Set("deleted_snapshot_count", deletedCnt)
-		}
-
-		guest.SetStatus(ctx, task.GetUserCred(), api.VM_SNAPSHOT_DELETE, "Start Delete Snapshot")
-		return drv.RequestDeleteSnapshot(ctx, guest, task, params)
+	disk, err := models.DiskManager.FetchById(snapshot.DiskId)
+	if err != nil && err != sql.ErrNoRows {
+		return errors.Wrap(err, "get disk by snapshot")
 	}
+	sDisk, _ := disk.(*models.SDisk)
+	if sDisk.IsEncrypted() {
+		if encryptInfo, err := sDisk.GetEncryptInfo(ctx, task.GetUserCred()); err != nil {
+			return errors.Wrap(err, "faild get encryptInfo")
+		} else {
+			params.Set("encrypt_info", jsonutils.Marshal(encryptInfo))
+		}
+	}
+
+	taskParams := task.GetParams()
+	if taskParams.Contains("snapshot_total_count") {
+		totalCnt, _ := taskParams.Get("snapshot_total_count")
+		params.Set("snapshot_total_count", totalCnt)
+		deletedCnt, _ := taskParams.Get("deleted_snapshot_count")
+		params.Set("deleted_snapshot_count", deletedCnt)
+	}
+
+	guest.SetStatus(ctx, task.GetUserCred(), api.VM_SNAPSHOT_DELETE, "Start Delete Snapshot")
+	return drv.RequestDeleteSnapshot(ctx, guest, task, params)
 }
 
 func (self *SBaseStorageDriver) SnapshotIsOutOfChain(disk *models.SDisk) bool {
@@ -199,5 +192,7 @@ func (self *SBaseStorageDriver) SnapshotIsOutOfChain(disk *models.SDisk) bool {
 }
 
 func (self *SBaseStorageDriver) OnDiskReset(ctx context.Context, userCred mcclient.TokenCredential, disk *models.SDisk, snapshot *models.SSnapshot, data jsonutils.JSONObject) error {
-	return disk.CleanUpDiskSnapshots(ctx, userCred, snapshot)
+	return nil
+	// no need cleanup snapshots
+	//return disk.CleanUpDiskSnapshots(ctx, userCred, snapshot)
 }

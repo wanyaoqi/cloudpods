@@ -341,12 +341,11 @@ type DiskAllocateInput struct {
 	BackupId string
 	Backup   *DiskAllocateFromBackupInput
 
-	SnapshotUrl        string
-	SnapshotOutOfChain bool
-	Protocol           string
-	SrcDiskId          string
-	SrcPool            string
-	ExistingPath       string
+	SnapshotUrl  string
+	Protocol     string
+	SrcDiskId    string
+	SrcPool      string
+	ExistingPath string
 
 	// vmware
 	HostIp    string
