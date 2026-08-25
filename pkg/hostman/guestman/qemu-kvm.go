@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -102,7 +103,9 @@ type SKVMInstanceRuntime struct {
 
 	StartupTask *SGuestResumeTask
 	MigrateTask *SGuestLiveMigrateTask
-	StopTask    *SGuestStopTask
+
+	stopLock sync.Mutex
+	StopTask *SGuestStopTask
 
 	pciUninitialized bool
 	pciAddrs         *desc.SGuestPCIAddresses
@@ -133,6 +136,19 @@ func NewKVMGuestInstance(id string, manager *SGuestManager) *SKVMGuestInstance {
 		sBaseGuestInstance: newBaseGuestInstance(id, manager, api.HYPERVISOR_KVM),
 		archMan:            arch.NewArch(qemuArch),
 	}
+}
+
+func (s *SKVMGuestInstance) SetStopTask(task *SGuestStopTask) {
+	s.stopLock.Lock()
+	defer s.stopLock.Unlock()
+
+	s.StopTask = task
+}
+
+func (s *SKVMGuestInstance) GetStopTask() *SGuestStopTask {
+	s.stopLock.Lock()
+	defer s.stopLock.Unlock()
+	return s.StopTask
 }
 
 // update guest runtime desc from source desc
@@ -1796,7 +1812,7 @@ func (s *SKVMGuestInstance) CleanStartupTask() {
 
 func (s *SKVMGuestInstance) detachStopTask() {
 	log.Infof("[%s] detachStopTask", s.GetId())
-	s.StopTask = nil
+	s.SetStopTask(nil)
 }
 
 func (s *SKVMGuestInstance) onMonitorTimeout(ctx context.Context, err error) {
@@ -2349,6 +2365,8 @@ func (s *SKVMGuestInstance) ExecStopTask(ctx context.Context, params interface{}
 	if !ok {
 		return nil, hostutils.ParamsError
 	}
+	s.stopLock.Lock()
+	defer s.stopLock.Unlock()
 	if s.StopTask != nil {
 		if !input.IsForce {
 			return nil, errors.Errorf("guest %s is stopping", s.GetId())
@@ -2358,7 +2376,6 @@ func (s *SKVMGuestInstance) ExecStopTask(ctx context.Context, params interface{}
 		s.StopTask = NewGuestStopTask(s, ctx, input.Timeout, input.IsForce)
 		s.StopTask.Start()
 	}
-
 	return nil, nil
 }
 
