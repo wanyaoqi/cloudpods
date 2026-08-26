@@ -1251,6 +1251,7 @@ func (manager *SSnapshotManager) startCleanupRetentionCount(ctx context.Context,
 	if err != nil {
 		return err
 	}
+	snap.SetModelManager(manager, snap)
 	snap.StartSnapshotDeleteTask(ctx, userCred, "", 0, 0)
 	return nil
 }
