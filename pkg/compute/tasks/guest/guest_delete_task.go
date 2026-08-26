@@ -289,17 +289,17 @@ func (deleteTask *BaseGuestDeleteTask) startDeleteGuestSnapshots(ctx context.Con
 	if jsonutils.QueryBoolean(deleteTask.Params, "delete_snapshots", false) {
 		deletePendingSnapshots = false
 	}
-	deleteTask.SetStage("onDeleteSnapshots", nil)
+	deleteTask.SetStage("OnDeleteSnapshots", nil)
 	guest.StartDeleteGuestSnapshots(ctx, deleteTask.UserCred, deleteTask.Id, deletePendingSnapshots)
 }
 
-func (deleteTask *BaseGuestDeleteTask) onDeleteSnapshots(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+func (deleteTask *BaseGuestDeleteTask) OnDeleteSnapshots(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	guest := obj.(*models.SGuest)
 	guest.SetStatus(ctx, deleteTask.UserCred, api.VM_DELETING, "delete server after stop")
 	deleteTask.startDeleteGuestDisks(ctx, guest)
 }
 
-func (deleteTask *BaseGuestDeleteTask) onDeleteSnapshotsFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+func (deleteTask *BaseGuestDeleteTask) OnDeleteSnapshotsFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	deleteTask.OnGuestDeleteFailed(ctx, obj, data)
 }
 
