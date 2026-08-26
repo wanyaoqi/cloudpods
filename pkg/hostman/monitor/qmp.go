@@ -173,6 +173,9 @@ func (m *QmpMonitor) read(r io.Reader) {
 		return
 	}
 	scanner := bufio.NewScanner(r)
+	// set buffer size 1M, default 64K
+	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+
 	for scanner.Scan() {
 		var objmap map[string]*json.RawMessage
 		b := scanner.Bytes()
