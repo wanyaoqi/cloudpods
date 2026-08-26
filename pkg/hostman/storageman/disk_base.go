@@ -80,6 +80,7 @@ type IDisk interface {
 	ConvertSnapshotRelyOnReloadDisk(convertSnapshotId string, encryptInfo apis.SEncryptInfo) (func() error, error)
 	ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEncryptInfo) error
 	RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error
+	RenameImage(source, target string) error
 
 	// GetBackupDir() string
 	DiskBackup(ctx context.Context, params interface{}) (jsonutils.JSONObject, error)
@@ -158,6 +159,10 @@ func (d *SBaseDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SE
 }
 
 func (d *SBaseDisk) RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error {
+	return errors.Errorf("unsupported operation")
+}
+
+func (d *SBaseDisk) RenameImage(source, target string) error {
 	return errors.Errorf("unsupported operation")
 }
 

@@ -907,6 +907,10 @@ func (d *SLVMDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEn
 	return nil
 }
 
+func (d *SLVMDisk) RenameImage(source, target string) error {
+	return lvmutils.LvRename(d.Storage.GetPath(), path.Base(source), path.Base(target))
+}
+
 func (d *SLVMDisk) RebaseDiskSnapshots(parent string, children []string, encryptInfo apis.SEncryptInfo, unsafeRebase bool) error {
 	if len(children) == 0 {
 		return nil

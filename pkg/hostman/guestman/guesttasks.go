@@ -2351,7 +2351,8 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 
 		} else if plan.Action == storageman.LocalSnapshotPromote {
 			log.Infof("delete snapshot mv promote target=%s base=%s", plan.Target, plan.Base)
-			if err := procutils.NewCommand("mv", "-f", plan.Target, plan.Base).Run(); err != nil {
+
+			if err := s.disk.RenameImage(plan.Target, plan.Base); err != nil {
 				s.taskFailed(fmt.Sprintf("promote snapshot base failed %s", err))
 				return
 			}

@@ -111,6 +111,15 @@ func LvIsActivated(lvPath string) (bool, error) {
 	return false, errors.Errorf("unexpect res %v", res)
 }
 
+func LvDisplay(lvPath string) (string, error) {
+	cmd := fmt.Sprintf("lvm lvdisplay --reportformat json -o lv_active %s", lvPath)
+	res, err := procutils.NewRemoteCommandAsFarAsPossible("bash", "-c", cmd).Output()
+	if err != nil {
+		return "", errors.Wrap(err, "lvm lvdisplay")
+	}
+	return string(res), nil
+}
+
 func LVActive(lvPath string, share, exclusive bool) error {
 	opts := "-ay"
 	if share {

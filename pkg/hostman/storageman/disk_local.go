@@ -605,6 +605,13 @@ func (d *SLocalDisk) RebaseDiskSnapshots(parent string, children []string, encry
 	return nil
 }
 
+func (d *SLocalDisk) RenameImage(source, target string) error {
+	if out, err := procutils.NewCommand("mv", "-f", source, target).Output(); err != nil {
+		return errors.Wrapf(err, "failed mv %s to %s: %s", source, target, out)
+	}
+	return nil
+}
+
 func (d *SLocalDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	snapshotDir := d.GetSnapshotDir()
 	snapshotPath := d.GetSnapshotPath(snapshotId)
