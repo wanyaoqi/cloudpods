@@ -2301,26 +2301,6 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			}
 			return ""
 		}
-		// block-commit operates on the active chain head. The child in the
-		// delete plan may itself have newer descendants (for example, disk).
-		chainHead := func(nodeName string) string {
-			seen := make(map[string]bool)
-			for nodeName != "" && !seen[nodeName] {
-				seen[nodeName] = true
-				next := ""
-				for i := range nodes {
-					if nodes[i].BackingFile == nodeName {
-						next = nodes[i].NodeName
-						break
-					}
-				}
-				if next == "" {
-					return nodeName
-				}
-				nodeName = next
-			}
-			return nodeName
-		}
 		var childNode string
 		var onlineChild string
 		for _, child := range plan.Children {
@@ -2348,7 +2328,8 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 			s.taskFailed(fmt.Sprintf("cannot map qcow2 nodes child=%q parent=%q target=%q", childNode, parentNode, targetNode))
 			return
 		}
-		deviceNode := chainHead(childNode)
+		// deviceNode is disk path
+		deviceNode := nodeForPath(s.disk.GetPath())
 		if plan.Action == storageman.LocalSnapshotCommit {
 			log.Infof("delete snapshot block-commit target=%s parent=%s device=%s children=%v online-child=%s", plan.Target, plan.Parent, deviceNode, plan.Children, onlineChild)
 			s.onBlockJobComplete = func() error {
@@ -2418,6 +2399,11 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 }
 
 func (s *SGuestSnapshotDeleteTask) startWatchBlockJobs(res string) {
+	if len(res) > 0 {
+		log.Errorf("block job start failed: %s", res)
+		s.taskFailed(fmt.Sprintf("block job start failed: %s", res))
+	}
+
 	s.blockProgressTask = NewGuestBlockProgressBaseTask(s.ctx, s.SKVMGuestInstance, s)
 	s.blockProgressTask.startWaitBlockJob("")
 }

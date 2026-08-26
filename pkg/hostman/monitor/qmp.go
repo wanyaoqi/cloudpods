@@ -173,8 +173,8 @@ func (m *QmpMonitor) read(r io.Reader) {
 		return
 	}
 	scanner := bufio.NewScanner(r)
-	// set buffer size 1M, default 64K
-	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+	// set buffer size 256K, default 64K
+	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*256)
 
 	for scanner.Scan() {
 		var objmap map[string]*json.RawMessage
@@ -470,7 +470,11 @@ func (m *QmpMonitor) GetNamedBlockNodes(callback func([]QemuNamedBlockNode, erro
 		}
 		callback(filterQcow2NamedBlockNodes(nodes), nil)
 	}
-	m.Query(&Command{Execute: "query-named-block-nodes"}, cb)
+	cmd := &Command{
+		Execute: "query-named-block-nodes",
+		Args:    map[string]interface{}{"flat": true},
+	}
+	m.Query(cmd, cb)
 }
 
 func filterQcow2NamedBlockNodes(nodes []QemuNamedBlockNode) []QemuNamedBlockNode {
