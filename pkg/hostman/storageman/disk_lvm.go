@@ -696,6 +696,12 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 					}
 				}
 			}
+			if fileutils2.Exists(plan.Base) {
+				if err := lvmutils.LVActive(plan.Base, true, false); err != nil {
+					log.Errorf("restore shared activation for %s: %s", plan.Base, err)
+				}
+			}
+
 		}()
 	}
 
@@ -908,6 +914,25 @@ func (d *SLVMDisk) ConvertSnapshots(snapshotPaths []string, encryptInfo apis.SEn
 }
 
 func (d *SLVMDisk) RenameImage(source, target string) error {
+	if err := lvmutils.LVActive(source, false, d.GetStorage().Lvmlockd()); err != nil {
+		return errors.Wrapf(err, "activate snapshot LV %s", source)
+	}
+
+	if d.GetStorage().Lvmlockd() {
+		defer func() {
+			if fileutils2.Exists(source) {
+				if err := lvmutils.LVActive(source, true, false); err != nil {
+					log.Errorf("restore shared activation for %s: %s", source, err)
+				}
+			}
+			if fileutils2.Exists(target) {
+				if err := lvmutils.LVActive(target, true, false); err != nil {
+					log.Errorf("restore shared activation for %s: %s", target, err)
+				}
+			}
+		}()
+	}
+
 	return lvmutils.LvRename(d.Storage.GetPath(), path.Base(source), path.Base(target))
 }
 
