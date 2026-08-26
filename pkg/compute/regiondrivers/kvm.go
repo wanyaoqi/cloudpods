@@ -637,6 +637,12 @@ func (self *SKVMRegionDriver) ValidateCreateEipData(ctx context.Context, userCre
 }
 
 func (self *SKVMRegionDriver) ValidateSnapshotDelete(ctx context.Context, snapshot *models.SSnapshot) error {
+	if guest, _ := snapshot.GetGuest(); guest != nil {
+		if !utils.IsInStringArray(guest.Status, []string{api.VM_RUNNING, api.VM_READY}) {
+			return httperrors.NewBadRequestError("can't delete snapshot in guest %s", guest.Status)
+		}
+	}
+
 	storage := snapshot.GetStorage()
 	if storage == nil {
 		return httperrors.NewInternalServerError("Kvm snapshot missing storage ??")

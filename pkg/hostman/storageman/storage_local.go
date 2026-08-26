@@ -651,6 +651,13 @@ func (s *SLocalStorage) DeleteSnapshot(ctx context.Context, params interface{}) 
 
 	log.Errorf("input %s", jsonutils.Marshal(input))
 	snapshotDir := path.Join(s.GetSnapshotDir(), input.DiskId+options.HostOptions.SnapshotDirSuffix)
+	snapshotPath := path.Join(snapshotDir, input.SnapshotId)
+	if !fileutils2.Exists(snapshotPath) {
+		res := jsonutils.NewDict()
+		res.Set("deleted", jsonutils.JSONTrue)
+		return res, nil
+	}
+
 	diskPath := path.Join(s.GetPath(), input.DiskId)
 	err := DeleteLocalSnapshot(snapshotDir, input.SnapshotId, input.SnapshotIds, diskPath, input.EncryptInfo, s)
 	if err != nil {

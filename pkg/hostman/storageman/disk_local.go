@@ -607,6 +607,11 @@ func (d *SLocalDisk) RebaseDiskSnapshots(parent string, children []string, encry
 
 func (d *SLocalDisk) DeleteSnapshot(snapshotId string, snapshotIds []string, encryptInfo apis.SEncryptInfo) error {
 	snapshotDir := d.GetSnapshotDir()
+	snapshotPath := d.GetSnapshotPath(snapshotId)
+	if !fileutils2.Exists(snapshotPath) {
+		return nil
+	}
+
 	return DeleteLocalSnapshot(snapshotDir, snapshotId, snapshotIds, d.getPath(), encryptInfo, d.GetStorage())
 }
 

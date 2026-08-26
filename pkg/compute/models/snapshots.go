@@ -755,6 +755,7 @@ func (self *SSnapshot) ValidateDeleteCondition(ctx context.Context, info *api.Sn
 			return httperrors.NewBadRequestError("Cannot delete snapshot on disk reset")
 		}
 	}
+
 	driver := self.GetRegionDriver()
 	if driver != nil {
 		return driver.ValidateSnapshotDelete(ctx, self)
