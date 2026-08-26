@@ -234,7 +234,11 @@ func (s *SLVMStorage) DeleteSnapshot(ctx context.Context, params interface{}) (j
 }
 
 func (s *SLVMStorage) IsSnapshotExist(diskId, snapshotId string) (bool, error) {
-	return false, errors.Errorf("unsupported operation")
+	_, err := lvmutils.LvDisplay(path.Join("/dev", s.GetPath(), "snap_"+snapshotId))
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (s *SLVMStorage) GetDiskById(diskId string) (IDisk, error) {
@@ -691,12 +695,12 @@ func convertLVMDisk(vgName, lvName string, encryptInfo apis.SEncryptInfo) (func(
 	tmpVolume2 := lvName + "-convert.tmp2"
 	tmpVolume2Path := path.Join("/dev", vgName, tmpVolume2)
 	// rename /dev/vg/disk to /dev/vg/disk-convert.tmp2
-	err = lvmutils.LvRename(vgName, diskPath, tmpVolume2)
+	err = lvmutils.LvRename(vgName, path.Base(diskPath), tmpVolume2)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed rename disk to tmp")
 	}
 	// rename /dev/vg/disk-convert.tmp to /dev/vg/disk
-	err = lvmutils.LvRename(vgName, tmpVolume, diskPath)
+	err = lvmutils.LvRename(vgName, tmpVolume, path.Base(diskPath))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed rename tmp to disk")
 	}
