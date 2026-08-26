@@ -2393,7 +2393,7 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 				return
 			}
 			log.Infof("delete snapshot block-stream rebase target=%s parent=%s device=%s children=%v online-child=%s", plan.Target, plan.Parent, deviceNode, plan.Children, onlineChild)
-			s.Monitor.BlockStreamToBase(deviceNode, parentNode, s.startWatchBlockJobs)
+			s.Monitor.BlockStreamToBase(childNode, parentNode, s.startWatchBlockJobs)
 		}
 	})
 }
