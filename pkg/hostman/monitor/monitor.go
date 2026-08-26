@@ -244,7 +244,7 @@ type Monitor interface {
 
 	XBlockdevChange(parent, node, child string, callback StringCallback)
 	BlockStream(drive string, callback StringCallback)
-	BlockStreamToBase(device, base string, callback StringCallback)
+	BlockStreamToBase(device, base, jobId string, callback StringCallback)
 	BlockCommit(device, top, base string, callback StringCallback)
 	DriveMirror(callback StringCallback, drive, target, syncMode, format string, unmap, blockReplication bool, speed int64)
 	DriveBackup(callback StringCallback, drive, target, syncMode, format string)

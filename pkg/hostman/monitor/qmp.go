@@ -900,11 +900,12 @@ func (m *QmpMonitor) BlockStream(drive string, callback StringCallback) {
 	m.Query(cmd, cb)
 }
 
-func (m *QmpMonitor) BlockStreamToBase(device, base string, callback StringCallback) {
+func (m *QmpMonitor) BlockStreamToBase(device, base, jobId string, callback StringCallback) {
 	args := map[string]interface{}{
 		"device":    device,
 		"base-node": base,
 		"speed":     5 * 100 * 1024 * 1024,
+		"job-id":    jobId,
 	}
 	log.Infof("qmp block-stream device=%s base-node=%s", device, base)
 	m.Query(&Command{Execute: "block-stream", Args: args}, func(res *Response) {

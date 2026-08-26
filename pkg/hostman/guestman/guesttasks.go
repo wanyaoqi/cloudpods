@@ -2393,7 +2393,7 @@ func (s *SGuestSnapshotDeleteTask) startResolveBackingChain(totalDeleteSnapshotC
 				return
 			}
 			log.Infof("delete snapshot block-stream rebase target=%s parent=%s device=%s children=%v online-child=%s", plan.Target, plan.Parent, deviceNode, plan.Children, onlineChild)
-			s.Monitor.BlockStreamToBase(childNode, parentNode, s.startWatchBlockJobs)
+			s.Monitor.BlockStreamToBase(childNode, parentNode, "snap_delete", s.startWatchBlockJobs)
 		}
 	})
 }
@@ -2402,6 +2402,7 @@ func (s *SGuestSnapshotDeleteTask) startWatchBlockJobs(res string) {
 	if len(res) > 0 {
 		log.Errorf("block job start failed: %s", res)
 		s.taskFailed(fmt.Sprintf("block job start failed: %s", res))
+		return
 	}
 
 	s.blockProgressTask = NewGuestBlockProgressBaseTask(s.ctx, s.SKVMGuestInstance, s)
