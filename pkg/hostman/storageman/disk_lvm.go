@@ -182,32 +182,42 @@ func (d *SLVMDisk) Delete(ctx context.Context, params interface{}) (jsonutils.JS
 	if err := lvmutils.LvRemove(d.GetLvPath()); err != nil {
 		return nil, errors.Wrap(err, "Delete lvremove")
 	}
-	if err := cleanupLVMSnapshotBase(path.Join("/dev", d.Storage.GetPath()), d.GetPath(), backingPath, d.Storage.Lvmlockd()); err != nil {
-		return nil, errors.Wrap(err, "cleanup snapshot base")
+
+	if filepath.Base(backingPath) == snapshotBaseName(d.GetPath()) {
+		if err := lvmutils.LvRemove(backingPath); err != nil {
+			return nil, errors.Wrapf(err, "Delete base snap %s", backingPath)
+		}
 	}
+
+	//if err := cleanupLVMSnapshotBase(path.Join("/dev", d.Storage.GetPath()), d.GetPath(), backingPath, d.Storage.Lvmlockd(), nil); err != nil {
+	//	return nil, errors.Wrap(err, "cleanup snapshot base")
+	//}
 	d.Storage.RemoveDisk(d)
 	return nil, nil
 }
 
-func cleanupLVMSnapshotBase(snapshotDir, diskPath, backingPath string, lvmlockd bool) error {
+func cleanupLVMSnapshotBase(snapshotDir, diskPath, backingPath string, lvmlockd bool, snapshotIds []string) error {
 	base := snapshotBasePath(snapshotDir, diskPath, backingPath)
 	if base == "" {
 		return nil
 	}
-	vgName := path.Base(path.Dir(diskPath))
-	lvNames, err := lvmutils.GetLvNames(vgName)
-	if err != nil {
-		return errors.Wrap(err, "list LVs while cleaning snapshot base")
+
+	if fileutils2.Exists(diskPath) {
+		img, err := qemuimg.NewQemuImage(diskPath)
+		if err != nil {
+			return err
+		}
+		if filepath.Clean(img.BackFilePath) == filepath.Clean(base) {
+			return nil
+		}
 	}
-	if !utils.IsInStringArray(path.Base(base), lvNames) {
-		return nil
-	}
-	for _, lvName := range lvNames {
-		candidate := path.Join(snapshotDir, lvName)
+
+	for _, snap := range snapshotIds {
+		candidate := path.Join(snapshotDir, snap)
 		if filepath.Clean(candidate) == filepath.Clean(base) {
 			continue
 		}
-		if err := lvmutils.LVActive(candidate, false, lvmlockd); err != nil {
+		if err := lvmutils.LVActive(candidate, lvmlockd, false); err != nil {
 			return errors.Wrapf(err, "activate LV %s while cleaning snapshot base", candidate)
 		}
 		img, err := qemuimg.NewQemuImage(candidate)
@@ -676,7 +686,7 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		if err := lvmutils.LvRemove(plan.Target); err != nil {
 			return err
 		}
-		return cleanupLVMSnapshotBase(snapshotDir, diskPath, plan.Parent, lvmlockd)
+		return cleanupLVMSnapshotBase(snapshotDir, diskPath, plan.Parent, lvmlockd, snapshotIds)
 	}
 	activatedPaths := make([]string, 0)
 	for _, lvPath := range append([]string{plan.Parent, plan.Target}, plan.Children...) {
@@ -776,7 +786,7 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 	if err := lvmutils.LvRemove(plan.Target); err != nil {
 		return err
 	}
-	return cleanupLVMSnapshotBase(snapshotDir, diskPath, plan.Parent, lvmlockd)
+	return cleanupLVMSnapshotBase(snapshotDir, diskPath, plan.Parent, lvmlockd, snapshotIds)
 }
 
 // PrepareLocalSnapshotGraph temporarily activates LVM graph nodes that are not
