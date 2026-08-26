@@ -949,6 +949,7 @@ func (manager *SInstanceSnapshotManager) CleanupInstanceSnapshots(ctx context.Co
 		for guestId, retentionCnt := range guestRetentionMap {
 			if cnt, ok := guestCount[guestId]; ok && cnt > retentionCnt {
 				manager.startCleanupRetentionCount(ctx, userCred, guestId, cnt-retentionCnt)
+				return
 			}
 		}
 	}
@@ -984,20 +985,19 @@ func (manager *SInstanceSnapshotManager) CleanupInstanceSnapshots(ctx context.Co
 		}
 		for guestId, retentionDays := range guestRetentionMap {
 			manager.startCleanupRetentionDays(ctx, userCred, guestId, retentionDays)
+			return
 		}
 	}
 }
 
 func (manager *SInstanceSnapshotManager) startCleanupRetentionCount(ctx context.Context, userCred mcclient.TokenCredential, guestId string, cnt int) error {
-	q := manager.Query().Equals("guest_id", guestId).Equals("status", api.INSTANCE_SNAPSHOT_READY).Startswith("name", "auto-").Asc("created_at").Limit(cnt)
-	vms := []SInstanceSnapshot{}
-	err := db.FetchModelObjects(manager, q, &vms)
+	is := new(SInstanceSnapshot)
+	err := manager.Query().Equals("guest_id", guestId).Equals("status", api.INSTANCE_SNAPSHOT_READY).Startswith("name", "auto-").Asc("created_at").First(is)
 	if err != nil {
-		return errors.Wrapf(err, "FetchModelObjects")
+		return err
 	}
-	for i := range vms {
-		vms[i].StartInstanceSnapshotDeleteTask(ctx, userCred, "")
-	}
+	is.SetModelManager(manager, is)
+	is.StartInstanceSnapshotDeleteTask(ctx, userCred, "")
 	return nil
 }
 

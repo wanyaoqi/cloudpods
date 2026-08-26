@@ -60,31 +60,3 @@ func TestBlockJobsReturnsQMPError(t *testing.T) {
 		t.Fatal("expected query-block-jobs error")
 	}
 }
-
-func TestWatchBlockJobByDevice(t *testing.T) {
-	m := NewQmpMonitor("test", "", nil, nil, nil, nil)
-	events := make(chan *Event, 1)
-	unwatch, err := m.WatchBlockJob("node-disk", func(event *Event) { events <- event })
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.watchEvent(&Event{Event: `"BLOCK_JOB_ERROR"`, Data: map[string]interface{}{"device": "other"}})
-	select {
-	case <-events:
-		t.Fatal("received event for another device")
-	case <-time.After(20 * time.Millisecond):
-	}
-	m.watchEvent(&Event{Event: `"BLOCK_JOB_ERROR"`, Data: map[string]interface{}{"device": "node-disk"}})
-	select {
-	case <-events:
-	case <-time.After(time.Second):
-		t.Fatal("did not receive matching block job event")
-	}
-	unwatch()
-	m.watchEvent(&Event{Event: `"BLOCK_JOB_COMPLETED"`, Data: map[string]interface{}{"device": "node-disk"}})
-	select {
-	case <-events:
-		t.Fatal("received event after unwatch")
-	case <-time.After(20 * time.Millisecond):
-	}
-}

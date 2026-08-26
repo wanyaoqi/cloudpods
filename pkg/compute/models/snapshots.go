@@ -1237,23 +1237,21 @@ func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred 
 
 		for diskId, retentionCnt := range diskRetentionMap {
 			if cnt, ok := diskCount[diskId]; ok && cnt > retentionCnt {
-				log.Infof("disk snapshot count %d, retention count %d", cnt, retentionCnt)
+				log.Infof("disk %s snapshot count %d, retention count %d", diskId, cnt, retentionCnt)
 				manager.startCleanupRetentionCount(ctx, userCred, diskId, cnt-retentionCnt)
+				return
 			}
 		}
 	}
 }
 
 func (manager *SSnapshotManager) startCleanupRetentionCount(ctx context.Context, userCred mcclient.TokenCredential, diskId string, cnt int) error {
-	q := manager.Query().Equals("disk_id", diskId).Equals("created_by", api.SNAPSHOT_AUTO).Asc("created_at").Limit(cnt)
-	snapshots := []SSnapshot{}
-	err := db.FetchModelObjects(manager, q, &snapshots)
+	snap := new(SSnapshot)
+	err := manager.Query().Equals("disk_id", diskId).Equals("created_by", api.SNAPSHOT_AUTO).Asc("created_at").First(snap)
 	if err != nil {
-		return errors.Wrapf(err, "FetchModelObjects")
+		return err
 	}
-	for i := range snapshots {
-		snapshots[i].StartSnapshotDeleteTask(ctx, userCred, "", 0, 0)
-	}
+	snap.StartSnapshotDeleteTask(ctx, userCred, "", 0, 0)
 	return nil
 }
 
