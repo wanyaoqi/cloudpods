@@ -109,7 +109,7 @@ func (self *SnapshotDeleteTask) TaskComplete(ctx context.Context, snapshot *mode
 		return
 	}
 	ptask := self.GetParentTask()
-	if ptask != nil && !jsonutils.QueryBoolean(ptask.GetParams(), "snapshot_delete_no_sync_status", false) {
+	if ptask != nil || !jsonutils.QueryBoolean(ptask.GetParams(), "snapshot_delete_no_sync_status", false) {
 		guest.StartSyncstatus(ctx, self.UserCred, "")
 	}
 }
@@ -125,7 +125,7 @@ func (self *SnapshotDeleteTask) TaskFailed(ctx context.Context, snapshot *models
 		return
 	}
 	ptask := self.GetParentTask()
-	if ptask != nil && !jsonutils.QueryBoolean(ptask.GetParams(), "snapshot_delete_no_sync_status", false) {
+	if ptask != nil || !jsonutils.QueryBoolean(ptask.GetParams(), "snapshot_delete_no_sync_status", false) {
 		guest.StartSyncstatus(ctx, self.UserCred, "")
 	}
 }
