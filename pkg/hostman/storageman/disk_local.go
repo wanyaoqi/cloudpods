@@ -678,6 +678,11 @@ func (d *SLocalDisk) resetFromSnapshot(snapshotPath string, encryptInfo *apis.SE
 		encFmt = qemuimg.EncryptFormatLuks
 		encAlg = encryptInfo.Alg
 	}
+	img, err = qemuimg.NewQemuImage(d.GetPath())
+	if err != nil {
+		return nil, err
+	}
+
 	if err := img.CreateQcow2(diskSizeMB, false, snapshotPath, encKey, encFmt, encAlg); err != nil {
 		err = errors.Wrap(err, "qemu-img create disk by snapshot")
 		procutils.NewCommand("mv", "-f", diskTmpPath, d.GetPath()).Run()
