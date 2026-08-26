@@ -181,6 +181,11 @@ type GuestDeleteSnapshotsTask struct {
 }
 
 func (self *GuestDeleteSnapshotsTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	ptask := self.GetParentTask()
+	if jsonutils.QueryBoolean(ptask.GetParams(), "snapshot_delete_no_sync_status", false) {
+		self.Params.Set("snapshot_delete_no_sync_status", jsonutils.JSONTrue)
+	}
+
 	guest := obj.(*models.SGuest)
 	deletedPendingSnapshots := jsonutils.QueryBoolean(self.Params, "deleted_pending_snapshots", false)
 	var instanceSnapshots []models.SInstanceSnapshot
