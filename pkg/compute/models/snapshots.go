@@ -1180,8 +1180,8 @@ func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred 
 		region, _ := snapshot.GetRegion()
 		if err = manager.StartSnapshotCleanupTask(ctx, userCred, region, now); err != nil {
 			log.Errorf("Start snaphsot cleanup task failed %s", err)
-			return
 		}
+		return
 	}
 
 	log.Infof("start clean over retention count snaps...")

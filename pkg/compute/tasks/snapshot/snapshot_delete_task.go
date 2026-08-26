@@ -108,7 +108,10 @@ func (self *SnapshotDeleteTask) TaskComplete(ctx context.Context, snapshot *mode
 		log.Errorln(err.Error())
 		return
 	}
-	guest.StartSyncstatus(ctx, self.UserCred, "")
+	ptask := self.GetParentTask()
+	if !jsonutils.QueryBoolean(ptask.GetParams(), "snapshot_delete_no_sync_status", false) {
+		guest.StartSyncstatus(ctx, self.UserCred, "")
+	}
 }
 
 func (self *SnapshotDeleteTask) TaskFailed(ctx context.Context, snapshot *models.SSnapshot, reason jsonutils.JSONObject) {
@@ -121,7 +124,10 @@ func (self *SnapshotDeleteTask) TaskFailed(ctx context.Context, snapshot *models
 		log.Errorln(err.Error())
 		return
 	}
-	guest.StartSyncstatus(ctx, self.UserCred, "")
+	ptask := self.GetParentTask()
+	if !jsonutils.QueryBoolean(ptask.GetParams(), "snapshot_delete_no_sync_status", false) {
+		guest.StartSyncstatus(ctx, self.UserCred, "")
+	}
 }
 
 /***************************** Batch Snapshots Delete Task *****************************/

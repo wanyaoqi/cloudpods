@@ -289,6 +289,7 @@ func (deleteTask *BaseGuestDeleteTask) startDeleteGuestSnapshots(ctx context.Con
 	if jsonutils.QueryBoolean(deleteTask.Params, "delete_snapshots", false) {
 		deletePendingSnapshots = false
 	}
+	deleteTask.Params.Set("snapshot_delete_no_sync_status", jsonutils.JSONTrue)
 	deleteTask.SetStage("OnDeleteSnapshots", nil)
 	guest.StartDeleteGuestSnapshots(ctx, deleteTask.UserCred, deleteTask.Id, deletePendingSnapshots)
 }
