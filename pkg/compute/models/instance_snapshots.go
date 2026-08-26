@@ -34,6 +34,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/onecloud/pkg/cloudcommon/notifyclient"
 	"yunion.io/x/onecloud/pkg/compute/options"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -875,7 +876,20 @@ func (manager *SInstanceSnapshotManager) AutoServerSnapshot(ctx context.Context,
 			log.Errorf("get server error: %v", err)
 			continue
 		}
+		cnt, err := server.GetInstanceSnapshotCount()
+		if err != nil {
+			log.Errorf("get instance snapshot error: %v", err)
+			continue
+		}
+		if cnt > options.Options.RetentionDaysLimit {
+			msg := fmt.Sprintf("server %s auto snapshot count %d more than retention count limit %d", server.GetId(), cnt, options.Options.RetentionCountLimit)
+			log.Errorf("auto snapshot %s error: %v", server.Name, msg)
+			db.OpsLog.LogEvent(server, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, msg, userCred)
+			notifyclient.NotifySystemErrorWithCtx(ctx, server.Id, server.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, msg)
+			continue
+		}
 		serverMap[server.Id] = server
+
 	}
 	for i := range serverMap {
 		input := api.ServerInstanceSnapshot{}
@@ -895,7 +909,7 @@ func (manager *SInstanceSnapshotManager) CleanupInstanceSnapshots(ctx context.Co
 	defer func() {
 		instanceSnapshotCleanupTaskRunning = 0
 	}()
-	sq := manager.Query().Equals("status", api.INSTANCE_SNAPSHOT_READY).Startswith("name", "auto-").SubQuery()
+	sq := manager.Query().Startswith("name", "auto-").SubQuery()
 
 	iss := []struct {
 		GuestCnt int

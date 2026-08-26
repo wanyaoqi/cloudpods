@@ -1184,7 +1184,7 @@ func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred 
 	}
 
 	log.Infof("start clean over retention count snaps...")
-	sq := manager.Query().Equals("status", api.SNAPSHOT_READY).Equals("created_by", api.SNAPSHOT_AUTO).SubQuery()
+	sq := manager.Query().Equals("created_by", api.SNAPSHOT_AUTO).SubQuery()
 
 	disks := []struct {
 		DiskCnt int

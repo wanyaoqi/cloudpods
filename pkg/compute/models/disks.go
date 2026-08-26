@@ -902,6 +902,12 @@ func (self *SDisk) GetManualSnapshotCount() (int, error) {
 		Equals("created_by", api.SNAPSHOT_MANUAL).CountWithError()
 }
 
+func (self *SDisk) GetAutoSnapshotCount() (int, error) {
+	return SnapshotManager.Query().
+		Equals("disk_id", self.Id).
+		Equals("created_by", api.SNAPSHOT_AUTO).CountWithError()
+}
+
 func (self *SDisk) getDiskAllocateFromBackupInput(ctx context.Context, backupId string) (*api.DiskAllocateFromBackupInput, error) {
 	ibackup, err := DiskBackupManager.FetchById(backupId)
 	if err != nil {
@@ -2987,6 +2993,19 @@ func (manager *SDiskManager) AutoDiskSnapshot(ctx context.Context, userCred mccl
 			log.Errorf("get disk error: %v", err)
 			continue
 		}
+		snapCnt, err := disk.GetAutoSnapshotCount()
+		if err != nil {
+			log.Errorf("failed get snapshot count: %v", err)
+			continue
+		}
+		if snapCnt > options.Options.RetentionCountLimit {
+			msg := fmt.Sprintf("disk %s auto snapshot count %d more than retention count limit %d", disk.GetId(), snapCnt, options.Options.RetentionCountLimit)
+			log.Errorf("auto snapshot %s error: %v", disk.Name, msg)
+			db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, msg, userCred)
+			notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, msg)
+			continue
+		}
+
 		if guest := disk.GetGuest(); guest != nil {
 			if dps, ok := guestDps[guest.Id]; ok {
 				guestDps[guest.Id] = append(dps, disks[i])
