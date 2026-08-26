@@ -1163,6 +1163,7 @@ func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred 
 		log.Errorf("Previous CleanupSnapshots tasks still running !!!")
 		return
 	}
+	log.Infof("start clean expired snaps...")
 	var now = time.Now()
 	var snapshot = new(SSnapshot)
 	err := manager.Query().
@@ -1173,16 +1174,16 @@ func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred 
 		return
 	} else if err == sql.ErrNoRows {
 		log.Infof("No snapshot need to clean ......")
-		return
+	} else {
+		snapshot.SetModelManager(manager, snapshot)
+		region, _ := snapshot.GetRegion()
+		if err = manager.StartSnapshotCleanupTask(ctx, userCred, region, now); err != nil {
+			log.Errorf("Start snaphsot cleanup task failed %s", err)
+			return
+		}
 	}
 
-	snapshot.SetModelManager(manager, snapshot)
-	region, _ := snapshot.GetRegion()
-	if err = manager.StartSnapshotCleanupTask(ctx, userCred, region, now); err != nil {
-		log.Errorf("Start snaphsot cleanup task failed %s", err)
-		return
-	}
-
+	log.Infof("start clean over retention count snaps...")
 	sq := manager.Query().Equals("status", api.SNAPSHOT_READY).Equals("created_by", api.SNAPSHOT_AUTO).SubQuery()
 
 	disks := []struct {
@@ -1236,6 +1237,7 @@ func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred 
 
 		for diskId, retentionCnt := range diskRetentionMap {
 			if cnt, ok := diskCount[diskId]; ok && cnt > retentionCnt {
+				log.Infof("disk snapshot count %d, retention count %d", cnt, retentionCnt)
 				manager.startCleanupRetentionCount(ctx, userCred, diskId, cnt-retentionCnt)
 			}
 		}
