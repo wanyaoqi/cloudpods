@@ -659,6 +659,7 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 	if err != nil {
 		return err
 	}
+	log.Infof("delete snapshot plan: %s", plan)
 	if plan.Action == LocalSnapshotRemove {
 		diskReferences, err := qcow2HasBackingReference(diskPath, plan.Target)
 		if err != nil {
@@ -666,19 +667,6 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 		}
 		if diskReferences {
 			return errors.Errorf("snapshot %s is referenced by disk %s", snapshotId, diskPath)
-		}
-		for _, lvName := range lvNames {
-			candidate := path.Join(snapshotDir, lvName)
-			if candidate == plan.Target || !strings.HasPrefix(lvName, "snap_") {
-				continue
-			}
-			if err := lvmutils.LVActive(candidate, false, lvmlockd); err != nil {
-				return errors.Wrapf(err, "activate LV %s while checking snapshot references", candidate)
-			}
-			img, err := qemuimg.NewQemuImage(candidate)
-			if err == nil && path.Clean(img.BackFilePath) == path.Clean(plan.Target) {
-				return errors.Errorf("snapshot %s is referenced by an out-of-chain qcow2 LV", snapshotId)
-			}
 		}
 		if err := lvmutils.LvRemove(plan.Target); err != nil {
 			return err
@@ -725,10 +713,6 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 	}
 	switch plan.Action {
 	case LocalSnapshotPromote:
-		lvNames, err := lvmutils.GetLvNames(vgName)
-		if err != nil {
-			return errors.Wrap(err, "list LVs before promoting snapshot base")
-		}
 		if utils.IsInStringArray(path.Base(plan.Base), lvNames) {
 			return errors.Errorf("snapshot base %s already exists", plan.Base)
 		}
