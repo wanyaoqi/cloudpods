@@ -368,6 +368,8 @@ type DiskDeleteInput struct {
 	SkipRecycle      *bool
 	EsxiFlatFilePath string
 	CleanSnapshots   bool
+
+	SnapshotIds []string
 }
 
 type DiskResetInput struct {

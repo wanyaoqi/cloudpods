@@ -183,15 +183,12 @@ func (d *SLVMDisk) Delete(ctx context.Context, params interface{}) (jsonutils.JS
 		return nil, errors.Wrap(err, "Delete lvremove")
 	}
 
-	if filepath.Base(backingPath) == snapshotBaseName(d.GetPath()) {
-		if err := lvmutils.LvRemove(backingPath); err != nil {
-			return nil, errors.Wrapf(err, "Delete base snap %s", backingPath)
-		}
+	if err := cleanupLVMSnapshotBase(
+		path.Join("/dev", d.Storage.GetPath()),
+		d.GetPath(), backingPath, d.Storage.Lvmlockd(),
+		prefixSnapshotIds(p.SnapshotIds)); err != nil {
+		return nil, errors.Wrap(err, "cleanup snapshot base")
 	}
-
-	//if err := cleanupLVMSnapshotBase(path.Join("/dev", d.Storage.GetPath()), d.GetPath(), backingPath, d.Storage.Lvmlockd(), nil); err != nil {
-	//	return nil, errors.Wrap(err, "cleanup snapshot base")
-	//}
 	d.Storage.RemoveDisk(d)
 	return nil, nil
 }
