@@ -2339,6 +2339,9 @@ func (self *SGuest) PostUpdate(ctx context.Context, userCred mcclient.TokenCrede
 			log.Errorf("unable to set sshport for guest %s", self.GetId())
 		}
 	}
+	if data.Contains("is_daemon") {
+		self.StartSyncTask(ctx, userCred, true, "")
+	}
 }
 
 func (manager *SGuestManager) checkCreateQuota(
