@@ -675,7 +675,7 @@ func deleteLVMSnapshotByBackingChain(snapshotDir, snapshotId string, snapshotIds
 	}
 	activatedPaths := make([]string, 0)
 	for _, lvPath := range append([]string{plan.Parent, plan.Target}, plan.Children...) {
-		if lvPath != "" {
+		if lvPath != "" && !fileutils2.Exists(lvPath) {
 			if err := lvmutils.LVActive(lvPath, false, lvmlockd); err != nil {
 				return errors.Wrapf(err, "activate snapshot LV %s", lvPath)
 			}
