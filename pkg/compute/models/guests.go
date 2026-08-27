@@ -2757,9 +2757,11 @@ func (self *SGuest) PostUpdate(ctx context.Context, userCred mcclient.TokenCrede
 			log.Errorf("unable to set sshport for guest %s", self.GetId())
 		}
 	}
-	if data.Contains("name") && len(self.ExternalId) == 0 && len(self.HostId) > 0 {
-		if err := self.StartSyncTask(ctx, userCred, false, ""); err != nil {
-			log.Errorf("StartSyncTask after rename fail: %s", err)
+	if len(self.ExternalId) == 0 && len(self.HostId) > 0 {
+		if data.Contains("name") || data.Contains("is_daemon") {
+			if err := self.StartSyncTask(ctx, userCred, true, ""); err != nil {
+				log.Errorf("PostUpdate StartSyncTask fail: %s", err)
+			}
 		}
 	}
 }
