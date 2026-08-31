@@ -3323,7 +3323,7 @@ func (disk *SDisk) PerformSetSnapshotpolicy(
 		return nil, err
 	}
 	sp := spObj.(*SSnapshotPolicy)
-	if sp.Type != api.SNAPSHOT_POLICY_TYPE_DISK {
+	if !utils.IsInStringArray(sp.Type, api.DISK_POLICY_TYPES) {
 		return nil, httperrors.NewBadRequestError("The snapshot policy %s is not a disk snapshot policy", sp.Name)
 	}
 	if len(sp.ManagerId) > 0 {

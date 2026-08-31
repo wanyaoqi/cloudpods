@@ -62,7 +62,7 @@ type SSnapshotPolicy struct {
 	// 快照保留数量, 优先级高于 RetentionDays, 且仅对本地IDC资源有效
 	RetentionCount int `nullable:"true" list:"user" get:"user" update:"user" create:"optional"`
 
-	// 快照类型, 目前支持 disk, server
+	// 快照类型, 目前支持 disk, server, disk_backup, instance_backup
 	Type string `width:"36" charset:"ascii" default:"disk" list:"user" create:"required"`
 
 	// 1~7, 1 is Monday
@@ -261,7 +261,7 @@ func (manager *SSnapshotPolicyManager) FetchCustomizeColumns(
 			}
 		}
 		sp := objs[i].(*SSnapshotPolicy)
-		if sp.Type == api.SNAPSHOT_POLICY_TYPE_DISK {
+		if utils.IsInStringArray(sp.Type, api.DISK_POLICY_TYPES) {
 			rows[i].BindingDiskCount = len(resources)
 		}
 	}
@@ -476,7 +476,7 @@ func (sp *SSnapshotPolicy) PerformBindDisks(
 	query jsonutils.JSONObject,
 	input *api.SnapshotPolicyDisksInput,
 ) (jsonutils.JSONObject, error) {
-	if sp.Type != api.SNAPSHOT_POLICY_TYPE_DISK {
+	if !utils.IsInStringArray(sp.Type, api.DISK_POLICY_TYPES) {
 		return nil, httperrors.NewBadRequestError("The snapshot policy %s is not a disk snapshot policy", sp.Name)
 	}
 	if len(input.Disks) == 0 {
@@ -490,7 +490,7 @@ func (sp *SSnapshotPolicy) PerformBindDisks(
 		}
 		disk := diskObj.(*SDisk)
 		// 磁盘只能绑定一个快照策略
-		cnt, err := SnapshotPolicyResourceManager.GetBindingCount(disk.Id, api.SNAPSHOT_POLICY_TYPE_DISK)
+		cnt, err := SnapshotPolicyResourceManager.GetBindingCount(disk.Id, api.DISK_POLICY_TYPES)
 		if err != nil {
 			return nil, errors.Wrap(err, "GetBindingCount")
 		}
@@ -499,7 +499,7 @@ func (sp *SSnapshotPolicy) PerformBindDisks(
 		}
 		// 若磁盘所属主机已绑定主机快照策略，则磁盘不能再绑定
 		if guest := disk.GetGuest(); guest != nil {
-			guestCnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.SNAPSHOT_POLICY_TYPE_SERVER)
+			guestCnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.INSTANCE_POLICY_TYPES)
 			if err != nil {
 				return nil, errors.Wrap(err, "GetBindingCount for guest")
 			}
@@ -548,7 +548,7 @@ func (sp *SSnapshotPolicy) PerformBindResources(
 	for i := range input.Resources {
 		switch input.Resources[i].Type {
 		case api.SNAPSHOT_POLICY_TYPE_DISK:
-			if sp.Type != api.SNAPSHOT_POLICY_TYPE_DISK {
+			if utils.IsInStringArray(sp.Type, api.DISK_POLICY_TYPES) {
 				return nil, httperrors.NewBadRequestError("The snapshot policy %s is not a disk snapshot policy", sp.Name)
 			}
 			diskObj, err := validators.ValidateModel(ctx, userCred, DiskManager, &input.Resources[i].Id)
@@ -557,7 +557,7 @@ func (sp *SSnapshotPolicy) PerformBindResources(
 			}
 			disk := diskObj.(*SDisk)
 			// 磁盘只能绑定一个快照策略
-			cnt, err := SnapshotPolicyResourceManager.GetBindingCount(disk.Id, api.SNAPSHOT_POLICY_TYPE_DISK)
+			cnt, err := SnapshotPolicyResourceManager.GetBindingCount(disk.Id, api.DISK_POLICY_TYPES)
 			if err != nil {
 				return nil, errors.Wrap(err, "GetBindingCount")
 			}
@@ -566,7 +566,7 @@ func (sp *SSnapshotPolicy) PerformBindResources(
 			}
 			// 若磁盘所属主机已绑定主机快照策略，则磁盘不能再绑定
 			if guest := disk.GetGuest(); guest != nil {
-				guestCnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.SNAPSHOT_POLICY_TYPE_SERVER)
+				guestCnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.INSTANCE_POLICY_TYPES)
 				if err != nil {
 					return nil, errors.Wrap(err, "GetBindingCount for guest")
 				}
@@ -575,7 +575,7 @@ func (sp *SSnapshotPolicy) PerformBindResources(
 				}
 			}
 		case api.SNAPSHOT_POLICY_TYPE_SERVER:
-			if sp.Type != api.SNAPSHOT_POLICY_TYPE_SERVER {
+			if utils.IsInStringArray(sp.Type, api.INSTANCE_POLICY_TYPES) {
 				return nil, httperrors.NewBadRequestError("The snapshot policy %s is not a server snapshot policy", sp.Name)
 			}
 			guestObj, err := validators.ValidateModel(ctx, userCred, GuestManager, &input.Resources[i].Id)
@@ -584,7 +584,7 @@ func (sp *SSnapshotPolicy) PerformBindResources(
 			}
 			guest := guestObj.(*SGuest)
 			// 主机只能绑定一个快照策略
-			cnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.SNAPSHOT_POLICY_TYPE_SERVER)
+			cnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.INSTANCE_POLICY_TYPES)
 			if err != nil {
 				return nil, errors.Wrap(err, "GetBindingCount")
 			}
@@ -597,7 +597,7 @@ func (sp *SSnapshotPolicy) PerformBindResources(
 				return nil, errors.Wrap(err, "guest.GetDisks")
 			}
 			for _, d := range disks {
-				diskCnt, err := SnapshotPolicyResourceManager.GetBindingCount(d.Id, api.SNAPSHOT_POLICY_TYPE_DISK)
+				diskCnt, err := SnapshotPolicyResourceManager.GetBindingCount(d.Id, api.DISK_POLICY_TYPES)
 				if err != nil {
 					return nil, errors.Wrap(err, "GetBindingCount for disk")
 				}
@@ -672,7 +672,7 @@ func (sp *SSnapshotPolicy) PerformUnbindDisks(
 	query jsonutils.JSONObject,
 	input *api.SnapshotPolicyDisksInput,
 ) (jsonutils.JSONObject, error) {
-	if sp.Type != api.SNAPSHOT_POLICY_TYPE_DISK {
+	if utils.IsInStringArray(sp.Type, api.DISK_POLICY_TYPES) {
 		return nil, httperrors.NewBadRequestError("The snapshot policy %s is not a disk snapshot policy", sp.Name)
 	}
 	if len(input.Disks) == 0 {

@@ -33,7 +33,12 @@ const (
 
 	SNAPSHOT_POLICY_TYPE_DISK   = "disk"
 	SNAPSHOT_POLICY_TYPE_SERVER = "server"
+	BACKUP_POLICY_TYPE_DISK     = "disk_backup"
+	BACKUP_POLICY_TYPE_INSTNACE = "instance_backup"
 )
+
+var DISK_POLICY_TYPES = []string{SNAPSHOT_POLICY_TYPE_DISK, BACKUP_POLICY_TYPE_DISK}
+var INSTANCE_POLICY_TYPES = []string{SNAPSHOT_POLICY_TYPE_SERVER, BACKUP_POLICY_TYPE_INSTNACE}
 
 type SnapshotPolicyDetails struct {
 	apis.VirtualResourceDetails
