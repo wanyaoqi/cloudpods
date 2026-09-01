@@ -69,6 +69,10 @@ type SSnapshotPolicy struct {
 	RepeatWeekdays api.RepeatWeekdays `charset:"utf8" create:"required" list:"user" get:"user" update:"user"`
 	// 0~23
 	TimePoints api.TimePoints `charset:"utf8" create:"required" list:"user" get:"user" update:"user"`
+
+	// backup policy params
+	BackupStorageId string `width:"36" charset:"ascii" nullable:"true" create:"optional" list:"user" index:"true"`
+	BackupAsTar     *api.DiskBackupAsTarInput
 }
 
 var SnapshotPolicyManager *SSnapshotPolicyManager
@@ -1009,4 +1013,9 @@ func (sp *SSnapshotPolicy) SyncDisks(ctx context.Context, userCred mcclient.Toke
 		}
 	}
 	return nil
+}
+
+func CleanupExpiredBackups(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	DiskBackupManager.CleanupExpiredBackups(ctx, userCred, isStart)
+	InstanceBackupManager.CleanupExpiredBackups(ctx, userCred, isStart)
 }

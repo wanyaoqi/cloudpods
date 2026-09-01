@@ -114,15 +114,34 @@ func (self *GuestDisksSnapshotPolicyExecuteTask) OnDiskSnapshot(ctx context.Cont
 		self.OnDiskSnapshot(ctx, obj, data)
 		return
 	}
-	err = models.DiskManager.DoAutoSnapshot(ctx, self.UserCred, &snapshotPolicyDisk, disk, self.GetTaskId())
+	snapshotPolicy, err := snapshotPolicyDisk.GetSnapshotPolicy()
 	if err != nil {
-		log.Errorf("disk.CreateSnapshotAuto failed %s %s", disk.Id, err)
-		db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, err.Error(), self.UserCred)
-		notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, errors.Wrapf(err, "Disk auto create snapshot").Error())
-
+		log.Errorf("disk snapshot policy %s failed get disk %s", snapshotPolicyDisk.SnapshotpolicyId, err)
 		self.OnDiskSnapshot(ctx, obj, data)
 		return
 	}
+	if snapshotPolicy.Type == api.SNAPSHOT_POLICY_TYPE_DISK {
+		// auto disk snapshot
+		err = models.DiskManager.DoAutoSnapshot(ctx, self.UserCred, &snapshotPolicyDisk, disk, self.GetTaskId())
+		if err != nil {
+			log.Errorf("disk.CreateSnapshotAuto failed %s %s", disk.Id, err)
+			db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, err.Error(), self.UserCred)
+			notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, errors.Wrapf(err, "Disk auto create snapshot").Error())
+			self.OnDiskSnapshot(ctx, obj, data)
+			return
+		}
+	} else {
+		// auto disk backup
+		err = models.DiskManager.DoAutoBackup(ctx, self.UserCred, &snapshotPolicyDisk, disk, self.GetTaskId())
+		if err != nil {
+			log.Errorf("disk.CreateSnapshotAuto failed %s %s", disk.Id, err)
+			db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_BACKUP_FAIL, err.Error(), self.UserCred)
+			notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_BACKUP_FAIL, errors.Wrapf(err, "Disk auto create snapshot").Error())
+			self.OnDiskSnapshot(ctx, obj, data)
+			return
+		}
+	}
+
 }
 
 func (self *GuestDisksSnapshotPolicyExecuteTask) OnDiskSnapshotFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {

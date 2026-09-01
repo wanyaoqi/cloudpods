@@ -75,6 +75,8 @@ type SInstanceBackup struct {
 	InstanceType string `width:"64" charset:"utf8" nullable:"true" list:"user" create:"optional"`
 	// 主机备份容量和
 	SizeMb int `nullable:"false" list:"user"`
+
+	ExpiredAt time.Time `nullable:"true" list:"user" create:"optional"`
 }
 
 // +onecloud:swagger-gen-model-singular=instancebackup
@@ -682,4 +684,124 @@ func (self *SInstanceBackup) CustomizeCreate(
 		ownerId = guestObj.(*SGuest).GetOwnerId()
 	}
 	return self.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data)
+}
+
+func (manager *SInstanceBackupManager) CleanupExpiredBackups(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	log.Infof("start clean expired instance backups ...")
+	sq := manager.Query().Startswith("name", "auto-").SubQuery()
+
+	iss := []struct {
+		GuestCnt int
+		GuestId  string
+	}{}
+	q := sq.Query(
+		sqlchemy.COUNT("guest_cnt", sq.Field("guest_id")),
+		sq.Field("guest_id"),
+	).GroupBy(sq.Field("guest_id"))
+	err := q.All(&iss)
+	if err != nil {
+		log.Errorf("Cleanup instance snapshots job fetch instance snapshot failed %s", err)
+		return
+	}
+	guestCount := map[string]int{}
+	for i := range iss {
+		guestCount[iss[i].GuestId] = iss[i].GuestCnt
+	}
+
+	{
+		sq = SnapshotPolicyManager.Query().Equals("type", api.BACKUP_POLICY_TYPE_INSTNACE).GT("retention_count", 0).SubQuery()
+		spr := SnapshotPolicyResourceManager.Query().Equals("resource_type", api.SNAPSHOT_POLICY_TYPE_SERVER).SubQuery()
+		q = sq.Query(
+			sq.Field("retention_count"),
+			spr.Field("resource_id").Label("guest_id"),
+		)
+		q = q.Join(spr, sqlchemy.Equals(q.Field("id"), spr.Field("snapshotpolicy_id")))
+
+		guestRetentions := []struct {
+			GuestId        string
+			RetentionCount int
+		}{}
+		err = q.All(&guestRetentions)
+		if err != nil {
+			log.Errorf("Cleanup instance snapshots job fetch guest retentions failed %s", err)
+			return
+		}
+		guestRetentionMap := map[string]int{}
+		for i := range guestRetentions {
+			if _, ok := guestRetentionMap[guestRetentions[i].GuestId]; !ok {
+				guestRetentionMap[guestRetentions[i].GuestId] = guestRetentions[i].RetentionCount
+			}
+			// 取最小保留个数
+			if guestRetentionMap[guestRetentions[i].GuestId] > guestRetentions[i].RetentionCount {
+				guestRetentionMap[guestRetentions[i].GuestId] = guestRetentions[i].RetentionCount
+			}
+		}
+
+		for guestId, retentionCnt := range guestRetentionMap {
+			if cnt, ok := guestCount[guestId]; ok && cnt > retentionCnt {
+				manager.startCleanupRetentionCount(ctx, userCred, guestId, cnt-retentionCnt)
+			}
+		}
+	}
+
+	{
+		sq = SnapshotPolicyManager.Query().Equals("type", api.BACKUP_POLICY_TYPE_INSTNACE).GT("retention_days", 0).SubQuery()
+		spr := SnapshotPolicyResourceManager.Query().Equals("resource_type", api.SNAPSHOT_POLICY_TYPE_SERVER).SubQuery()
+		q = sq.Query(
+			sq.Field("retention_days"),
+			spr.Field("resource_id").Label("guest_id"),
+		)
+		q = q.Join(spr, sqlchemy.Equals(q.Field("id"), spr.Field("snapshotpolicy_id")))
+
+		guestRetentions := []struct {
+			GuestId       string
+			RetentionDays int
+		}{}
+		err = q.All(&guestRetentions)
+		if err != nil {
+			log.Errorf("Cleanup instance snapshots job fetch guest retentions failed %s", err)
+			return
+		}
+		guestRetentionMap := map[string]int{}
+		for i := range guestRetentions {
+			if _, ok := guestRetentionMap[guestRetentions[i].GuestId]; !ok {
+				guestRetentionMap[guestRetentions[i].GuestId] = guestRetentions[i].RetentionDays
+			}
+			// 取最小保留天数
+			if guestRetentionMap[guestRetentions[i].GuestId] > guestRetentions[i].RetentionDays {
+				guestRetentionMap[guestRetentions[i].GuestId] = guestRetentions[i].RetentionDays
+			}
+		}
+		for guestId, retentionDays := range guestRetentionMap {
+			manager.startCleanupRetentionDays(ctx, userCred, guestId, retentionDays)
+			return
+		}
+	}
+}
+
+func (manager *SInstanceBackupManager) startCleanupRetentionCount(ctx context.Context, userCred mcclient.TokenCredential, guestId string, retentionCnt int) error {
+	q := manager.Query().Equals("guest_id", guestId).Startswith("name", "auto-").Asc("created_at").Limit(retentionCnt)
+	backups := make([]SInstanceBackup, 0)
+	err := db.FetchModelObjects(manager, q, &backups)
+	if err != nil {
+		return errors.Wrap(err, "db.FetchModelObjects")
+	}
+	for _, backup := range backups {
+		backup.StartInstanceBackupDeleteTask(ctx, userCred, "", false)
+	}
+	return nil
+}
+
+func (manager *SInstanceBackupManager) startCleanupRetentionDays(ctx context.Context, userCred mcclient.TokenCredential, guestId string, retentionDays int) error {
+	expiredTime := time.Now().AddDate(0, 0, -retentionDays)
+	q := manager.Query().Equals("guest_id", guestId).Startswith("name", "auto-").LE("created_at", expiredTime).Asc("created_at")
+	backups := make([]SInstanceBackup, 0)
+	err := db.FetchModelObjects(manager, q, &backups)
+	if err != nil {
+		return errors.Wrap(err, "db.FetchModelObjects")
+	}
+	for _, backup := range backups {
+		backup.StartInstanceBackupDeleteTask(ctx, userCred, "", false)
+	}
+	return nil
 }

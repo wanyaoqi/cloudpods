@@ -860,3 +860,125 @@ func (diskBackup SDiskBackup) ToSimpleBackup() api.SSimpleBackup {
 		BackupFilePath: diskBackup.BackupFilePath,
 	}
 }
+
+func (manager *SDiskBackupManager) StartCleanupRetentionCount(ctx context.Context, userCred mcclient.TokenCredential, diskId string, cnt int) error {
+	q := manager.Query().Equals("disk_id", diskId).Startswith("name", "auto-").Asc("created_at").Limit(cnt)
+	backups := make([]SDiskBackup, 0)
+	err := db.FetchModelObjects(manager, q, &backups)
+	if err != nil {
+		return errors.Wrap(err, "db.FetchModelObjects")
+	}
+	for _, backup := range backups {
+		backup.StartBackupDeleteTask(ctx, userCred, "", false)
+	}
+	return nil
+}
+
+func (manager *SDiskBackupManager) startCleanupRetentionDays(ctx context.Context, userCred mcclient.TokenCredential, diskId string, retentionDays int) error {
+	expiredTime := time.Now().AddDate(0, 0, -retentionDays)
+	q := manager.Query().Equals("disk_id", diskId).Startswith("name", "auto-").LE("created_at", expiredTime).Asc("created_at")
+	backups := make([]SDiskBackup, 0)
+	err := db.FetchModelObjects(manager, q, &backups)
+	if err != nil {
+		return errors.Wrap(err, "db.FetchModelObjects")
+	}
+	for _, backup := range backups {
+		backup.StartBackupDeleteTask(ctx, userCred, "", false)
+	}
+	return nil
+}
+
+func (manager *SDiskBackupManager) CleanupExpiredBackups(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	log.Infof("start clean expired disk backups ...")
+	sq := DiskBackupManager.Query().Startswith("name", "auto-").SubQuery()
+
+	disks := []struct {
+		DiskCnt int
+		DiskId  string
+	}{}
+	q := sq.Query(
+		sqlchemy.COUNT("disk_cnt", sq.Field("disk_id")),
+		sq.Field("disk_id"),
+	).GroupBy(sq.Field("disk_id"))
+	err := q.All(&disks)
+	if err != nil {
+		log.Errorf("Cleanup snapshots job fetch disk count failed %s", err)
+		return
+	}
+
+	diskCount := map[string]int{}
+	for i := range disks {
+		diskCount[disks[i].DiskId] = disks[i].DiskCnt
+	}
+
+	{
+		sq = SnapshotPolicyManager.Query().Equals("type", api.BACKUP_POLICY_TYPE_DISK).GT("retention_count", 0).SubQuery()
+		spd := SnapshotPolicyResourceManager.Query().Equals("resource_type", api.SNAPSHOT_POLICY_TYPE_DISK).SubQuery()
+		q = sq.Query(
+			sq.Field("retention_count"),
+			spd.Field("resource_id").Label("disk_id"),
+		)
+		q = q.Join(spd, sqlchemy.Equals(q.Field("id"), spd.Field("snapshotpolicy_id")))
+		diskRetentions := []struct {
+			DiskId         string
+			RetentionCount int
+		}{}
+		err = q.All(&diskRetentions)
+		if err != nil {
+			log.Errorf("Cleanup snapshots job fetch disk retentions failed %s", err)
+			return
+		}
+		diskRetentionMap := map[string]int{}
+		for i := range diskRetentions {
+			if _, ok := diskRetentionMap[diskRetentions[i].DiskId]; !ok {
+				diskRetentionMap[diskRetentions[i].DiskId] = diskRetentions[i].RetentionCount
+			}
+			// 取最小保留个数
+			if diskRetentionMap[diskRetentions[i].DiskId] > diskRetentions[i].RetentionCount {
+				diskRetentionMap[diskRetentions[i].DiskId] = diskRetentions[i].RetentionCount
+			}
+		}
+		for diskId, retentionCnt := range diskRetentionMap {
+			if cnt, ok := diskCount[diskId]; ok && cnt > retentionCnt {
+				log.Infof("disk %s backup count %d, retention count %d", diskId, cnt, retentionCnt)
+				DiskBackupManager.StartCleanupRetentionCount(ctx, userCred, diskId, cnt-retentionCnt)
+				return
+			}
+		}
+	}
+
+	{
+		sq := SnapshotPolicyManager.Query().Equals("type", api.BACKUP_POLICY_TYPE_DISK).GT("retention_days", 0).SubQuery()
+		spr := SnapshotPolicyResourceManager.Query().Equals("resource_type", api.SNAPSHOT_POLICY_TYPE_DISK).SubQuery()
+		q := sq.Query(
+			sq.Field("retention_days"),
+			spr.Field("resource_id").Label("disk_id"),
+		)
+		q = q.Join(spr, sqlchemy.Equals(q.Field("id"), spr.Field("snapshotpolicy_id")))
+
+		disks := []struct {
+			RetentionDays int
+			DiskId        string
+		}{}
+		err = q.All(&disks)
+		if err != nil {
+			log.Errorf("Cleanup instance snapshots job fetch guest retentions failed %s", err)
+			return
+		}
+		diskRetentionMap := map[string]int{}
+		for i := range disks {
+			if _, ok := diskRetentionMap[disks[i].DiskId]; !ok {
+				diskRetentionMap[disks[i].DiskId] = disks[i].RetentionDays
+			}
+			// 取最小保留天数
+			if diskRetentionMap[disks[i].DiskId] > disks[i].RetentionDays {
+				diskRetentionMap[disks[i].DiskId] = disks[i].RetentionDays
+			}
+		}
+		for diskId, retentionDays := range diskRetentionMap {
+			manager.startCleanupRetentionDays(ctx, userCred, diskId, retentionDays)
+			return
+		}
+	}
+
+}

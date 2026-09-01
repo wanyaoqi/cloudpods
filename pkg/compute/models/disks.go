@@ -2937,7 +2937,7 @@ func (manager *SDiskManager) GetNeedAutoSnapshotDisks() ([]SSnapshotPolicyResour
 	}
 	timePoint := t.Hour()
 
-	policy := SnapshotPolicyManager.Query().Equals("type", api.SNAPSHOT_POLICY_TYPE_DISK).Equals("cloudregion_id", api.DEFAULT_REGION_ID)
+	policy := SnapshotPolicyManager.Query().In("type", api.DISK_POLICY_TYPES).Equals("cloudregion_id", api.DEFAULT_REGION_ID)
 	policy = policy.Filter(sqlchemy.Contains(policy.Field("repeat_weekdays"), fmt.Sprintf("%d", week)))
 	sq := policy.Filter(
 		sqlchemy.OR(
@@ -2994,19 +2994,11 @@ func (manager *SDiskManager) AutoDiskSnapshot(ctx context.Context, userCred mccl
 			log.Errorf("get disk error: %v", err)
 			continue
 		}
-		snapCnt, err := disk.GetAutoSnapshotCount()
+		snapPolicy, err := disks[i].GetSnapshotPolicy()
 		if err != nil {
-			log.Errorf("failed get snapshot count: %v", err)
+			log.Errorf("get snapshot policy error: %v", err)
 			continue
 		}
-		if snapCnt > options.Options.RetentionCountLimit {
-			msg := fmt.Sprintf("disk %s auto snapshot count %d more than retention count limit %d", disk.GetId(), snapCnt, options.Options.RetentionCountLimit)
-			log.Errorf("auto snapshot %s error: %v", disk.Name, msg)
-			db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, msg, userCred)
-			notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, msg)
-			continue
-		}
-
 		if guest := disk.GetGuest(); guest != nil {
 			if dps, ok := guestDps[guest.Id]; ok {
 				guestDps[guest.Id] = append(dps, disks[i])
@@ -3016,12 +3008,24 @@ func (manager *SDiskManager) AutoDiskSnapshot(ctx context.Context, userCred mccl
 			continue
 		}
 
-		err = manager.DoAutoSnapshot(ctx, userCred, &disks[i], disk, "")
-		if err != nil {
-			log.Errorf("auto snapshot %s error: %v", disk.Name, err)
-			db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, err.Error(), userCred)
-			notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, errors.Wrapf(err, "Disk auto create snapshot").Error())
+		if snapPolicy.Type == api.SNAPSHOT_POLICY_TYPE_DISK {
+			// auto snapshot
+			err = manager.DoAutoSnapshot(ctx, userCred, &disks[i], disk, "")
+			if err != nil {
+				log.Errorf("auto disk snapshot %s error: %v", disk.Name, err)
+				db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, err.Error(), userCred)
+				notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_SNAPSHOT_FAIL, errors.Wrapf(err, "Disk auto create snapshot").Error())
+			}
+		} else {
+			// auto backup
+			err = manager.DoAutoBackup(ctx, userCred, &disks[i], disk, "")
+			if err != nil {
+				log.Errorf("auto disk backup %s error: %v", disk.Name, err)
+				db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_BACKUP_FAIL, err.Error(), userCred)
+				notifyclient.NotifySystemErrorWithCtx(ctx, disk.Id, disk.Name, db.ACT_DISK_AUTO_BACKUP_FAIL, errors.Wrapf(err, "Disk auto create backup").Error())
+			}
 		}
+
 	}
 
 	for gid, diskSnapshotPolicies := range guestDps {
@@ -3046,6 +3050,34 @@ func (manager *SDiskManager) OrderCreateDisksSnapshotsBySnapshotPolicy(
 	return task.ScheduleRun(nil)
 }
 
+func (manager *SDiskManager) DoAutoBackup(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	diskSnapshotPolicy *SSnapshotPolicyResource, disk *SDisk, parentTaskId string,
+) error {
+	snapshotPolicy, err := diskSnapshotPolicy.GetSnapshotPolicy()
+	if err != nil {
+		return errors.Wrap(err, "GetSnapshotPolicy")
+	}
+	input := &api.DiskBackupCreateInput{
+		DiskId:          disk.Id,
+		BackupStorageId: snapshotPolicy.BackupStorageId,
+		BackupAsTar:     snapshotPolicy.BackupAsTar,
+	}
+	input.GenerateName = fmt.Sprintf("auto-%s-%d", disk.Name, time.Now().Unix())
+	params := jsonutils.Marshal(input).(*jsonutils.JSONDict)
+	iDiskBackup, err := db.DoCreate(DiskBackupManager, ctx, userCred, nil, params, snapshotPolicy.GetOwnerId())
+	if err != nil {
+		return errors.Wrap(err, "disk backup DoCreate")
+	}
+	diskBackup := iDiskBackup.(*SDiskBackup)
+	if err = diskBackup.StartBackupCreateTask(ctx, userCred, nil, parentTaskId); err != nil {
+		return errors.Wrap(err, "StartBackupCreateTask")
+	}
+	db.OpsLog.LogEvent(disk, db.ACT_DISK_AUTO_SNAPSHOT, diskBackup.Name, userCred)
+	snapshotPolicy.ExecuteNotify(ctx, userCred, disk.GetName())
+	return nil
+}
+
 func (manager *SDiskManager) DoAutoSnapshot(
 	ctx context.Context, userCred mcclient.TokenCredential,
 	diskSnapshotPolicy *SSnapshotPolicyResource, disk *SDisk, parentTaskId string,
@@ -3056,6 +3088,16 @@ func (manager *SDiskManager) DoAutoSnapshot(
 	}
 
 	if len(disk.ExternalId) == 0 {
+		// auto snapshot
+		snapCnt, err := disk.GetAutoSnapshotCount()
+		if err != nil {
+			log.Errorf("failed get snapshot count: %v", err)
+			return errors.Wrap(err, "GetAutoSnapshotCount")
+		}
+		if snapCnt > options.Options.RetentionCountLimit {
+			return errors.Errorf("disk %s auto snapshot count %d more than retention count limit %d", disk.GetId(), snapCnt, options.Options.RetentionCountLimit)
+		}
+
 		err = disk.validateDiskAutoCreateSnapshot()
 		if err != nil {
 			return errors.Wrapf(err, "validateDiskAutoCreateSnapshot")
@@ -3269,7 +3311,7 @@ func (disk *SDisk) PerformBindSnapshotpolicy(
 	input *api.DiskSnapshotpolicyInput,
 ) (jsonutils.JSONObject, error) {
 	// 磁盘只能绑定一个快照策略，已绑定时报错
-	cnt, err := SnapshotPolicyResourceManager.GetBindingCount(disk.Id, api.SNAPSHOT_POLICY_TYPE_DISK)
+	cnt, err := SnapshotPolicyResourceManager.GetBindingCount(disk.Id, api.DISK_POLICY_TYPES)
 	if err != nil {
 		return nil, errors.Wrap(err, "GetBindingCount")
 	}
@@ -3278,7 +3320,7 @@ func (disk *SDisk) PerformBindSnapshotpolicy(
 	}
 	// 若磁盘所属主机已绑定主机快照策略，则磁盘不能再绑定快照策略
 	if guest := disk.GetGuest(); guest != nil {
-		guestCnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.SNAPSHOT_POLICY_TYPE_SERVER)
+		guestCnt, err := SnapshotPolicyResourceManager.GetBindingCount(guest.Id, api.INSTANCE_POLICY_TYPES)
 		if err != nil {
 			return nil, errors.Wrap(err, "GetBindingCount for guest")
 		}

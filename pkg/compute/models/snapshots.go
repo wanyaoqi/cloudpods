@@ -1182,7 +1182,7 @@ func (manager *SSnapshotManager) CleanupSnapshots(ctx context.Context, userCred 
 		snapshot.SetModelManager(manager, snapshot)
 		region, _ := snapshot.GetRegion()
 		if err = manager.StartSnapshotCleanupTask(ctx, userCred, region, now); err != nil {
-			log.Errorf("Start snaphsot cleanup task failed %s", err)
+			log.Errorf("Start snapshot cleanup task failed %s", err)
 		}
 		return
 	}
