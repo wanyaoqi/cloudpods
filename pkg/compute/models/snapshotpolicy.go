@@ -113,6 +113,14 @@ func (manager *SSnapshotPolicyManager) ValidateCreateData(
 	if len(input.Type) == 0 {
 		input.Type = api.SNAPSHOT_POLICY_TYPE_DISK
 	}
+	if utils.IsInStringArray(input.Type, []string{api.BACKUP_POLICY_TYPE_DISK, api.BACKUP_POLICY_TYPE_INSTNACE}) {
+		storageObj, err := StorageManager.FetchByIdOrName(ctx, nil, input.BackupStorageId)
+		if err != nil {
+			return input, httperrors.NewResourceNotFoundError("Storage %s not found", input.BackupStorageId)
+		}
+		storage := storageObj.(*SStorage)
+		input.BackupStorageId = storage.Id
+	}
 
 	input.Status = apis.STATUS_CREATING
 

@@ -68,6 +68,9 @@ type SSnapshotPolicyCreateInput struct {
 	RepeatWeekdays []int `json:"repeat_weekdays"`
 
 	TimePoints []int `json:"time_points"`
+
+	BackupStorageId string `json:"backup_storage_id"`
+	BackupAsTar     *DiskBackupAsTarInput
 }
 
 func (self *SSnapshotPolicyCreateInput) Validate() error {

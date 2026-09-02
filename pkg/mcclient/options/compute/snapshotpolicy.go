@@ -40,11 +40,12 @@ type SnapshotPolicyCreateOptions struct {
 	CloudregionId string
 	ManagerId     string
 
-	Type           string `help:"snapshot type" default:"disk" choices:"disk|server|disk_backup|instance_backup"`
-	RetentionDays  int    `help:"snapshot retention days" default:"-1"`
-	RetentionCount int    `help:"snapshot retention count" default:"-1"`
-	RepeatWeekdays []int  `help:"snapshot create days on week"`
-	TimePoints     []int  `help:"snapshot create time points on one day"`
+	Type            string `help:"snapshot type" default:"disk" choices:"disk|server|disk_backup|instance_backup"`
+	RetentionDays   int    `help:"snapshot retention days" default:"-1"`
+	RetentionCount  int    `help:"snapshot retention count" default:"-1"`
+	RepeatWeekdays  []int  `help:"snapshot create days on week"`
+	TimePoints      []int  `help:"snapshot create time points on one day"`
+	BackupStorageId string `help:"backup storage id"`
 }
 
 func (opts *SnapshotPolicyCreateOptions) Params() (jsonutils.JSONObject, error) {
