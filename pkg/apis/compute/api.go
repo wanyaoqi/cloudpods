@@ -413,6 +413,9 @@ type ServerConfigs struct {
 	// default: kvm
 	Hypervisor string `json:"hypervisor"`
 
+	// specific qemu version, eg: 4.2.0, 10.0.7
+	QemuVersion string `json:"qemu_version"`
+
 	// swagger: ignore
 	Provider string `json:"provider"`
 
@@ -617,9 +620,6 @@ type ServerCreateInput struct {
 	// Machine类型
 	// emulate: pc, q35
 	Machine string `json:"machine"`
-
-	// qemu version, eg: 4.2.0, 10.0.7
-	QemuVersion string `json:"qemu_version"`
 
 	// 启动顺序
 	// c: cdrome

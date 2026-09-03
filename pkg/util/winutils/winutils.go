@@ -774,3 +774,18 @@ func (w *SWinRegTool) ResetUSBProfile() {
 	key = w.GetCcsKeyPath() + `\Enum\USB`
 	w.DelRegistry(key)
 }
+
+func (w *SWinRegTool) IsNetKVMInstalled() bool {
+	key := w.GetCcsKeyPath() + `\Services\NetKVM`
+
+	if !w.KeyExists(key) {
+		return false
+	}
+
+	imagePath := w.GetRegistry(key + `\ImagePath`)
+	if imagePath == "" {
+		return false
+	}
+
+	return true
+}

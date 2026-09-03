@@ -212,7 +212,7 @@ func DoDeployGuestFs(rootfs fsdriver.IRootFsDriver, guestDesc *deployapi.GuestDe
 			}
 		}
 	}
-	if err = rootfs.CommitChanges(partition); err != nil {
+	if err = rootfs.£CommitChanges(partition); err != nil {
 		return nil, errors.Wrap(err, "CommitChanges")
 	}
 
