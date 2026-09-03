@@ -2933,6 +2933,9 @@ func (guest *SGuest) PostCreate(ctx context.Context, userCred mcclient.TokenCred
 	if matcherJson != nil {
 		guest.SetMetadata(ctx, api.BAREMETAL_SERVER_METATA_ROOT_DISK_MATCHER, matcherJson, userCred)
 	}
+	if qemuVersion, _ := data.GetString(api.VM_METADATA_QEMU_VERSION); qemuVersion != "" {
+		guest.SetMetadata(ctx, api.VM_METADATA_QEMU_VERSION, qemuVersion, userCred)
+	}
 
 	userData, _ := data.GetString("user_data")
 	if len(userData) > 0 {

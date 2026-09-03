@@ -7346,6 +7346,14 @@ func (self *SGuest) PerformEnableMemclean(ctx context.Context, userCred mcclient
 	return nil, self.SetMetadata(ctx, api.VM_METADATA_ENABLE_MEMCLEAN, "true", userCred)
 }
 
+func (self *SGuest) PerformSetQemuVersion(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if data.Contains(api.VM_METADATA_QEMU_VERSION) {
+		qemuVersion, _ := data.GetString(api.VM_METADATA_QEMU_VERSION)
+		return nil, self.SetMetadata(ctx, api.VM_METADATA_QEMU_VERSION, qemuVersion, userCred)
+	}
+	return nil, self.SetMetadata(ctx, api.VM_METADATA_QEMU_VERSION, "", userCred)
+}
+
 func (self *SGuest) PerformSetTpm(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	enableTpm := jsonutils.QueryBoolean(data, api.VM_METADATA_ENABLE_TPM, false)
 	if enableTpm {
