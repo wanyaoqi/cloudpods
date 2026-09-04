@@ -695,5 +695,6 @@ func (w *SWindowsRootFs) ConfigSshd(loginAccount, loginPassword string, sshPort 
 func (w *SWindowsRootFs) IsWindowsVirtioNetSupport(part IDiskPartition) bool {
 	confPath := part.GetLocalPath("/windows/system32/config", true)
 	tool := winutils.NewWinRegTool(confPath)
+	tool.CheckPath()
 	return tool.IsNetKVMInstalled()
 }
