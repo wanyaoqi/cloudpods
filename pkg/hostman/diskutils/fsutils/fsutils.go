@@ -779,7 +779,7 @@ func ProbeImageInfo(d deploy_iface.IDeployer) (*apis.ImageInfo, error) {
 		IsLvmPartition:            d.IsLVMPartition(),
 		IsReadonly:                partition.IsReadonly(),
 		IsInstalledCloudInit:      rootfs.IsCloudinitInstall(),
-		IsWindowsVirtioNetSupport: rootfs.IsWindowsVirtioNetSupport(),
+		IsWindowsVirtioNetSupport: rootfs.IsWindowsVirtioNetSupport(partition),
 	}
 	d.UmountRootfs(rootfs)
 

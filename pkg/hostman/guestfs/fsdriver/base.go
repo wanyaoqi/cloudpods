@@ -160,7 +160,7 @@ func (l *sGuestRootFsDriver) MountProcfs() bool {
 	return false
 }
 
-func (l *sGuestRootFsDriver) IsWindowsVirtioNetSupport() bool {
+func (l *sGuestRootFsDriver) IsWindowsVirtioNetSupport(IDiskPartition) bool {
 	return false
 }
 
