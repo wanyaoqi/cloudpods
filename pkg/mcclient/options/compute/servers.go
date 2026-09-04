@@ -393,6 +393,7 @@ type ServerConfigs struct {
 	BackupHost                   string `help:"Preferred host where virtual backup server should be created"`
 	AutoSwitchToBackupOnHostDown bool   `help:"Auto switch to backup server on host down"`
 	Daemon                       *bool  `help:"Set as a daemon server" json:"is_daemon"`
+	QemuVersion                  string `help:"specific server guest start version" json:"qemu_version"`
 
 	RaidConfig      []string `help:"Baremetal raid config" json:"-"`
 	RootDiskMatcher string   `help:"Baremetal root disk matcher, e.g. 'device=/dev/sdb' 'size=900G' 'size_start=800G,size_end=900G'" json:"-"`
@@ -407,6 +408,7 @@ func (o ServerConfigs) Data() (*computeapi.ServerConfigs, error) {
 	data.PreferBackupHost = o.BackupHost
 	data.IsDaemon = o.Daemon
 	data.Hypervisor = o.Hypervisor
+	data.QemuVersion = o.QemuVersion
 	if len(o.RaidConfig) > 0 {
 		// if data.Hypervisor != "baremetal" {
 		// 	return nil, fmt.Errorf("RaidConfig is applicable to baremetal ONLY")
