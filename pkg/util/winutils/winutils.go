@@ -776,7 +776,7 @@ func (w *SWinRegTool) ResetUSBProfile() {
 }
 
 func (w *SWinRegTool) IsNetKVMInstalled() bool {
-	key := w.GetCcsKeyPath() + `\Services\NetKVM`
+	key := w.GetCcsKeyPath() + `\Services\netkvm`
 
 	if !w.KeyExists(key) {
 		log.Errorf("key %s not exist", key)
