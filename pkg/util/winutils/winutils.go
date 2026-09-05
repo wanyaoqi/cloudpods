@@ -779,11 +779,13 @@ func (w *SWinRegTool) IsNetKVMInstalled() bool {
 	key := w.GetCcsKeyPath() + `\Services\NetKVM`
 
 	if !w.KeyExists(key) {
+		log.Errorf("key %s not exist", key)
 		return false
 	}
 
 	imagePath := w.GetRegistry(key + `\ImagePath`)
 	if imagePath == "" {
+		log.Errorf("image path is empty")
 		return false
 	}
 
