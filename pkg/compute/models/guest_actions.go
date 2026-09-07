@@ -1518,7 +1518,7 @@ func (self *SGuest) PerformSetIso(ctx context.Context, userCred mcclient.TokenCr
 	if !utils.IsInStringArray(self.Hypervisor, []string{api.HYPERVISOR_KVM, api.HYPERVISOR_BAREMETAL}) {
 		return nil, httperrors.NewNotAcceptableError("Not allow for hypervisor %s", self.Hypervisor)
 	}
-	if utils.IsInStringArray(self.Status, []string{api.VM_RUNNING, api.VM_READY}) {
+	if !utils.IsInStringArray(self.Status, []string{api.VM_RUNNING, api.VM_READY}) {
 		return nil, httperrors.NewServerStatusError("Set ISO not allowed in status %s", self.Status)
 	}
 	if input.ImageId != "" {
