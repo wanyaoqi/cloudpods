@@ -1540,13 +1540,20 @@ func (self *SGuest) PerformSetIso(ctx context.Context, userCred mcclient.TokenCr
 			}
 		}
 	}
-	if cdrom == nil && input.ImageId == "" {
+	srcImage := ""
+	if cdrom != nil {
+		srcImage = cdrom.ImageId
+	}
+	if srcImage == "" && input.ImageId == "" {
 		return nil, nil
-	} else if cdrom != nil && input.ImageId != "" {
+	} else if srcImage != "" && input.ImageId != "" {
+		if srcImage == input.ImageId {
+			return nil, nil
+		}
 		// eject && insert
 		err := self.StartEjectisoTask(ctx, input.CdromOrdinal, userCred, input.BootIndex, input.ImageId, "")
 		return nil, err
-	} else if cdrom == nil && input.ImageId != "" {
+	} else if srcImage == "" && input.ImageId != "" {
 		// insert only
 		err := self.StartInsertIsoTask(ctx, input.CdromOrdinal, input.ImageId, false, input.BootIndex, self.HostId, userCred, "")
 		return nil, err
