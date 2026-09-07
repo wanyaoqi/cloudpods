@@ -2035,12 +2035,6 @@ func (manager *SGuestManager) validateCreateData(
 		if imgIsWindows && hasGpuVga && input.Bios != "UEFI" {
 			return nil, httperrors.NewInputParameterError("Windows with GPU VGA requires a UEFI image")
 		}
-		if imgIsWindows {
-			netDriver := api.NETWORK_DRIVER_E1000
-			if hasVirtioNetDrvier := imgProperties[imageapi.IMAGE_WIN_VIRTIO_NET] == "true"; hasVirtioNetDrvier {
-				netDriver = api.NETWORK_DRIVER_VIRTIO
-			}
-		}
 
 		if vdi, ok := imgProperties[imageapi.IMAGE_VDI_PROTOCOL]; ok && len(vdi) > 0 && len(input.Vdi) == 0 {
 			input.Vdi = vdi
@@ -2074,6 +2068,13 @@ func (manager *SGuestManager) validateCreateData(
 		if len(osProf.OSType) > 0 && len(osType) == 0 {
 			osType = osProf.OSType
 			input.OsType = osType
+		}
+		if imgIsWindows {
+			netDriver := api.NETWORK_DRIVER_E1000
+			if hasVirtioNetDrvier := imgProperties[imageapi.IMAGE_WIN_VIRTIO_NET] == "true"; hasVirtioNetDrvier {
+				netDriver = api.NETWORK_DRIVER_VIRTIO
+			}
+			osProf.NetDriver = netDriver
 		}
 		input.OsProfile = jsonutils.Marshal(osProf)
 	}
