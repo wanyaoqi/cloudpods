@@ -1720,6 +1720,18 @@ func (o *ServerSetNetworkNumQueues) Params() (jsonutils.JSONObject, error) {
 	return jsonutils.Marshal(o), nil
 }
 
+type ServerSetIsoOptions struct {
+	ServerIdOptions
+
+	CDROM_ORDINAL int64  `json:"cdrom_ordinal" help:"cdrom ordinal"`
+	ImageId       string `help:"Iso image id, eject on image id empty"`
+	BootIndex     *int8  `help:"Iso boot index"`
+}
+
+func (o *ServerSetIsoOptions) Params() (jsonutils.JSONObject, error) {
+	return jsonutils.Marshal(o), nil
+}
+
 type ServerIsoOptions struct {
 	ServerIdOptions
 	Ordinal int `help:"server iso ordinal, default 0"`
