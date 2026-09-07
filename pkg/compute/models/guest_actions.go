@@ -1514,6 +1514,49 @@ func (self *SGuest) GetDetailsKickstart(ctx context.Context, userCred mcclient.T
 	return result, nil
 }
 
+func (self *SGuest) PerformSetIso(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.ServerSetIsoInput) (jsonutils.JSONObject, error) {
+	if !utils.IsInStringArray(self.Hypervisor, []string{api.HYPERVISOR_KVM, api.HYPERVISOR_BAREMETAL}) {
+		return nil, httperrors.NewNotAcceptableError("Not allow for hypervisor %s", self.Hypervisor)
+	}
+	if utils.IsInStringArray(self.Status, []string{api.VM_RUNNING, api.VM_READY}) {
+		return nil, httperrors.NewServerStatusError("Set ISO not allowed in status %s", self.Status)
+	}
+	if input.ImageId != "" {
+		isoImage, err := parseIsoInfo(ctx, userCred, input.ImageId)
+		if err != nil {
+			return nil, errors.Wrap(err, "parseIsoInfo")
+		}
+		input.ImageId = isoImage.Id
+	}
+
+	cdrom := self.getCdrom(false, input.CdromOrdinal)
+	if input.BootIndex != nil {
+		bd8 := *input.BootIndex
+		if cdrom == nil || cdrom.BootIndex != bd8 {
+			if isDup, err := self.isBootIndexDuplicated(bd8); err != nil {
+				return nil, err
+			} else if isDup {
+				return nil, httperrors.NewInputParameterError("boot index %d is duplicated", bd8)
+			}
+		}
+	}
+	if cdrom == nil && input.ImageId == "" {
+		return nil, nil
+	} else if cdrom != nil && input.ImageId != "" {
+		// eject && insert
+		err := self.StartEjectisoTask(ctx, input.CdromOrdinal, userCred, input.BootIndex, input.ImageId, "")
+		return nil, err
+	} else if cdrom == nil && input.ImageId != "" {
+		// insert only
+		err := self.StartInsertIsoTask(ctx, input.CdromOrdinal, input.ImageId, false, input.BootIndex, self.HostId, userCred, "")
+		return nil, err
+	} else {
+		// eject only
+		err := self.StartEjectisoTask(ctx, input.CdromOrdinal, userCred, nil, "", "")
+		return nil, err
+	}
+}
+
 // 挂载ISO镜像
 func (self *SGuest) PerformInsertiso(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	if !utils.IsInStringArray(self.Hypervisor, []string{api.HYPERVISOR_KVM, api.HYPERVISOR_BAREMETAL}) {
@@ -1568,16 +1611,23 @@ func (self *SGuest) PerformEjectiso(ctx context.Context, userCred mcclient.Token
 		return nil, httperrors.NewBadRequestError("No ISO to eject")
 	}
 	if utils.IsInStringArray(self.Status, []string{api.VM_RUNNING, api.VM_READY}) {
-		err := self.StartEjectisoTask(ctx, cdromOrdinal, userCred, "")
+		err := self.StartEjectisoTask(ctx, cdromOrdinal, userCred, nil, "", "")
 		return nil, err
 	} else {
 		return nil, httperrors.NewServerStatusError("Eject ISO not allowed in status %s", self.Status)
 	}
 }
 
-func (self *SGuest) StartEjectisoTask(ctx context.Context, cdromOrdinal int64, userCred mcclient.TokenCredential, parentTaskId string) error {
+func (self *SGuest) StartEjectisoTask(ctx context.Context, cdromOrdinal int64, userCred mcclient.TokenCredential, bootIndex *int8, newImageId, parentTaskId string) error {
 	data := jsonutils.NewDict()
 	data.Add(jsonutils.NewInt(cdromOrdinal), "cdrom_ordinal")
+	if newImageId != "" {
+		data.Add(jsonutils.NewString(newImageId), "new_image_id")
+		if bootIndex != nil {
+			data.Add(jsonutils.NewInt(int64(*bootIndex)), "boot_index")
+		}
+	}
+
 	task, err := taskman.TaskManager.NewTask(ctx, "GuestEjectISOTask", self, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
