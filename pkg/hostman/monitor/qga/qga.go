@@ -307,6 +307,12 @@ func (qga *QemuGuestAgent) GuestPing(timeout int) error {
 	return err
 }
 
+func (qga *QemuGuestAgent) GuestStop() error {
+	cmd := &monitor.Command{
+		Execute: "guest-ping",
+	}
+}
+
 type GuestCommand struct {
 	Enabled bool   `json:"enabled"`
 	Name    string `json:"name"`

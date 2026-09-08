@@ -84,6 +84,11 @@ func (s *SGuestStopTask) Start() {
 	s.stopping = true
 	s.startPowerdown = time.Now()
 	if s.IsRunning() && s.IsMonitorAlive() {
+		if s.guestAgent.GuestPing(1) == nil {
+			// qga stop first
+			s.guestAgent.GuestPing()
+		}
+
 		s.Monitor.SimpleCommand("system_powerdown", s.onPowerdownGuest)
 	}
 	s.checkGuestRunning()
