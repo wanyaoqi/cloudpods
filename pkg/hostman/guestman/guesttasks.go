@@ -67,6 +67,9 @@ type SGuestStopTask struct {
 	isFroce        bool
 	startPowerdown time.Time
 	c              chan context.Context
+
+	qgaStopping bool
+	qgaTiemout  int64
 }
 
 func NewGuestStopTask(guest *SKVMGuestInstance, ctx context.Context, timeout int64, isForce bool) *SGuestStopTask {
@@ -86,10 +89,19 @@ func (s *SGuestStopTask) Start() {
 	if s.IsRunning() && s.IsMonitorAlive() {
 		if s.guestAgent.GuestPing(1) == nil {
 			// qga stop first
-			s.guestAgent.GuestPing()
+			if err := s.guestAgent.GuestStop(1); err != nil {
+				log.Errorf("failed qga guest stop %s", err)
+			} else {
+				s.qgaStopping = true
+				s.qgaTiemout = s.timeout / 2
+				if s.qgaTiemout > options.HostOptions.QgaStopTimeout {
+					s.qgaTiemout = options.HostOptions.QgaStopTimeout
+				}
+			}
 		}
-
-		s.Monitor.SimpleCommand("system_powerdown", s.onPowerdownGuest)
+		if !s.qgaStopping {
+			s.Monitor.SimpleCommand("system_powerdown", s.onPowerdownGuest)
+		}
 	}
 	s.checkGuestRunning()
 }
@@ -118,6 +130,11 @@ func (s *SGuestStopTask) checkGuestRunning() {
 			s.Stop() // force stop
 			s.stopping = false
 			hostutils.TaskComplete(s.ctx, nil)
+		} else if s.qgaStopping && time.Now().Sub(s.startPowerdown) > time.Duration(s.qgaTiemout)*time.Second {
+			// rollback acpi guest shutdown
+			s.qgaStopping = false
+			s.Monitor.SimpleCommand("system_powerdown", s.onPowerdownGuest)
+			go s.checkGuestRunning()
 		} else if time.Now().Sub(s.startPowerdown) > time.Duration(s.timeout)*time.Second {
 			// timeout
 			if s.isFroce {

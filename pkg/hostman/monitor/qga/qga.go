@@ -307,10 +307,12 @@ func (qga *QemuGuestAgent) GuestPing(timeout int) error {
 	return err
 }
 
-func (qga *QemuGuestAgent) GuestStop() error {
+func (qga *QemuGuestAgent) GuestStop(timeout int) error {
 	cmd := &monitor.Command{
-		Execute: "guest-ping",
+		Execute: "guest-shutdown",
 	}
+	_, err := qga.execCmd(cmd, true, timeout)
+	return err
 }
 
 type GuestCommand struct {
