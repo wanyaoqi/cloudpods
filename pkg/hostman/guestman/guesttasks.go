@@ -43,6 +43,7 @@ import (
 	"yunion.io/x/onecloud/pkg/hostman/hostutils"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
 	"yunion.io/x/onecloud/pkg/hostman/monitor"
+	"yunion.io/x/onecloud/pkg/hostman/monitor/qga"
 	"yunion.io/x/onecloud/pkg/hostman/options"
 	"yunion.io/x/onecloud/pkg/hostman/storageman"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
@@ -89,7 +90,7 @@ func (s *SGuestStopTask) Start() {
 	if s.IsRunning() && s.IsMonitorAlive() {
 		if s.guestAgent.GuestPing(1) == nil {
 			// qga stop first
-			if err := s.guestAgent.GuestStop(1); err != nil {
+			if err := s.guestAgent.GuestStop(2); err != nil && err != qga.QgaReadTimeOutErr {
 				log.Errorf("failed qga guest stop %s", err)
 			} else {
 				s.qgaStopping = true
@@ -121,6 +122,7 @@ func (s *SGuestStopTask) checkGuestRunning() {
 	case ctx := <-s.c:
 		s.Stop() // force stop
 		s.stopping = false
+		s.qgaStopping = false
 		if ctx != nil {
 			hostutils.TaskComplete(ctx, nil)
 		}
@@ -129,6 +131,7 @@ func (s *SGuestStopTask) checkGuestRunning() {
 		if !s.IsRunning() {
 			s.Stop() // force stop
 			s.stopping = false
+			s.qgaStopping = false
 			hostutils.TaskComplete(s.ctx, nil)
 		} else if s.qgaStopping && time.Now().Sub(s.startPowerdown) > time.Duration(s.qgaTiemout)*time.Second {
 			// rollback acpi guest shutdown
