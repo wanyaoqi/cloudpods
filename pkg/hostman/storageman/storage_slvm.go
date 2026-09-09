@@ -172,11 +172,6 @@ func (s *SSLVMStorage) Accessible() error {
 			return errors.Wrap(err, "lvmlockd.Start")
 		}
 	}
-
-	if err := lvmutils.VgActive(s.Path, true, false); err != nil {
-		log.Warningf("vgactive got %s", err)
-	}
-
 	if out, err := lvmutils.VgDisplay(s.Path); err != nil {
 		return err
 	} else if strings.Contains(out, "without a lock") {
@@ -184,6 +179,9 @@ func (s *SSLVMStorage) Accessible() error {
 		if err != nil {
 			return errors.Wrapf(err, "lvmlock vgchange --lock-start %s failed: %s", s.Path, out)
 		}
+	}
+	if err := lvmutils.VgActive(s.Path, true, false); err != nil {
+		log.Warningf("vgactive got %s", err)
 	}
 	return nil
 }
