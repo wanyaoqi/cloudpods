@@ -106,6 +106,7 @@ const (
 )
 
 const (
-	DISK_AIO_MODE_NATIVE = "native"
-	DISK_AIO_MOD_THREADS = "threads"
+	DISK_AIO_MODE_NATIVE   = "native"
+	DISK_AIO_MODE_THREADS  = "threads"
+	DISK_AIO_MODE_IO_URING = "io_uring"
 )

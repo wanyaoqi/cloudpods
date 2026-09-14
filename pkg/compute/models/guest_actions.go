@@ -6796,22 +6796,22 @@ func (self *SGuest) PerformChangeDiskDriver(ctx context.Context, userCred mcclie
 		}
 	}
 	if input.CacheMode != "" && gd.CacheMode != input.CacheMode {
-		if input.CacheMode != "none" {
-			input.AioMode = "threads"
+		if input.CacheMode != api.DISK_CACHE_MODE_NONE {
+			input.AioMode = api.DISK_AIO_MODE_THREADS
 		}
 		if !utils.IsInStringArray(input.CacheMode, []string{api.DISK_CACHE_MODE_WRITETHROGH, api.DISK_CACHE_MODE_DIRECTSYNC, api.DISK_CACHE_MODE_WRITEBACK, api.DISK_CACHE_MODE_NONE}) {
 			return nil, httperrors.NewInputParameterError("unknown cache_mode %s", input.CacheMode)
 		}
 	}
 	if input.AioMode != "" && gd.AioMode != input.AioMode {
-		if !utils.IsInStringArray(input.AioMode, []string{api.DISK_AIO_MODE_NATIVE, api.DISK_AIO_MOD_THREADS}) {
+		if !utils.IsInStringArray(input.AioMode, []string{api.DISK_AIO_MODE_NATIVE, api.DISK_AIO_MODE_THREADS}) {
 			return nil, httperrors.NewInputParameterError("unknown aio_mode %s", input.AioMode)
 		}
 		cacheMode := gd.CacheMode
 		if input.CacheMode != "" {
 			cacheMode = input.CacheMode
 		}
-		if input.AioMode == "native" && cacheMode != "none" {
+		if input.AioMode == api.DISK_AIO_MODE_NATIVE && cacheMode != api.DISK_CACHE_MODE_NONE {
 			return nil, httperrors.NewBadRequestError("AIO mode %s with cache mode %s is not supported", input.AioMode, cacheMode)
 		}
 	}

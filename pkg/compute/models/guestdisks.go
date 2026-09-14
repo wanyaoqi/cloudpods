@@ -161,10 +161,10 @@ func (self *SGuestdisk) DoSave(ctx context.Context, driver string, cache string,
 	}
 	self.Driver = driver
 	self.CacheMode = cache
-	if cache == "none" {
-		self.AioMode = "native"
+	if cache == api.DISK_CACHE_MODE_NONE {
+		self.AioMode = api.DISK_AIO_MODE_NATIVE
 	} else {
-		self.AioMode = "threads"
+		self.AioMode = api.DISK_AIO_MODE_THREADS
 	}
 	return GuestdiskManager.TableSpec().Insert(ctx, self)
 }
