@@ -303,6 +303,28 @@ func (task *GuestConvertCloudpodsToKvmTask) TaskComplete(ctx context.Context, gu
 
 	guest.SetMetadata(ctx, api.SERVER_META_CONVERTED_SERVER, targetGuest.Id, task.UserCred)
 	guest.SetStatus(ctx, task.UserCred, api.VM_CONVERTED, "")
+
+	if osProfile := guest.GetMetadata(ctx, "__os_profile__", task.UserCred); len(osProfile) > 0 {
+		targetGuest.SetMetadata(ctx, "__os_profile__", osProfile, task.UserCred)
+	}
+	if account := guest.GetMetadata(ctx, api.VM_METADATA_LOGIN_ACCOUNT, task.UserCred); len(account) > 0 {
+		targetGuest.SetMetadata(ctx, api.VM_METADATA_LOGIN_ACCOUNT, account, task.UserCred)
+	}
+	if loginKey := guest.GetMetadata(ctx, api.VM_METADATA_LOGIN_KEY, task.UserCred); len(loginKey) > 0 {
+		passwd, _ := utils.DescryptAESBase64(guest.Id, loginKey)
+		if len(passwd) > 0 {
+			secret, err := utils.EncryptAESBase64(targetGuest.Id, passwd)
+			if err == nil {
+				targetGuest.SetMetadata(ctx, api.VM_METADATA_LOGIN_KEY, secret, task.UserCred)
+			}
+		}
+	}
+	for _, k := range []string{api.VM_METADATA_OS_ARCH, api.VM_METADATA_OS_DISTRO, api.VM_METADATA_OS_NAME, api.VM_METADATA_OS_VERSION} {
+		if v := guest.GetMetadata(ctx, k, task.UserCred); len(v) > 0 {
+			targetGuest.SetMetadata(ctx, k, v, task.UserCred)
+		}
+	}
+
 	db.OpsLog.LogEvent(guest, db.ACT_VM_CONVERT, "", task.UserCred)
 	logclient.AddSimpleActionLog(guest, logclient.ACT_VM_CONVERT, "", task.UserCred, true)
 	task.SetStageComplete(ctx, nil)
