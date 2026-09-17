@@ -31,7 +31,6 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/onecloud/pkg/httperrors"
-	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/qemuimg"
 	"yunion.io/x/onecloud/pkg/util/seclib2"
@@ -86,11 +85,11 @@ func StartService() {
 }
 
 func initHandlers(app *appsrv.Application, prefix string) {
-	app.AddHandler("POST", fmt.Sprintf("%s/disks/<sid>/nbd-export", prefix), auth.Authenticate(imageNbdExport))
-	app.AddHandler("POST", fmt.Sprintf("%s/snapshots/<diskId>/<sid>/nbd-export", prefix), auth.Authenticate(imageNbdExport))
+	app.AddHandler("POST", fmt.Sprintf("%s/disks/<sid>/nbd-export", prefix), imageNbdExport)
+	app.AddHandler("POST", fmt.Sprintf("%s/snapshots/<diskId>/<sid>/nbd-export", prefix), imageNbdExport)
 
-	app.AddHandler("POST", fmt.Sprintf("%s/disks/<sid>/nbd-close", prefix), auth.Authenticate(imageNbdClose))
-	app.AddHandler("POST", fmt.Sprintf("%s/snapshots/<diskId>/<sid>/nbd-close", prefix), auth.Authenticate(imageNbdClose))
+	app.AddHandler("POST", fmt.Sprintf("%s/disks/<sid>/nbd-close", prefix), imageNbdClose)
+	app.AddHandler("POST", fmt.Sprintf("%s/snapshots/<diskId>/<sid>/nbd-close", prefix), imageNbdClose)
 }
 
 func getDiskPath(diskId string) string {
