@@ -129,6 +129,7 @@ type SGuestHardwareDesc struct {
 	VirtioScsi      *SGuestVirtioScsi       `json:",omitempty"`
 	PvScsi          *SGuestPvScsi           `json:",omitempty"`
 	SataController  *SGuestAhciDevice       `json:",omitempty"`
+	Iothreads       []*Object               `json:"iothreads"`
 	Cdroms          []*SGuestCdrom          `json:"cdroms,omitempty"`
 	Floppys         []*SGuestFloppy         `json:",omitempty"`
 	Disks           []*SGuestDisk           `json:",omitempty"`

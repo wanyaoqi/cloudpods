@@ -6799,12 +6799,12 @@ func (self *SGuest) PerformChangeDiskDriver(ctx context.Context, userCred mcclie
 		if input.CacheMode != api.DISK_CACHE_MODE_NONE {
 			input.AioMode = api.DISK_AIO_MODE_THREADS
 		}
-		if !utils.IsInStringArray(input.CacheMode, []string{api.DISK_CACHE_MODE_WRITETHROGH, api.DISK_CACHE_MODE_DIRECTSYNC, api.DISK_CACHE_MODE_WRITEBACK, api.DISK_CACHE_MODE_NONE}) {
+		if !utils.IsInStringArray(input.CacheMode, api.DISK_CACHE_MODES) {
 			return nil, httperrors.NewInputParameterError("unknown cache_mode %s", input.CacheMode)
 		}
 	}
 	if input.AioMode != "" && gd.AioMode != input.AioMode {
-		if !utils.IsInStringArray(input.AioMode, []string{api.DISK_AIO_MODE_NATIVE, api.DISK_AIO_MODE_THREADS}) {
+		if !utils.IsInStringArray(input.AioMode, api.DISK_AIO_MODES) {
 			return nil, httperrors.NewInputParameterError("unknown aio_mode %s", input.AioMode)
 		}
 		cacheMode := gd.CacheMode

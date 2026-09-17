@@ -277,6 +277,20 @@ func generateKickstartBootOptions(drvOpt QemuOptions, kickstartBoot *KickstartBo
 	return opts
 }
 
+func generateIothreadOptions(drvOpt QemuOptions, guestDesc *desc.SGuestDesc) []string {
+	opts := make([]string, 0)
+	if len(guestDesc.Iothreads) == 0 {
+		opts = append(opts, drvOpt.Object("iothread", map[string]string{"id": "iothread0"}))
+	} else {
+		for i := range guestDesc.Iothreads {
+			opts = append(opts, drvOpt.Object("iothread", map[string]string{
+				"id": guestDesc.Iothreads[i].Id,
+			}))
+		}
+	}
+	return opts
+}
+
 func generateDisksOptions(drvOpt QemuOptions, disks []*desc.SGuestDisk, isEncrypt, isMaster bool, osName, machineType string) []string {
 	opts := make([]string, 0)
 	for _, disk := range disks {
@@ -390,13 +404,13 @@ func getDiskDeviceOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName, mach
 		}
 	} else if diskDriver == DISK_DRIVER_SATA {
 		opt += fmt.Sprintf(",bus=ahci0.%d", diskIndex)
-	}
-	opt += fmt.Sprintf(",id=drive_%d", diskIndex)
-	if isSsd {
-		if diskDriver == DISK_DRIVER_SCSI {
+	} else if diskDriver == DISK_DRIVER_SCSI {
+		if isSsd {
 			opt += ",rotation_rate=1"
 		}
 	}
+	opt += fmt.Sprintf(",id=drive_%d", diskIndex)
+
 	if disk.BootIndex != nil && *disk.BootIndex >= 0 {
 		opt += fmt.Sprintf(",bootindex=%d", *disk.BootIndex)
 	}
@@ -862,7 +876,8 @@ func GenerateStartOptions(
 	}
 
 	// iothread object
-	opts = append(opts, drvOpt.Object("iothread", map[string]string{"id": "iothread0"}))
+	//opts = append(opts, drvOpt.Object("iothread", map[string]string{"id": "iothread0"}))
+	opts = append(opts, generateIothreadOptions(drvOpt, input.GuestDesc)...)
 
 	isEncrypt := false
 	if len(input.EncryptKeyPath) > 0 {
