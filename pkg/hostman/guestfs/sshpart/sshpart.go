@@ -24,6 +24,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pkg/sftp"
+
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
@@ -547,6 +549,36 @@ func (p *SSHPartition) Cleandir(dir string, keepdir, caseInsensitive bool) error
 
 func (p *SSHPartition) Zerofree() {
 	log.Warningf("zerofree should not called in ssh partition")
+}
+
+func (p *SSHPartition) CopyFile(src, dest string) error {
+	sshTerm := p.term.(*ssh.Client)
+	sftpTerm, err := sftp.NewClient(sshTerm.GetSshClient())
+	if err != nil {
+		return err
+	}
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	destFile, err := sftpTerm.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = destFile.ReadFrom(srcFile)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *SSHPartition) ExecCommand(name string, args ...string) ([]string, error) {
+	cmd := strings.Join(append([]string{name}, args...), " ")
+	return p.term.Run(cmd)
 }
 
 func MountSSHRootfs(tool *disktool.SSHPartitionTool, term *ssh.Client, layouts []baremetal.Layout) (*SSHPartition, fsdriver.IRootFsDriver, error) {
