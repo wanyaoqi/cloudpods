@@ -552,7 +552,6 @@ func (p *SSHPartition) Zerofree() {
 
 func (p *SSHPartition) CopyFile(src, dest string) error {
 	rpath := path.Join(p.GetMountPath(), dest)
-	log.Infof("copy %s -> %s", src, rpath)
 	term, ok := p.term.(*ssh.Client)
 	if !ok {
 		return errors.Errorf("term %T has no stdin support", p.term)
@@ -586,6 +585,17 @@ func (p *SSHPartition) CopyFile(src, dest string) error {
 	if perr := <-done; perr != nil {
 		return errors.Wrapf(perr, "read local %s", src)
 	}
+
+	fi, err := os.Stat(src)
+	if err != nil {
+		return errors.Wrapf(err, "failed stat %s", src)
+	}
+	mode := fi.Mode().Perm()
+	out, err := term.Run(fmt.Sprintf("chmod %04o %s", mode, rpath))
+	if err != nil {
+		return errors.Wrapf(err, "failed chmod %04o %s: %v", mode, rpath, out)
+	}
+
 	return nil
 }
 
