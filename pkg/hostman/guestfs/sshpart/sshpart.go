@@ -16,6 +16,7 @@ package sshpart
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"regexp"
@@ -23,8 +24,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/pkg/sftp"
 
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
@@ -552,32 +551,43 @@ func (p *SSHPartition) Zerofree() {
 }
 
 func (p *SSHPartition) CopyFile(src, dest string) error {
-	sshTerm := p.term.(*ssh.Client)
-	sftpTerm, err := sftp.NewClient(sshTerm.GetSshClient())
-	if err != nil {
-		return err
+	rpath := p.GetLocalPath(dest, false)
+	term, ok := p.term.(*ssh.Client)
+	if !ok {
+		return errors.Errorf("term %T has no stdin support", p.term)
 	}
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
 
-	destFile, err := sftpTerm.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
+	pr, pw := io.Pipe()
+	done := make(chan error, 1)
+	go func() {
+		f, err := os.Open(src)
+		if err != nil {
+			pw.CloseWithError(err)
+			done <- err
+			return
+		}
+		defer f.Close()
+		if _, err := io.Copy(pw, f); err != nil {
+			pw.CloseWithError(err)
+			done <- err
+			return
+		}
+		done <- pw.Close()
+	}()
 
-	_, err = destFile.ReadFrom(srcFile)
+	ret, err := term.RunWithInput(pr, fmt.Sprintf("cat > %s", rpath))
+	pr.Close()
+	if perr := <-done; perr != nil {
+		return errors.Wrapf(perr, "read local %s", src)
+	}
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed write to %s: %v", rpath, ret)
 	}
 	return nil
 }
 
 func (p *SSHPartition) ExecCommand(name string, args ...string) ([]string, error) {
-	cmd := strings.Join(append([]string{name}, args...), " ")
+	cmd := strings.Join(append([]string{"/usr/sbin/chroot", p.GetMountPath(), name}, args...), " ")
 	return p.term.Run(cmd)
 }
 
