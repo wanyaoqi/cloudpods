@@ -551,7 +551,8 @@ func (p *SSHPartition) Zerofree() {
 }
 
 func (p *SSHPartition) CopyFile(src, dest string) error {
-	rpath := p.GetLocalPath(dest, false)
+	rpath := path.Join(p.GetMountPath(), dest)
+	log.Infof("copy %s -> %s", src, rpath)
 	term, ok := p.term.(*ssh.Client)
 	if !ok {
 		return errors.Errorf("term %T has no stdin support", p.term)
@@ -563,13 +564,15 @@ func (p *SSHPartition) CopyFile(src, dest string) error {
 		f, err := os.Open(src)
 		if err != nil {
 			pw.CloseWithError(err)
-			done <- err
+			log.Errorf("open %s failed: %s", src, err)
+			done <- errors.Wrap(err, fmt.Sprintf("open %s failed", src))
 			return
 		}
 		defer f.Close()
 		if _, err := io.Copy(pw, f); err != nil {
 			pw.CloseWithError(err)
-			done <- err
+			log.Errorf("copy %s failed: %s", src, err)
+			done <- errors.Wrap(err, "copy failed")
 			return
 		}
 		done <- pw.Close()
@@ -577,11 +580,11 @@ func (p *SSHPartition) CopyFile(src, dest string) error {
 
 	ret, err := term.RunWithInput(pr, fmt.Sprintf("cat > %s", rpath))
 	pr.Close()
-	if perr := <-done; perr != nil {
-		return errors.Wrapf(perr, "read local %s", src)
-	}
 	if err != nil {
 		return errors.Wrapf(err, "failed write to %s: %v", rpath, ret)
+	}
+	if perr := <-done; perr != nil {
+		return errors.Wrapf(perr, "read local %s", src)
 	}
 	return nil
 }
