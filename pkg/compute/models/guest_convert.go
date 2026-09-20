@@ -308,6 +308,8 @@ func (self *SGuest) createConvertedServer(ctx context.Context, userCred mcclient
 	createInput.PreferHost = data.PreferHost
 	createInput.GenerateName = fmt.Sprintf("%s-%s", self.Name, api.HYPERVISOR_KVM)
 	createInput.Hostname = self.Name
+	createInput.SecgroupId = ""
+	createInput.Secgroups = nil
 	if self.Hostname != "" {
 		createInput.Hostname = self.Hostname
 	}
