@@ -76,8 +76,8 @@ type SGuestdisk struct {
 	Index     int8 `nullable:"false" default:"0" list:"user" update:"user"` // Column(TINYINT(4), nullable=False, default=0)
 	BootIndex int8 `nullable:"false" default:"-1" list:"user" update:"user"`
 
-	NumQueues int `nullable:"true" default:"1" list:"user"`
-	Iothreads int `nullable:"true" default:"0" list:"user"`
+	NumQueues    int8 `nullable:"true" default:"1" list:"user"`
+	NumIothreads int8 `nullable:"true" default:"0" list:"user"`
 }
 
 func (manager *SGuestdiskManager) GetSlaveFieldName() string {

@@ -1552,7 +1552,7 @@ func (b *HostBuilder) fillGuestsResourceInfo(desc *HostDesc, host *computemodels
 			if IsGuestCreating(guest) {
 				creatingGuestCount++
 				creatingMemSize += int64(guest.VmemSize)
-				creatingCPUCount += int64(guest.VcpuCount)
+				creatingCPUCount += int64(guest.VcpuCount + guest.ExtraCpuCount)
 				if guest.IsSchedulerNumaAllocate() {
 					cpuNumaPin := make([]scheduler.SCpuNumaPin, 0)
 					if err := guest.CpuNumaPin.Unmarshal(&cpuNumaPin); err != nil {
@@ -1569,7 +1569,7 @@ func (b *HostBuilder) fillGuestsResourceInfo(desc *HostDesc, host *computemodels
 				// running status
 				runningCount++
 				memSize += int64(guest.VmemSize)
-				cpuCount += int64(guest.VcpuCount)
+				cpuCount += int64(guest.VcpuCount + guest.ExtraCpuCount)
 				if guest.IsSchedulerNumaAllocate() {
 					cpuNumaPin := make([]scheduler.SCpuNumaPin, 0)
 					if err := guest.CpuNumaPin.Unmarshal(&cpuNumaPin); err != nil {
