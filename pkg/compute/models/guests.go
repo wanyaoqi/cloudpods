@@ -1425,6 +1425,8 @@ func (guest *SGuest) SetCpuNumaPin(
 		cpuNumaPin = make([]api.SCpuNumaPin, len(schedCpuNumaPin))
 
 		vcpuId := 0
+		vcpuPerNode := guest.VcpuCount / len(schedCpuNumaPin)
+		vcpuOdd := guest.VcpuCount % len(schedCpuNumaPin)
 		for i := range schedCpuNumaPin {
 			cpuNumaPin[i] = api.SCpuNumaPin{
 				SizeMB:        schedCpuNumaPin[i].MemSizeMB,
@@ -1436,8 +1438,18 @@ func (guest *SGuest) SetCpuNumaPin(
 				cpuNumaPin[i].VcpuPin = make([]api.SVCpuPin, len(schedCpuNumaPin[i].CpuPin))
 				for j := range schedCpuNumaPin[i].CpuPin {
 					cpuNumaPin[i].VcpuPin[j].Pcpu = schedCpuNumaPin[i].CpuPin[j]
-					cpuNumaPin[i].VcpuPin[j].Vcpu = vcpuId
-					vcpuId += 1
+					if j >= vcpuPerNode {
+						if vcpuOdd > 0 {
+							cpuNumaPin[i].VcpuPin[j].Vcpu = vcpuId
+							vcpuId += 1
+							vcpuOdd -= 1
+						} else {
+							cpuNumaPin[i].VcpuPin[j].Vcpu = -1
+						}
+					} else {
+						cpuNumaPin[i].VcpuPin[j].Vcpu = vcpuId
+						vcpuId += 1
+					}
 				}
 			}
 		}
@@ -1934,6 +1946,9 @@ func (manager *SGuestManager) validateCreateData(
 			bm.Set(int64(*input.CdromBootIndex))
 		}
 		for i := 0; i < len(input.Disks); i++ {
+			if input.Disks[i].Performance == api.DISK_PERFORMANCE_HIGH {
+				input.ExtraCpuCount += int(options.Options.DefaultDiskHighPerformanceNumIothreads)
+			}
 			if input.Disks[i].BootIndex != nil && *input.Disks[i].BootIndex >= 0 {
 				if bm.Has(int64(*input.Disks[i].BootIndex)) {
 					return nil, httperrors.NewInputParameterError("duplicate boot index %d", *input.Disks[i].BootIndex)
@@ -4494,10 +4509,10 @@ func (self *SGuest) getDiskIndex() int8 {
 }
 
 func (self *SGuest) AttachDisk(ctx context.Context, disk *SDisk, userCred mcclient.TokenCredential, driver string, cache string, mountpoint string, bootIndex *int8) error {
-	return self.attach2Disk(ctx, disk, userCred, driver, cache, mountpoint, bootIndex)
+	return self.attach2Disk(ctx, disk, userCred, driver, cache, mountpoint, bootIndex, "")
 }
 
-func (self *SGuest) attach2Disk(ctx context.Context, disk *SDisk, userCred mcclient.TokenCredential, driver string, cache string, mountpoint string, bootIndex *int8) error {
+func (self *SGuest) attach2Disk(ctx context.Context, disk *SDisk, userCred mcclient.TokenCredential, driver string, cache string, mountpoint string, bootIndex *int8, performanceMode string) error {
 	attached, err := self.isAttach2Disk(disk)
 	if err != nil {
 		return errors.Wrap(err, "isAttach2Disk")
@@ -4536,6 +4551,11 @@ func (self *SGuest) attach2Disk(ctx context.Context, disk *SDisk, userCred mccli
 	} else {
 		guestdisk.BootIndex = -1
 	}
+	if performanceMode == api.DISK_PERFORMANCE_HIGH {
+		guestdisk.NumQueues = options.Options.DefaultDiskHighPerformanceNumQueues
+		guestdisk.NumIothreads = options.Options.DefaultDiskHighPerformanceNumIothreads
+	}
+
 	err = guestdisk.DoSave(ctx, driver, cache, mountpoint)
 	if err == nil {
 		db.OpsLog.LogAttachEvent(ctx, self, disk, userCred, nil)
@@ -4595,7 +4615,7 @@ func (self *SGuest) SyncVMDisks(
 			continue
 		}
 		disk.SyncCloudProjectId(userCred, self.GetOwnerId())
-		err = self.attach2Disk(ctx, disk, userCred, added[i].GetDriver(), added[i].GetCacheMode(), added[i].GetMountpoint(), nil)
+		err = self.attach2Disk(ctx, disk, userCred, added[i].GetDriver(), added[i].GetCacheMode(), added[i].GetMountpoint(), nil, "")
 		if err != nil {
 			result.AddError(err)
 			continue
@@ -5280,7 +5300,7 @@ func (self *SGuest) createDiskOnHost(
 		db.OpsLog.LogEvent(disk, db.ACT_UPDATE, diff, userCred)
 	}
 	if autoAttach {
-		err = self.attach2Disk(ctx, disk, userCred, diskConfig.Driver, diskConfig.Cache, diskConfig.Mountpoint, diskConfig.BootIndex)
+		err = self.attach2Disk(ctx, disk, userCred, diskConfig.Driver, diskConfig.Cache, diskConfig.Mountpoint, diskConfig.BootIndex, diskConfig.Performance)
 		if err != nil {
 			return nil, err
 		}
@@ -5821,23 +5841,24 @@ func (self *SGuest) GetIsolatedDeviceByDiskIndex(index int8) (*SIsolatedDevice, 
 
 func (self *SGuest) GetJsonDescAtHypervisor(ctx context.Context, host *SHost) *api.GuestJsonDesc {
 	desc := &api.GuestJsonDesc{
-		Name:         self.Name,
-		Hostname:     self.Hostname,
-		Description:  self.Description,
-		UUID:         self.Id,
-		Mem:          self.VmemSize,
-		Cpu:          self.VcpuCount,
-		CpuSockets:   self.CpuSockets,
-		Vga:          self.getVga(),
-		Vdi:          self.GetVdi(),
-		Machine:      self.getMachine(),
-		Bios:         self.getBios(),
-		BootOrder:    self.BootOrder,
-		SrcIpCheck:   self.SrcIpCheck.Bool(),
-		SrcMacCheck:  self.SrcMacCheck.Bool(),
-		HostId:       host.Id,
-		HostAccessIp: host.AccessIp,
-		HostEIP:      host.PublicIp,
+		Name:          self.Name,
+		Hostname:      self.Hostname,
+		Description:   self.Description,
+		UUID:          self.Id,
+		Mem:           self.VmemSize,
+		Cpu:           self.VcpuCount,
+		CpuSockets:    self.CpuSockets,
+		ExtraCpuCount: self.ExtraCpuCount,
+		Vga:           self.getVga(),
+		Vdi:           self.GetVdi(),
+		Machine:       self.getMachine(),
+		Bios:          self.getBios(),
+		BootOrder:     self.BootOrder,
+		SrcIpCheck:    self.SrcIpCheck.Bool(),
+		SrcMacCheck:   self.SrcMacCheck.Bool(),
+		HostId:        host.Id,
+		HostAccessIp:  host.AccessIp,
+		HostEIP:       host.PublicIp,
 
 		EncryptKeyId: self.EncryptKeyId,
 

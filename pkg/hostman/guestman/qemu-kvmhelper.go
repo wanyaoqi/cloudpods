@@ -1233,6 +1233,8 @@ func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
 	var leastCpus = int(s.Desc.CpuDesc.MaxCpus) % len(s.Desc.CpuNumaPin)
 	var cpuStart = 0
 	var cpuEnd = numaCpus - 1
+	var vcpuPerNode = int(s.Desc.Cpu) / len(s.Desc.CpuNumaPin)
+	var vcpuOdd = int(s.Desc.Cpu) % len(s.Desc.CpuNumaPin)
 
 	var mems = make([]desc.SMemDesc, 0)
 	for i := 0; i < len(s.Desc.CpuNumaPin); i++ {
@@ -1253,7 +1255,16 @@ func (s *SKVMGuestInstance) initGuestMemObjects(memSizeMB int64) error {
 		vcpus := fmt.Sprintf("%d-%d", cpuStart, cpuEnd)
 
 		for j := range s.Desc.CpuNumaPin[i].VcpuPin {
-			s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = cpuStart + j
+			if j >= vcpuPerNode {
+				if vcpuOdd > 0 {
+					s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = cpuStart + j
+					vcpuOdd -= 1
+				} else {
+					s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = -1
+				}
+			} else {
+				s.Desc.CpuNumaPin[i].VcpuPin[j].Vcpu = cpuStart + j
+			}
 		}
 
 		cpuStart = cpuEnd + 1

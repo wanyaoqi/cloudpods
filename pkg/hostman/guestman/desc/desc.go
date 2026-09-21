@@ -96,9 +96,10 @@ type SGuestMem struct {
 }
 
 type SGuestHardwareDesc struct {
-	Cpu     int64
-	CpuDesc *SGuestCpu `json:",omitempty"`
-	VcpuPin []SCpuPin  `json:",omitempty"`
+	Cpu           int64
+	ExtraCpuCount int64
+	CpuDesc       *SGuestCpu `json:",omitempty"`
+	VcpuPin       []SCpuPin  `json:",omitempty"`
 	// Clock   *SGuestClock `json:",omitempty"`
 
 	// memory size in MB

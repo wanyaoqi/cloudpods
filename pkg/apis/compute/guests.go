@@ -967,6 +967,7 @@ type GuestJsonDesc struct {
 	UUID            string `json:"uuid"`
 	Mem             int    `json:"mem"`
 	CpuSockets      int    `json:"cpu_sockets"`
+	ExtraCpuCount   int    `json:"extra_cpu_count"`
 	Cpu             int    `json:"cpu"`
 	Vga             string `json:"vga"`
 	Vdi             string `json:"vdi"`

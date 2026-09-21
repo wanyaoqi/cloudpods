@@ -255,6 +255,8 @@ func (self *SGuestdisk) GetDiskJsonDescAtHost(ctx context.Context, host *SHost, 
 	desc.Mountpoint = self.Mountpoint
 	desc.Dev = disk.getDev()
 	desc.IsSSD = disk.IsSsd
+	desc.NumIothreads = uint8(self.NumIothreads)
+	desc.NumQueues = uint8(self.NumQueues)
 	return desc
 }
 
