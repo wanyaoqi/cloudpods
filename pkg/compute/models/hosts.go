@@ -5800,30 +5800,12 @@ func (hm *SHostManager) PerformValidateIpmi(ctx context.Context, userCred mcclie
 	return out, nil
 }
 
-func (hh *SHost) PerformInitialize(
-	ctx context.Context, userCred mcclient.TokenCredential,
-	query jsonutils.JSONObject, data jsonutils.JSONObject,
-) (jsonutils.JSONObject, error) {
-	if !utils.IsInStringArray(
-		hh.Status, []string{api.BAREMETAL_INIT, api.BAREMETAL_PREPARE_FAIL}) {
-		return nil, httperrors.NewBadRequestError(
-			"Cannot do initialization in status %s", hh.Status)
-	}
-
-	name, err := data.GetString("name")
-	if err != nil || hh.GetBaremetalServer() != nil {
-		return nil, nil
-	}
-	err = db.NewNameValidator(ctx, GuestManager, userCred, name, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if hh.IpmiInfo == nil || !hh.IpmiInfo.Contains("ip_addr") ||
-		!hh.IpmiInfo.Contains("password") {
-		return nil, httperrors.NewBadRequestError("IPMI infomation not configured")
-	}
+func (hh *SHost) CreateFakeBaremetalServer(ctx context.Context, userCred mcclient.TokenCredential, serverName string) error {
 	guest := &SGuest{}
+	name, err := db.GenerateName(ctx, GuestManager, nil, serverName)
+	if err != nil {
+		return httperrors.NewInternalServerError("generate name failed %s", err)
+	}
 	guest.Name = name
 	guest.VmemSize = hh.MemSize
 	guest.VcpuCount = hh.CpuCount
@@ -5838,7 +5820,7 @@ func (hh *SHost) PerformInitialize(
 	guest.SetModelManager(GuestManager, guest)
 	err = GuestManager.TableSpec().Insert(ctx, guest)
 	if err != nil {
-		return nil, httperrors.NewInternalServerError("Guest Insert error: %s", err)
+		return httperrors.NewInternalServerError("Guest create error: %s", err)
 	}
 	guest.SetAllMetadata(ctx, map[string]interface{}{
 		"is_fake_baremetal_server": true, "host_ip": hh.AccessIp}, userCred)
@@ -5851,15 +5833,41 @@ func (hh *SHost) PerformInitialize(
 	}
 	net, err := hh.getNetworkOfIPOnHost(ctx, hh.AccessIp)
 	if err != nil {
-		log.Errorf("host perfrom initialize failed fetch net of access ip %s", err)
+		return httperrors.NewInputParameterError("host perfrom initialize failed fetch net of access ip %s", err)
 	} else {
 		if options.Options.BaremetalServerReuseHostIp {
 			_, err = guest.attach2NetworkDesc(ctx, userCred, hh, &api.NetworkConfig{Network: net.Id}, nil, nil)
 			if err != nil {
-				log.Errorf("host perform initialize failed on attach network %s", err)
+				return httperrors.NewInternalServerError("host perform initialize failed on attach network %s", err)
 			}
 		}
 	}
+	return nil
+}
+
+func (hh *SHost) PerformInitialize(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject, data jsonutils.JSONObject,
+) (jsonutils.JSONObject, error) {
+	if !utils.IsInStringArray(
+		hh.Status, []string{api.BAREMETAL_INIT, api.BAREMETAL_PREPARE_FAIL}) {
+		return nil, httperrors.NewBadRequestError(
+			"Cannot do initialization in status %s", hh.Status)
+	}
+
+	name, err := data.GetString("name")
+	if err != nil || hh.GetBaremetalServer() != nil {
+		return nil, nil
+	}
+
+	if hh.IpmiInfo == nil || !hh.IpmiInfo.Contains("ip_addr") ||
+		!hh.IpmiInfo.Contains("password") {
+		return nil, httperrors.NewBadRequestError("IPMI infomation not configured")
+	}
+	if err := hh.CreateFakeBaremetalServer(ctx, userCred, name); err != nil {
+		log.Errorf("CreateFakeBaremetalServer failed %s", err)
+	}
+
 	return nil, nil
 }
 

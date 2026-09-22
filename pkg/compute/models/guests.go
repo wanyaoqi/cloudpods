@@ -5531,6 +5531,9 @@ func (self *SGuest) AllowDeleteItem(ctx context.Context, userCred mcclient.Token
 
 // 删除虚拟机
 func (self *SGuest) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query api.ServerDeleteInput, data jsonutils.JSONObject) error {
+	if self.GetMetadata(ctx, "is_fake_baremetal_server", userCred) == "true" && options.Options.BaremetalPrepareServerFakeDelete {
+		query.Purge = true
+	}
 	return self.StartDeleteGuestTask(ctx, userCred, "", query)
 }
 
