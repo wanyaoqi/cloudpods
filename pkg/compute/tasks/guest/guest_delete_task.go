@@ -316,7 +316,7 @@ func (deleteTask *BaseGuestDeleteTask) OnGuestDetachDisksCompleteFailed(ctx cont
 func (deleteTask *BaseGuestDeleteTask) DoDeleteGuest(ctx context.Context, guest *models.SGuest) {
 	models.IsolatedDeviceManager.ReleaseDevicesOfGuest(ctx, guest, deleteTask.UserCred)
 	host, _ := guest.GetHost()
-	isBmFakeServer := guest.GetMetadata(ctx, "is_fake_baremetal_server", deleteTask.UserCred) == "true"
+	purgeBmImportServer := host.IsImport && options.Options.BaremetalPrepareServerFakeDelete
 	if guest.IsPrepaidRecycle() {
 		err := host.BorrowIpAddrsFromGuest(ctx, deleteTask.UserCred, guest)
 		if err != nil {
@@ -326,7 +326,7 @@ func (deleteTask *BaseGuestDeleteTask) DoDeleteGuest(ctx context.Context, guest 
 			return
 		}
 		deleteTask.OnGuestDeleteComplete(ctx, guest, nil)
-	} else if (host == nil || !host.GetEnabled() || isBmFakeServer) && jsonutils.QueryBoolean(deleteTask.Params, "purge", false) {
+	} else if (host == nil || !host.GetEnabled() || purgeBmImportServer) && jsonutils.QueryBoolean(deleteTask.Params, "purge", false) {
 		deleteTask.OnGuestDeleteComplete(ctx, guest, nil)
 	} else {
 		deleteTask.SetStage("OnGuestDeleteComplete", nil)

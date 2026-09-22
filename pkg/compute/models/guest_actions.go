@@ -1868,8 +1868,8 @@ func (self *SGuest) GuestNonSchedStartTask(
 }
 
 func (self *SGuest) StartGuestCreateTask(ctx context.Context, userCred mcclient.TokenCredential, input *api.ServerCreateInput, pendingUsage quotas.IQuota, parentTaskId string) error {
-	if input.FakeCreate {
-		self.fixFakeServerInfo(ctx, userCred)
+	if input.FakeCreate || input.FakeCreateFromBmImport {
+		self.fixFakeServerInfo(ctx, userCred, input.FakeCreateFromBmImport)
 		return nil
 	}
 	driver, err := self.GetDriver()
@@ -1879,11 +1879,15 @@ func (self *SGuest) StartGuestCreateTask(ctx context.Context, userCred mcclient.
 	return driver.StartGuestCreateTask(self, ctx, userCred, input.JSON(input), pendingUsage, parentTaskId)
 }
 
-func (self *SGuest) fixFakeServerInfo(ctx context.Context, userCred mcclient.TokenCredential) {
+func (self *SGuest) fixFakeServerInfo(ctx context.Context, userCred mcclient.TokenCredential, fakeBmImportServer bool) {
 	status := []string{api.VM_READY, api.VM_RUNNING}
+
 	rand.Seed(time.Now().Unix())
 	db.Update(self, func() error {
 		self.Status = status[rand.Intn(len(status))]
+		if fakeBmImportServer {
+			self.Status = api.VM_READY
+		}
 		self.PowerStates = api.VM_POWER_STATES_ON
 		if self.Status == api.VM_READY {
 			self.PowerStates = api.VM_POWER_STATES_OFF
@@ -1920,6 +1924,9 @@ func (self *SGuest) fixFakeServerInfo(ctx context.Context, userCred mcclient.Tok
 			}
 			return nil
 		})
+	}
+	if fakeBmImportServer {
+		self.StartGueststartTask(ctx, userCred, jsonutils.NewDict(), "")
 	}
 }
 
