@@ -1890,6 +1890,7 @@ func (manager *SGuestManager) validateCreateData(
 	}
 
 	if input.FakeCreateFromBmImport {
+		input.OsType = "Linux"
 		return input, nil
 	}
 

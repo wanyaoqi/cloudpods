@@ -5826,27 +5826,8 @@ func (hh *SHost) CreateFakeBaremetalServer(ctx context.Context, userCred mcclien
 	if err != nil {
 		return httperrors.NewInternalServerError("Guest create error: %s", err)
 	}
-	guest.SetAllMetadata(ctx, map[string]interface{}{
-		"is_fake_baremetal_server": true, "host_ip": hh.AccessIp}, userCred)
 
-	caps := hh.GetAttachedLocalStorageCapacity()
-	diskConfig := &api.DiskConfig{SizeMb: int(caps.GetFree())}
-	err = guest.CreateDisksOnHost(ctx, userCred, hh, []*api.DiskConfig{diskConfig}, nil, true, true, nil, nil, true)
-	if err != nil {
-		log.Errorf("Host perform initialize failed on create disk %s", err)
-	}
-	net, err := hh.getNetworkOfIPOnHost(ctx, hh.AccessIp)
-	if err != nil {
-		return httperrors.NewInputParameterError("host perfrom initialize failed fetch net of access ip %s", err)
-	} else {
-		if options.Options.BaremetalServerReuseHostIp {
-			_, err = guest.attach2NetworkDesc(ctx, userCred, hh, &api.NetworkConfig{Network: net.Id}, nil, nil)
-			if err != nil {
-				return httperrors.NewInternalServerError("host perform initialize failed on attach network %s", err)
-			}
-		}
-	}
-	return nil
+	return guest.fixFakeServerCreateFromBmImport(ctx, userCred)
 }
 
 func (hh *SHost) PerformInitialize(
@@ -5863,6 +5844,9 @@ func (hh *SHost) PerformInitialize(
 	if err != nil || hh.GetBaremetalServer() != nil {
 		return nil, nil
 	}
+	if len(name) == 0 {
+		name = hh.Name + "-server"
+	}
 
 	if hh.IpmiInfo == nil || !hh.IpmiInfo.Contains("ip_addr") ||
 		!hh.IpmiInfo.Contains("password") {
@@ -5872,6 +5856,23 @@ func (hh *SHost) PerformInitialize(
 		log.Errorf("CreateFakeBaremetalServer failed %s", err)
 	}
 
+	return nil, nil
+}
+
+func (hh *SHost) PerformCreateFromImportBaremetal(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject, data jsonutils.JSONObject,
+) (jsonutils.JSONObject, error) {
+	name, err := data.GetString("name")
+	if err != nil || hh.GetBaremetalServer() != nil {
+		return nil, nil
+	}
+	if len(name) == 0 {
+		name = hh.Name + "-server"
+	}
+	if err := hh.CreateFakeBaremetalServer(ctx, userCred, name); err != nil {
+		return nil, errors.Wrap(err, "CreateFakeBaremetalServer")
+	}
 	return nil, nil
 }
 
