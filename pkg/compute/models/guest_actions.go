@@ -1870,6 +1870,12 @@ func (self *SGuest) GuestNonSchedStartTask(
 func (self *SGuest) StartGuestCreateTask(ctx context.Context, userCred mcclient.TokenCredential, input *api.ServerCreateInput, pendingUsage quotas.IQuota, parentTaskId string) error {
 	if input.FakeCreate || input.FakeCreateFromBmImport {
 		self.fixFakeServerInfo(ctx, userCred, input.FakeCreateFromBmImport)
+		if input.FakeCreateFromBmImport {
+			params := jsonutils.NewDict()
+			params.Set("restart", jsonutils.JSONTrue)
+			params.Set("fake_create_from_bm_import", jsonutils.JSONTrue)
+			return self.StartGuestDeployTask(ctx, userCred, params, "create", parentTaskId)
+		}
 		return nil
 	}
 
@@ -1925,9 +1931,6 @@ func (self *SGuest) fixFakeServerInfo(ctx context.Context, userCred mcclient.Tok
 			}
 			return nil
 		})
-	}
-	if fakeBmImportServer {
-		self.StartGueststartTask(ctx, userCred, jsonutils.NewDict(), "")
 	}
 }
 

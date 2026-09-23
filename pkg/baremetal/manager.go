@@ -77,6 +77,7 @@ import (
 	"yunion.io/x/onecloud/pkg/util/redfish/bmconsole"
 	"yunion.io/x/onecloud/pkg/util/ssh"
 	"yunion.io/x/onecloud/pkg/util/sysutils"
+	"yunion.io/x/onecloud/pkg/util/timeutils2"
 )
 
 type SBaremetalManager struct {
@@ -2114,6 +2115,10 @@ func (b *SBaremetalInstance) StartServerCreateTask(ctx context.Context, userCred
 	b.desc.Set("server_id", jsonutils.NewString(b.server.GetId()))
 	if err := b.AutoSaveDesc(ctx); err != nil {
 		return err
+	}
+	if jsonutils.QueryBoolean(data, "fake_create_from_bm_import", false) {
+		timeutils2.AddTimeout(time.Second*3, func() { modules.ComputeTasks.TaskComplete(b.GetClientSession(), taskId, nil) })
+		return nil
 	}
 	b.StartNewTask(tasks.NewBaremetalServerCreateTask, userCred, taskId, data)
 	return nil

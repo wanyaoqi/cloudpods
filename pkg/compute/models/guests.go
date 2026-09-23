@@ -5535,10 +5535,6 @@ func (self *SGuest) AllowDeleteItem(ctx context.Context, userCred mcclient.Token
 
 // 删除虚拟机
 func (self *SGuest) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query api.ServerDeleteInput, data jsonutils.JSONObject) error {
-	host, _ := self.GetHost()
-	if host != nil && host.IsImport && options.Options.BaremetalPrepareServerFakeDelete {
-		query.Purge = true
-	}
 	return self.StartDeleteGuestTask(ctx, userCred, "", query)
 }
 

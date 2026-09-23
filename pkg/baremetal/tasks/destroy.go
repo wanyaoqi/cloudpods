@@ -57,12 +57,17 @@ func (self *SBaremetalServerDestroyTask) RemoveEFIOSEntry() bool {
 }
 
 func (self *SBaremetalServerDestroyTask) DoDeploys(ctx context.Context, term *ssh.Client) (jsonutils.JSONObject, error) {
-	if err := self.Baremetal.GetServer().DoEraseDisk(term); err != nil {
-		log.Errorf("Delete server do erase disk: %v", err)
+	if !jsonutils.QueryBoolean(self.data, "purge", false) {
+		if err := self.Baremetal.GetServer().DoEraseDisk(term); err != nil {
+			log.Errorf("Delete server do erase disk: %v", err)
+		}
+		if err := self.Baremetal.GetServer().DoDiskUnconfig(term); err != nil {
+			log.Errorf("Baremetal do disk unconfig: %v", err)
+		}
+	} else {
+		log.Infof("Purge server %s", self.Baremetal.GetServer().GetId())
 	}
-	if err := self.Baremetal.GetServer().DoDiskUnconfig(term); err != nil {
-		log.Errorf("Baremetal do disk unconfig: %v", err)
-	}
+
 	self.Baremetal.RemoveServer()
 	return nil, nil
 }
