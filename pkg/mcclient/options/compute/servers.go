@@ -650,6 +650,10 @@ func (opts *ServerCreateOptionalOptions) OptionalParams() (*computeapi.ServerCre
 		params.FakeCreate = *opts.FakeCreate
 	}
 
+	if opts.FakeCreateFromBmImport != nil {
+		params.FakeCreateFromBmImport = *opts.FakeCreateFromBmImport
+	}
+
 	if len(opts.EncryptKey) > 0 {
 		params.EncryptKeyId = &opts.EncryptKey
 	}
