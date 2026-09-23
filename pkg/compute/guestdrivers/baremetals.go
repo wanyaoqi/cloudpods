@@ -413,7 +413,7 @@ func (self *SBaremetalGuestDriver) StartGuestStopTask(guest *models.SGuest, ctx 
 
 func (self *SBaremetalGuestDriver) RequestUndeployGuestOnHost(ctx context.Context, guest *models.SGuest, host *models.SHost, task taskman.ITask) error {
 	body := jsonutils.NewDict()
-	if jsonutils.QueryBoolean(task.GetParams(), "purge", false) {
+	if host.IsImport && options.Options.BaremetalPrepareServerFakeDelete {
 		body.Set("purge", jsonutils.JSONTrue)
 	}
 	url := fmt.Sprintf("/baremetals/%s/servers/%s", host.Id, guest.Id)

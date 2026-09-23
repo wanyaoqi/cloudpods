@@ -329,8 +329,16 @@ func (deleteTask *BaseGuestDeleteTask) DoDeleteGuest(ctx context.Context, guest 
 	} else if (host == nil || !host.GetEnabled()) && jsonutils.QueryBoolean(deleteTask.Params, "purge", false) {
 		deleteTask.OnGuestDeleteComplete(ctx, guest, nil)
 	} else if purgeBmImportServerFakeDelete {
-		//guest purge bm
-		deleteTask.OnGuestDeleteComplete(ctx, guest, nil)
+		drv, _ := guest.GetDriver()
+		if drv != nil {
+			deleteTask.SetStage("OnGuestDeleteComplete", nil)
+			if err := drv.RequestUndeployGuestOnHost(ctx, guest, host, deleteTask); err != nil {
+				deleteTask.OnGuestDeleteFailed(ctx, guest, jsonutils.NewString(err.Error()))
+				return
+			}
+		} else {
+			deleteTask.OnGuestDeleteComplete(ctx, guest, nil)
+		}
 	} else {
 		deleteTask.SetStage("OnGuestDeleteComplete", nil)
 		guest.StartUndeployGuestTask(ctx, deleteTask.UserCred, deleteTask.GetTaskId(), "")
