@@ -1869,9 +1869,10 @@ func (self *SGuest) GuestNonSchedStartTask(
 
 func (self *SGuest) StartGuestCreateTask(ctx context.Context, userCred mcclient.TokenCredential, input *api.ServerCreateInput, pendingUsage quotas.IQuota, parentTaskId string) error {
 	if input.FakeCreate || input.FakeCreateFromBmImport {
-		self.fixFakeServerInfo(ctx, userCred, input.FakeCreateFromBmImport)
+		self.fixFakeServerInfo(ctx, userCred, FakeCreateFromBmImport)
 		return nil
 	}
+
 	driver, err := self.GetDriver()
 	if err != nil {
 		return errors.Wrapf(err, "GetDriver")

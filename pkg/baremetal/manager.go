@@ -460,7 +460,8 @@ func (m *SBaremetalManager) verifyMacAddr(sshCli *ssh.Client) (error, bool) {
 	var registered bool
 	params := jsonutils.NewDict()
 	for _, nic := range nicinfo {
-		if len(nic.Mac) > 0 {
+		// only verify Ethernet
+		if len(nic.Mac) == 6 {
 			params.Set("any_mac", jsonutils.NewString(nic.Mac.String()))
 			params.Set("scope", jsonutils.NewString("system"))
 			res, err := modules.Hosts.List(m.GetClientSession(), params)

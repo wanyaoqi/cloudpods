@@ -280,7 +280,11 @@ func (manager *SHostManager) ListItemFilter(
 	}
 
 	if len(query.AnyMac) > 0 {
-		anyMac := netutils.FormatMacAddr(query.AnyMac)
+		anyMacI, err := net.ParseMAC(query.AnyMac)
+		if err != nil {
+			return nil, errors.Wrapf(httperrors.ErrInputParameter, "invalid any_mac address %s: %s", query.AnyMac, err)
+		}
+		anyMac := anyMacI.String()
 		if len(anyMac) == 0 {
 			return nil, errors.Wrapf(httperrors.ErrInputParameter, "invalid any_mac address %s", query.AnyMac)
 		}
