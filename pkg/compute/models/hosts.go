@@ -5873,14 +5873,10 @@ func (hh *SHost) PerformCreateFromImportBaremetal(
 	if err := hh.CreateFakeBaremetalServer(ctx, userCred, name); err != nil {
 		return nil, errors.Wrap(err, "CreateFakeBaremetalServer")
 	}
-	gs, err := hh.GetGuests()
-	if err != nil {
-		return nil, errors.Wrap(err, "GetGuests")
-	}
-	if len(gs) != 1 {
+	guest := hh.GetBaremetalServer()
+	if guest == nil {
 		return nil, errors.Errorf("failed get guest")
 	}
-	guest := gs[0]
 	params := jsonutils.NewDict()
 	params.Set("restart", jsonutils.JSONTrue)
 	params.Set("fake_create_from_bm_import", jsonutils.JSONTrue)

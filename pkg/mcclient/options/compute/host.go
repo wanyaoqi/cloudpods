@@ -173,6 +173,10 @@ type HostCreateFromImportBaremetalOptions struct {
 	Name string `help:"Name of new server"`
 }
 
+func (o *HostCreateFromImportBaremetalOptions) Params() (jsonutils.JSONObject, error) {
+	return jsonutils.Marshal(o), nil
+}
+
 type HostStatusStatisticsOptions struct {
 	HostListOptions
 	options.StatusStatisticsOptions

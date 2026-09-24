@@ -2160,6 +2160,7 @@ func (b *SBaremetalInstance) StartServerStopTask(userCred mcclient.TokenCredenti
 
 func (b *SBaremetalInstance) StartServerDestroyTask(userCred mcclient.TokenCredential, taskId string, data jsonutils.JSONObject) {
 	if jsonutils.QueryBoolean(data, "purge", false) {
+		log.Infof("purge bm server %s", b.GetId())
 		timeutils2.AddTimeout(time.Second*3, func() {
 			b.RemoveServer()
 			modules.ComputeTasks.TaskComplete(b.GetClientSession(), taskId, nil)
