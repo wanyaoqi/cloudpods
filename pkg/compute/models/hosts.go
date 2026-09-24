@@ -5864,8 +5864,11 @@ func (hh *SHost) PerformCreateFromImportBaremetal(
 	query jsonutils.JSONObject, data jsonutils.JSONObject,
 ) (jsonutils.JSONObject, error) {
 	name, err := data.GetString("name")
-	if err != nil || hh.GetBaremetalServer() != nil {
-		return nil, nil
+	if err != nil {
+		return nil, httperrors.NewMissingParameterError("name")
+	}
+	if hh.GetBaremetalServer() != nil {
+		return nil, httperrors.NewInsufficientResourceError("host allocated")
 	}
 	if len(name) == 0 {
 		name = hh.Name + "-server"
