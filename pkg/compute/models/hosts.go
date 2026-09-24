@@ -5873,7 +5873,18 @@ func (hh *SHost) PerformCreateFromImportBaremetal(
 	if err := hh.CreateFakeBaremetalServer(ctx, userCred, name); err != nil {
 		return nil, errors.Wrap(err, "CreateFakeBaremetalServer")
 	}
-	return nil, nil
+	gs, err := hh.GetGuests()
+	if err != nil {
+		return nil, errors.Wrap(err, "GetGuests")
+	}
+	if len(gs) != 1 {
+		return nil, errors.Errorf("failed get guest")
+	}
+	guest := gs[0]
+	params := jsonutils.NewDict()
+	params.Set("restart", jsonutils.JSONTrue)
+	params.Set("fake_create_from_bm_import", jsonutils.JSONTrue)
+	return nil, guest.StartGuestDeployTask(ctx, userCred, params, "create", "")
 }
 
 func validateHostNetif(input api.HostNetifInput) (api.HostNetifInput, error) {
