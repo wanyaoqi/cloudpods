@@ -168,6 +168,11 @@ func (o *HostSetHostFilesOptions) Params() (jsonutils.JSONObject, error) {
 	return jsonutils.Marshal(o), nil
 }
 
+type HostCreateFromImportBaremetalOptions struct {
+	options.BaseIdsOptions
+	Name string `help:"Name of new server"`
+}
+
 type HostStatusStatisticsOptions struct {
 	HostListOptions
 	options.StatusStatisticsOptions

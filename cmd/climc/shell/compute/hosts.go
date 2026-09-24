@@ -68,6 +68,7 @@ func init() {
 	cmd.BatchPerform("auto-migrate-on-host-down", &compute.HostAutoMigrateOnHostDownOptions{})
 	cmd.BatchPerform("restart-host-agent", &options.BaseIdsOptions{})
 	cmd.BatchPerform("set-host-files", &compute.HostSetHostFilesOptions{})
+	cmd.BatchPerform("create-from-import-baremetal", &compute.HostCreateFromImportBaremetalOptions{})
 
 	cmd.Get("ipmi", &options.BaseIdOptions{})
 	cmd.Get("vnc", &options.BaseIdOptions{})
