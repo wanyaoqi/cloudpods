@@ -57,6 +57,7 @@ func (self *SBaremetalServerDestroyTask) RemoveEFIOSEntry() bool {
 }
 
 func (self *SBaremetalServerDestroyTask) DoDeploys(ctx context.Context, term *ssh.Client) (jsonutils.JSONObject, error) {
+	log.Errorf("request data %s", self.data.String())
 	if !jsonutils.QueryBoolean(self.data, "purge", false) {
 		if err := self.Baremetal.GetServer().DoEraseDisk(term); err != nil {
 			log.Errorf("Delete server do erase disk: %v", err)
