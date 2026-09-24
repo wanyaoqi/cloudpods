@@ -1898,7 +1898,7 @@ func (self *SGuest) fixFakeServerCreateFromBmImport(ctx context.Context, userCre
 	self.SetAllMetadata(ctx, map[string]interface{}{
 		"is_fake_baremetal_server": true, "host_ip": hh.AccessIp}, userCred)
 
-	caps := hh.GetAttachedLocalStorageCapacity()
+	caps := hh.GetBmAttachedLocalStorageCapacity()
 	diskConfig := &api.DiskConfig{SizeMb: int(caps.GetFree())}
 	log.Errorf("fixFakeServerCreateFromBmImport disk sizemb %d", diskConfig.SizeMb)
 	err = self.CreateDisksOnHost(ctx, userCred, hh, []*api.DiskConfig{diskConfig}, nil, true, true, nil, nil, true)

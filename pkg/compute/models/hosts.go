@@ -1783,6 +1783,15 @@ func (cap *SStorageCapacity) toCapacityInfo() api.SStorageCapacityInfo {
 	return info
 }
 
+func (hh *SHost) GetBmAttachedLocalStorageCapacity() SStorageCapacity {
+	ret := SStorageCapacity{}
+	storages := hh._getAttachedStorages(tristate.True, tristate.True, api.HOST_STORAGE_LOCAL_TYPES)
+	for _, s := range storages {
+		ret.Add(s.getStorageCapacity())
+	}
+	return ret
+}
+
 func (hh *SHost) GetAttachedLocalStorageCapacity() SStorageCapacity {
 	ret := SStorageCapacity{}
 	storages := hh.GetAttachedEnabledHostStorages(api.HOST_STORAGE_LOCAL_TYPES)
