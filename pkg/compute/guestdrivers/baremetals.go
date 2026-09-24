@@ -418,7 +418,7 @@ func (self *SBaremetalGuestDriver) RequestUndeployGuestOnHost(ctx context.Contex
 	}
 	url := fmt.Sprintf("/baremetals/%s/servers/%s", host.Id, guest.Id)
 	headers := task.GetTaskRequestHeader()
-	_, err := host.BaremetalSyncRequest(ctx, "DELETE", url, headers, nil)
+	_, err := host.BaremetalSyncRequest(ctx, "DELETE", url, headers, body)
 	return err
 }
 
