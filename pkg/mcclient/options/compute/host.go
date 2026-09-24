@@ -39,6 +39,7 @@ type HostListOptions struct {
 	HostStorageType []string `help:"List host in host_storage_type"`
 
 	IsBaremetal *bool `help:"filter host list by is_baremetal=true|false" mcp:"true"`
+	IsImport    *bool `help:"filter host is import"`
 
 	ResourceType string `help:"Resource type" choices:"shared|prepaid|dedicated" mcp:"true"`
 
