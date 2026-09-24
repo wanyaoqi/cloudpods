@@ -1905,6 +1905,15 @@ func (self *SGuest) fixFakeServerCreateFromBmImport(ctx context.Context, userCre
 	if err != nil {
 		return errors.Wrap(err, "Host perform initialize failed on create disk")
 	}
+	disks, err := self.GetDisks()
+	if err != nil {
+		return errors.Wrap(err, "GetDisks")
+	}
+	for i := range disks {
+		if err := disks[i].SetStatus(ctx, userCred, api.DISK_READY, ""); err != nil {
+			return errors.Wrap(err, "disk set status")
+		}
+	}
 	net, err := hh.getNetworkOfIPOnHost(ctx, hh.AccessIp)
 	if err != nil {
 		return httperrors.NewInputParameterError("host perfrom initialize failed fetch net of access ip %s", err)
