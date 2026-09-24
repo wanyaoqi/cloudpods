@@ -2159,7 +2159,14 @@ func (b *SBaremetalInstance) StartServerStopTask(userCred mcclient.TokenCredenti
 }
 
 func (b *SBaremetalInstance) StartServerDestroyTask(userCred mcclient.TokenCredential, taskId string, data jsonutils.JSONObject) {
-	b.StartNewTask(tasks.NewBaremetalServerDestroyTask, userCred, taskId, data)
+	if jsonutils.QueryBoolean(data, "purge", false) {
+		timeutils2.AddTimeout(time.Second*3, func() {
+			b.RemoveServer()
+			modules.ComputeTasks.TaskComplete(b.GetClientSession(), taskId, nil)
+		})
+	} else {
+		b.StartNewTask(tasks.NewBaremetalServerDestroyTask, userCred, taskId, data)
+	}
 }
 
 func (b *SBaremetalInstance) DelayedSyncIPMIInfo(ctx context.Context, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
