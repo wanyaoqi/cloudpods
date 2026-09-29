@@ -929,6 +929,16 @@ func (b *SBaremetalInstance) SyncStatus(ctx context.Context, status string, reas
 	log.Infof("Update baremetal %s to status %s", b.GetId(), status)
 }
 
+func (b *SBaremetalInstance) AttachIsolatedDevices() {
+	params := jsonutils.NewDict()
+	_, err := modules.Hosts.PerformAction(b.GetClientSession(), b.GetId(), "attach_isolated_devices", params)
+	if err != nil {
+		log.Errorf("Attach baremetal %s isolated devices error: %v", b.GetId(), err)
+		return
+	}
+	log.Infof("Attach baremetal %s isolated devices", b.GetId())
+}
+
 func (b *SBaremetalInstance) AutoSyncAllStatus(ctx context.Context) {
 	b.SyncAllStatus(ctx, "")
 }
