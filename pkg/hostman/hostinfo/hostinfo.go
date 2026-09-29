@@ -278,6 +278,33 @@ func (h *SHostInfo) Init(ctx context.Context) error {
 		}
 	}
 
+	// start check system service
+	executor := system_service.NewBaseSystemService("yunion-executor", nil)
+	if !executor.IsActive() {
+		return errors.Errorf("Check yunion-executor service failed, try 'systemctl enable yunion-executor --now' start it.")
+	}
+
+	chronyd := system_service.NewBaseSystemService("chronyd", nil)
+	if chronyd.IsInstalled() && !chronyd.IsActive() {
+		if err := chronyd.Start(true); err != nil {
+			log.Errorf("start chronyd failed: %s", err)
+		}
+	}
+
+	timesync := system_service.NewBaseSystemService("systemd-timesyncd", nil)
+	if timesync.IsInstalled() && !timesync.IsActive() {
+		if err := timesync.Start(true); err != nil {
+			log.Errorf("start timesync failed: %s", err)
+		}
+	}
+
+	ntpd := system_service.GetService("ntpd")
+	if ntpd.IsInstalled() && !ntpd.IsActive() {
+		if err := ntpd.Start(true); err != nil {
+			log.Errorf("start ntpd failed: %s", err)
+		}
+	}
+
 	return nil
 }
 
