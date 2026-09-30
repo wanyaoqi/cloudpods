@@ -2104,6 +2104,11 @@ func (b *SBaremetalInstance) StartBaremetalCdromTask(userCred mcclient.TokenCred
 	return nil
 }
 
+func (b *SBaremetalInstance) StartDetectIsolatedDevices(userCred mcclient.TokenCredential, taskId string, data jsonutils.JSONObject) error {
+	b.StartNewTask(tasks.NewBaremetalIsolatedDevicesProbeTask, userCred, taskId, data)
+	return nil
+}
+
 func (b *SBaremetalInstance) DelayedServerReset(ctx context.Context, _ jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	err := b.DoPXEBoot()
 	return nil, err

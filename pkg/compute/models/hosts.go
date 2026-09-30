@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"yunion.io/x/onecloud/pkg/compute/sshkeys"
 
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
@@ -5929,6 +5930,36 @@ func (hh *SHost) PerformAttachIsolatedDevices(
 		}
 	}
 	return nil, nil
+}
+
+func (hh *SHost) PerformBaremetalProbeIsolatedDevices(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject, data jsonutils.JSONObject,
+) (jsonutils.JSONObject, error) {
+	if hh.HostType != api.HOST_TYPE_BAREMETAL {
+		return nil, httperrors.NewBadRequestError("Not support host type %s", hh.HostType)
+	}
+	guest := hh.GetBaremetalServer()
+	if guest == nil {
+		return nil, httperrors.NewBadRequestError("baremetal not created")
+	}
+	username := "cloudroot"
+	accessIp := hh.AccessIp
+	private, _, err := sshkeys.GetSshAdminKeypair(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "GetSshAdminKeypair")
+	}
+	params := jsonutils.NewDict()
+	params.Set("access_ip", jsonutils.NewString(accessIp))
+	params.Set("username", jsonutils.NewString(username))
+	params.Set("private_key", jsonutils.NewString(private[0]))
+	url := fmt.Sprintf("/baremetals/%s/probe-isolated-devices", hh.Id)
+	header := mcclient.GetTokenHeaders(userCred)
+	resp, err := hh.BaremetalSyncRequest(ctx, "POST", url, header, params)
+	if err != nil {
+		return nil, errors.Wrap(err, "BaremetalSyncRequest")
+	}
+	return resp, nil
 }
 
 func validateHostNetif(input api.HostNetifInput) (api.HostNetifInput, error) {
