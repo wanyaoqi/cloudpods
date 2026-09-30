@@ -81,10 +81,10 @@ func (self *SBaremetalIsolatedDevicesProbeTask) DoProbeIsolatedDevices(ctx conte
 		return errors.Wrap(err, "send isolated devices info")
 	}
 	params := jsonutils.NewDict()
-	_, err = modules.Hosts.PerformAction(self.Baremetal.GetClientSession(), self.Baremetal.GetId(), "attach_isolated_devices", params)
+	_, err = modules.Hosts.PerformAction(self.Baremetal.GetClientSession(), self.Baremetal.GetId(), "attach-isolated-devices", params)
 	if err != nil {
 		log.Errorf("Attach baremetal %s isolated devices error: %v", self.Baremetal.GetId(), err)
-		return errors.Wrap(err, "attach_isolated_devices")
+		return errors.Wrap(err, "attach-isolated-devices")
 	}
 	log.Infof("Attach baremetal %s isolated devices success", self.Baremetal.GetId())
 	return nil
