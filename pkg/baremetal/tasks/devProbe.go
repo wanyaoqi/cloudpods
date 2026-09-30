@@ -46,16 +46,26 @@ func (self *SBaremetalIsolatedDevicesProbeTask) DoProbeIsolatedDevices(ctx conte
 	if self.data.Contains("username") {
 		username, _ = self.data.GetString("username")
 	}
-	passwd, _ := self.data.GetString("password")
-	privateKey, _ := self.data.GetString("private_key")
-	log.Infof("sshinfo %v %v %v %v %v", accessIp, sshPort, username, passwd, privateKey)
-	sshCli, err := ssh.NewClient(accessIp, sshPort, username, passwd, privateKey)
-	if err != nil {
-		log.Errorf("failed ssh.NewClient with %v %v %v %v %v: %s",
-			accessIp, sshPort, username, passwd, privateKey, err)
-		return errors.Wrapf(err,
-			"ssh.NewClient with %v %v %v %v %v", accessIp, sshPort, username, passwd, privateKey)
+	//passwd, _ := self.data.GetString("password")
+	keys := make([]string, 0)
+	self.data.Unmarshal(&keys, "private_key")
+	log.Infof("sshinfo %v %v %v %v %v", accessIp, sshPort, username, "", keys)
+
+	var sshCli *ssh.Client
+	var err error
+	for i := range keys {
+		sshCli, err = ssh.NewClient(accessIp, sshPort, username, "", keys[i])
+		if err != nil {
+			log.Errorf("failed ssh.NewClient with %v %v %v %v %v: %s",
+				accessIp, sshPort, username, "", keys[i], err)
+		} else {
+			break
+		}
 	}
+	if sshCli == nil {
+		return errors.Errorf("no valid ssh key")
+	}
+
 	devs, err := getIsolatedDevicesInfo(sshCli, nil)
 	if err != nil {
 		log.Errorf("failed getIsolatedDevicesInfo %s", err)
