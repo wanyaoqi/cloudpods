@@ -5945,21 +5945,26 @@ func (hh *SHost) PerformBaremetalProbeIsolatedDevices(
 	}
 	username := "cloudroot"
 	accessIp := hh.AccessIp
+	private1, _, err := sshkeys.GetSshProjectKeypair(ctx, guest.ProjectId)
+	if err != nil {
+		return nil, errors.Wrap(err, "GetSshProjectKeypair")
+	}
 	private, _, err := sshkeys.GetSshAdminKeypair(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "GetSshAdminKeypair")
 	}
+	privateKyes := append(private, private1...)
 	params := jsonutils.NewDict()
 	params.Set("access_ip", jsonutils.NewString(accessIp))
 	params.Set("username", jsonutils.NewString(username))
-	params.Set("private_key", jsonutils.NewString(private[0]))
+	params.Set("private_key", jsonutils.NewStringArray(privateKyes))
 	url := fmt.Sprintf("/baremetals/%s/probe-isolated-devices", hh.Id)
 	header := mcclient.GetTokenHeaders(userCred)
-	resp, err := hh.BaremetalSyncRequest(ctx, "POST", url, header, params)
+	_, err = hh.BaremetalSyncRequest(ctx, "POST", url, header, params)
 	if err != nil {
 		return nil, errors.Wrap(err, "BaremetalSyncRequest")
 	}
-	return resp, nil
+	return nil, nil
 }
 
 func validateHostNetif(input api.HostNetifInput) (api.HostNetifInput, error) {
