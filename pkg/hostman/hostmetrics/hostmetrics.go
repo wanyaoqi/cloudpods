@@ -64,8 +64,10 @@ type IHostInfo interface {
 	HasContainerNvidiaGpu() bool
 	HasContainerVastaitechGpu() bool
 	HasContainerCphAmdGpu() bool
+	HasContainerIluvatarGpu() bool
 	GetNvidiaGpuIndexMemoryMap() map[string]int
 	GetNvidiaGpuIndexByDeviceIds(ids []string) map[string]int
+	GetContainerIluvatarGpuMemSizeByIndex(index int) int
 	ReportHostDmesg(data []compute.SKmsgEntry) error
 }
 
@@ -199,6 +201,7 @@ func (s *SGuestMonitorCollector) GetGuests() map[string]*SGuestMonitor {
 	var nvidiaGpuMetrics []NvidiaGpuProcessMetrics = nil
 	var vastaitechGpuMetrics []VastaitechGpuProcessMetrics = nil
 	var cphAmdGpuMetrics []CphAmdGpuProcessMetrics = nil
+	var iluvatarGpuMetrics []IluvatarGpuProcessMetrics = nil
 	var gpuPodProcs = s.collectGpuPodsProcesses()
 
 	guestmanager.Servers.Range(func(k, v interface{}) bool {
@@ -274,13 +277,19 @@ func (s *SGuestMonitorCollector) GetGuests() map[string]*SGuestMonitor {
 						log.Errorf("GetCphAmdGpuProcessMetrics %s", err)
 					}
 				}
+				if s.hostInfo.HasContainerIluvatarGpu() {
+					iluvatarGpuMetrics, err = GetIluvatarGpuProcessMetrics(s.hostInfo)
+					if err != nil {
+						log.Errorf("GetIluvatarGpuProcessMetrics %s", err)
+					}
+				}
 			}
 
 			podStat, podProcs := GetPodStatsById(podStats, gpuPodProcs, guestId)
 			if podStat != nil {
 				gm, err := NewGuestPodMonitor(
 					instance, guestName, guestId, podStat,
-					nvidiaGpuMetrics, vastaitechGpuMetrics, cphAmdGpuMetrics,
+					nvidiaGpuMetrics, vastaitechGpuMetrics, cphAmdGpuMetrics, iluvatarGpuMetrics,
 					s.hostInfo, podProcs, nicsDesc, int(vcpuCount),
 				)
 				if err != nil {
@@ -633,6 +642,7 @@ type SGuestMonitor struct {
 	nvidiaGpuAssigned       []nvidiaGpuAssignedQuota
 	vastaitechGpuMetrics    []VastaitechGpuProcessMetrics
 	cphAmdGpuMetrics        []CphAmdGpuProcessMetrics
+	iluvatarGpuMetrics      []IluvatarGpuProcessMetrics
 	instance                guestman.GuestRuntimeInstance
 	sysFs                   sysfs.SysFs
 
@@ -649,7 +659,8 @@ func NewGuestMonitor(instance guestman.GuestRuntimeInstance, name, id string, pi
 
 func NewGuestPodMonitor(
 	instance guestman.GuestRuntimeInstance, name, id string, stat *stats.PodStats,
-	nvidiaGpuMetrics []NvidiaGpuProcessMetrics, vastaitechGpuMetrics []VastaitechGpuProcessMetrics, cphAmdGpuMetrics []CphAmdGpuProcessMetrics,
+	nvidiaGpuMetrics []NvidiaGpuProcessMetrics, vastaitechGpuMetrics []VastaitechGpuProcessMetrics,
+	cphAmdGpuMetrics []CphAmdGpuProcessMetrics, iluvatarGpuMetrics []IluvatarGpuProcessMetrics,
 	hostInstance IHostInfo, podProcs map[string]struct{}, nics []*desc.SGuestNetwork, cpuCount int,
 ) (*SGuestMonitor, error) {
 	m, err := newGuestMonitor(instance, name, id, nil, nics, cpuCount)
@@ -661,6 +672,7 @@ func NewGuestPodMonitor(
 
 	hasNvGpu := false
 	hasCphAmdGpu := false
+	hasIluvatarGpu := false
 	hasVastaitechGpu := false
 	nvAssignInputs := make([]nvidiaGpuAssignInput, 0)
 	for i := range podDesc.IsolatedDevices {
@@ -677,6 +689,8 @@ func NewGuestPodMonitor(
 			})
 		case compute.AMD_VENDOR_ID:
 			hasCphAmdGpu = true
+		case compute.ILUVATAR_VENDOR_ID:
+			hasIluvatarGpu = true
 		case compute.VASTAITECH_VENDOR_ID:
 			hasVastaitechGpu = true
 		}
@@ -697,6 +711,9 @@ func NewGuestPodMonitor(
 	}
 	if hasCphAmdGpu {
 		m.cphAmdGpuMetrics = GetPodCphAmdGpuMetrics(cphAmdGpuMetrics, podProcs)
+	}
+	if hasIluvatarGpu {
+		m.iluvatarGpuMetrics = GetPodIluvatarGpuMetrics(iluvatarGpuMetrics, podProcs)
 	}
 	return m, nil
 }

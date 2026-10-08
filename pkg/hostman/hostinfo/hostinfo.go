@@ -135,6 +135,8 @@ type SHostInfo struct {
 	hasNvidiaGpus                  *bool
 	hasVastaitechGpus              *bool
 	hasCphAmdGpus                  *bool
+	hasIluvatarGpus                *bool
+	iluvatarGpuMemSize             map[int]int
 
 	guestManager hostutils.IGuestManager
 }
