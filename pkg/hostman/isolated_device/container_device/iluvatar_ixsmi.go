@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultIluvatarCorexHome = "/usr/local/corex-4.4.0"
+	defaultIluvatarCorexHome = "/usr/local/corex-4.3.0"
 	iluvatarCorexAlias       = "/usr/local/corex"
 	iluvatarCtlDevicePath    = "/dev/itrctl"
 	iluvatarComputeModeOK    = "Default"
