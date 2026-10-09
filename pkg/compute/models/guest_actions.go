@@ -1985,6 +1985,9 @@ func (self *SGuest) fixFakeServerCreateFromBmImport(ctx context.Context, userCre
 		return errors.Wrap(err, "GetIsolateDevices")
 	}
 	for i := range devs {
+		if devs[i].IsFull() {
+			continue
+		}
 		if err := self.attachIsolatedDevice(ctx, userCred, &devs[i], nil, nil, nil, ""); err != nil {
 			return errors.Wrap(err, "attachIsolatedDevice")
 		}
