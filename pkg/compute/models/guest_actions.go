@@ -1932,7 +1932,6 @@ func (self *SGuest) StartGuestCreateTask(ctx context.Context, userCred mcclient.
 				return err
 			}
 			params := jsonutils.NewDict()
-			params.Set("restart", jsonutils.JSONTrue)
 			params.Set("fake_create_from_bm_import", jsonutils.JSONTrue)
 			return self.StartGuestDeployTask(ctx, userCred, params, "create", parentTaskId)
 		}

@@ -2941,8 +2941,6 @@ func (guest *SGuest) PostCreate(ctx context.Context, userCred mcclient.TokenCred
 		jdata := data.(*jsonutils.JSONDict)
 		jdata.Remove("nets")
 		jdata.Remove("disks")
-		log.Errorf("jdata %s", jdata.String())
-		log.Errorf("data %s", data.String())
 	}
 
 	tags := []string{"cpu_bound", "io_bound", "io_hardlimit"}
@@ -3144,7 +3142,6 @@ func (manager *SGuestManager) OnCreateComplete(ctx context.Context, items []db.I
 		}
 		return
 	}
-	log.Errorf("data is %s", data[0].String())
 	err = RunBatchCreateTask(ctx, items, userCred, data, pendingUsage, pendingRegionUsage, "GuestBatchCreateTask", input.ParentTaskId)
 	if err != nil {
 		for i := range items {
