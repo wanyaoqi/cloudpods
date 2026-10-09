@@ -1895,8 +1895,6 @@ func (manager *SGuestManager) validateCreateData(
 
 	if input.FakeCreateFromBmImport {
 		input.OsType = "Linux"
-		input.Networks = nil
-		input.Disks = nil
 		return input, nil
 	}
 
@@ -2939,6 +2937,12 @@ func (guest *SGuest) getGuestBackupResourceRequirements(ctx context.Context, use
 
 func (guest *SGuest) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	guest.SVirtualResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
+	if guest.Hypervisor == api.HYPERVISOR_BAREMETAL && jsonutils.QueryBoolean(data, "fake_create_from_bm_import", false) {
+		jdata := data.(*jsonutils.JSONDict)
+		jdata.Remove("nets")
+		jdata.Remove("disks")
+	}
+
 	tags := []string{"cpu_bound", "io_bound", "io_hardlimit"}
 	appTags := make([]string, 0)
 	for _, tag := range tags {
