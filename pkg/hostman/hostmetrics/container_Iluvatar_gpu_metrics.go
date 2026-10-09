@@ -45,7 +45,7 @@ type IluvatarGpuProcessMetrics struct {
 
 func GetIluvatarGpuProcessMetrics(hostinfo IHostInfo) ([]IluvatarGpuProcessMetrics, error) {
 	outputFile := "/tmp/ixsmi_pmon.out"
-	cmd := fmt.Sprintf("/usr/local/bin/ixsmi -f %s -c 1", outputFile)
+	cmd := fmt.Sprintf("/usr/local/bin/ixsmi pmon -f %s -c 1", outputFile)
 	out, err := procutils.NewRemoteCommandAsFarAsPossible("bash", "-c", cmd).Output()
 	if err != nil {
 		return nil, errors.Wrapf(err, "Execute %s failed: %s", cmd, out)
@@ -73,6 +73,9 @@ func parseIluvatarGpuProcessMetrics(gpuMetricsStr string, hostinfo IHostInfo) []
 		idx, err := strconv.ParseInt(idxStr, 10, 64)
 		if err != nil {
 			log.Errorf("Parse IluvatarGpuProcessMetrics idxStr %s failed", idxStr)
+			continue
+		}
+		if pid == "-" {
 			continue
 		}
 		smUtil, err := strconv.ParseFloat(smUtilStr, 64)
