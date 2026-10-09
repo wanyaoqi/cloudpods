@@ -1895,6 +1895,8 @@ func (manager *SGuestManager) validateCreateData(
 
 	if input.FakeCreateFromBmImport {
 		input.OsType = "Linux"
+		input.Networks = nil
+		input.Disks = nil
 		return input, nil
 	}
 
