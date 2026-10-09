@@ -4934,8 +4934,9 @@ func (self *SGuest) CreateNetworksOnHost(
 	netArray []*api.NetworkConfig,
 	pendingUsage, pendingUsageZone quotas.IQuota,
 	candidateNets []*schedapi.CandidateNet,
+	permitNoNetwork bool,
 ) error {
-	if len(netArray) == 0 {
+	if !permitNoNetwork && len(netArray) == 0 {
 		netConfig := self.getDefaultNetworkConfig()
 		_, err := self.attach2RandomNetwork(ctx, userCred, host, netConfig, pendingUsage)
 		return errors.Wrap(err, "self.attach2RandomNetwork")
