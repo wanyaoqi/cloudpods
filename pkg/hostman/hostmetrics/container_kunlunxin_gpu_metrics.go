@@ -1,5 +1,13 @@
 package hostmetrics
 
+import (
+	"strings"
+
+	"yunion.io/x/pkg/errors"
+
+	"yunion.io/x/onecloud/pkg/util/procutils"
+)
+
 /*
 
 ==============XPUSMI LOG==============
@@ -107,3 +115,33 @@ XPU 00000000:05:00.0
         Bus Id                            : 00000000:05:00.0
         Sub System Id                     : 0x00010001
 */
+
+type KunlunxinGpuProcessMetrics struct {
+	Pid     string // Process ID
+	PciAddr string
+	MemUtil float64
+	Mem     float64
+	Enc     float64
+	Dec     float64
+	SmUtil  float64
+	Idx     int
+}
+
+func GetKunlunxinGpuProcessMetrics() ([]KunlunxinGpuProcessMetrics, error) {
+	cmd := "xpu-smi -q"
+	output, err := procutils.NewRemoteCommandAsFarAsPossible("bash", "-c", cmd).Output()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Execute %s failed: %s", cmd, output)
+	}
+	return parseKunlinxinGpuProcessMetrics(string(output)), nil
+}
+
+func parseKunlinxinGpuProcessMetrics(output string) []KunlunxinGpuProcessMetrics {
+	lines := strings.Split(output, "\n")
+	var i = 0
+	for i < len(lines) {
+		if !strings.HasPrefix(lines[i], "XPU ") {
+
+		}
+	}
+}
