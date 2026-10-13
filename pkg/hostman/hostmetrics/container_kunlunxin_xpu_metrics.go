@@ -135,7 +135,7 @@ func GetKunlunxinXpuProcessMetrics() ([]KunlunxinXpuProcessMetrics, error) {
 		return nil, errors.Wrapf(err, "Execute %s failed: %s", cmd, output)
 	}
 
-	return parseKunlinxinXpuProcessMetrics(bytes.NewReader(output)), nil
+	return parseKunlunxinXpuProcessMetrics(bytes.NewReader(output)), nil
 }
 
 func util(used, total float64) float64 {
@@ -177,7 +177,7 @@ var deviceHeaderRe = regexp.MustCompile(`^XPU\s+([0-9a-fA-F]{4,8}:[0-9a-fA-F]{2}
 // key : value，按第一个冒号切分；"Bus Id : 00000000:03:00.0" 也能正确拆开
 var kvRe = regexp.MustCompile(`^([^:]+?)\s*:\s*(.*)$`)
 
-func parseKunlinxinXpuProcessMetrics(r io.Reader) []KunlunxinXpuProcessMetrics {
+func parseKunlunxinXpuProcessMetrics(r io.Reader) []KunlunxinXpuProcessMetrics {
 	var procs []KunlunxinXpuProcessMetrics
 
 	var (
