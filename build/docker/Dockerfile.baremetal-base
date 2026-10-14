@@ -7,7 +7,7 @@ FROM registry.cn-beijing.aliyuncs.com/yunionio/supervise:v2.0 AS supervise_build
 FROM registry.cn-beijing.aliyuncs.com/cloudpods/centos:8 as grub-stage
 
 RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=https://mirrors.aliyun.com/centos-vault|g' /etc/yum.repos.d/CentOS-*
 RUN dnf install -y grub2*
 
 # make grub_booti386 firmware
