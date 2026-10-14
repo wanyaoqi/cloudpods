@@ -94,7 +94,7 @@ func TestParseContainerAscendNpuMetricsMemTotalFromHbm(t *testing.T) {
 +===========================+===============+======================================================================+
 | NPU     Chip              | Process id    | Process name       | Process memory(MB)    | Process id in container |
 +===========================+===============+======================================================================+
-| 2       0                 | 1013240       | python3            | 1139                  | NA                      |
+| 2       0                 | 1013240       | python3            | 32768                  | NA                      |
 +===========================+===============+======================================================================+
 `
 	got := parseContainerAscendNpuMetrics(strings.NewReader(in))
