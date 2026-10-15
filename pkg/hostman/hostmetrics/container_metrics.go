@@ -1000,6 +1000,7 @@ func (m *SGuestMonitor) getPodIluvatarGpuMetrics() []*PodIluvatarGpuMetrics {
 
 func (m *SGuestMonitor) getPodAscendGpuMetrics() []*PodAscendNpuMetrics {
 	if len(m.ascendNpuMetrics) == 0 {
+		log.Errorf("ascendNpuMetrics is empty")
 		return nil
 	}
 	addrGpuMap := map[int]*PodAscendNpuMetrics{}
@@ -1218,6 +1219,7 @@ func (d *GuestMetrics) toPodTelegrafData(tagStr string) []string {
 	}
 	for i := range m.PodAscendGPU {
 		ims = append(ims, m.PodAscendGPU[i])
+		log.Errorf("append ascend gpu %s", m.PodAscendGPU[i].ToMap())
 	}
 	for i := range m.PodKunlunxinGPU {
 		ims = append(ims, m.PodKunlunxinGPU[i])
