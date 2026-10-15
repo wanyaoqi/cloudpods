@@ -743,8 +743,8 @@ func NewGuestPodMonitor(
 		m.iluvatarGpuMetrics = GetPodGpuMetrics(iluvatarGpuMetrics, podProcs, func(m IluvatarGpuProcessMetrics) string { return m.Pid })
 	}
 	if hasAscendNpu {
-		log.Errorf("ascendNpuMetrics %s", jsonutils.Marshal(ascendNpuMetrics))
 		m.ascendNpuMetrics = GetPodGpuMetrics(ascendNpuMetrics, podProcs, func(m AscendNpuProcessMetrics) string { return m.Pid })
+		log.Errorf("ascendNpuMetrics %s\npodProcs %s", jsonutils.Marshal(ascendNpuMetrics), jsonutils.Marshal(podProcs))
 	}
 	if hasKunlunxinXpu {
 		m.kunlunxinXpuMetrics = GetPodGpuMetrics(kunlunxinXpuMetrics, podProcs, func(m KunlunxinXpuProcessMetrics) string { return m.Pid })
