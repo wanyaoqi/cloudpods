@@ -1213,6 +1213,15 @@ func (d *GuestMetrics) toPodTelegrafData(tagStr string) []string {
 	for i := range m.PodCphAmdGpu {
 		ims = append(ims, m.PodCphAmdGpu[i])
 	}
+	for i := range m.PodIluvatarGpu {
+		ims = append(ims, m.PodIluvatarGpu[i])
+	}
+	for i := range m.PodAscendGPU {
+		ims = append(ims, m.PodAscendGPU[i])
+	}
+	for i := range m.PodKunlunxinGPU {
+		ims = append(ims, m.PodKunlunxinGPU[i])
+	}
 
 	for _, c := range m.Containers {
 		ims = append(ims, c.ContainerCpu)
