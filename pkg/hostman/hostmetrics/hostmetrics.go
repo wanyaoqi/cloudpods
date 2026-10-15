@@ -28,6 +28,7 @@ import (
 	psnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/process"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/httputils"
@@ -742,6 +743,7 @@ func NewGuestPodMonitor(
 		m.iluvatarGpuMetrics = GetPodGpuMetrics(iluvatarGpuMetrics, podProcs, func(m IluvatarGpuProcessMetrics) string { return m.Pid })
 	}
 	if hasAscendNpu {
+		log.Errorf("ascendNpuMetrics %s", jsonutils.Marshal(ascendNpuMetrics))
 		m.ascendNpuMetrics = GetPodGpuMetrics(ascendNpuMetrics, podProcs, func(m AscendNpuProcessMetrics) string { return m.Pid })
 	}
 	if hasKunlunxinXpu {
