@@ -23,7 +23,6 @@ import (
 
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
-	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/hostman/guestman"
@@ -159,10 +158,7 @@ func (s *SGuestMonitorCollector) collectGpuPodsProcesses() map[string]map[string
 		podDesc := pod.GetDesc()
 		hasGpu := false
 		for i := range podDesc.IsolatedDevices {
-			if podDesc.IsolatedDevices[i].DevType != compute.GPU_TYPE {
-				continue
-			}
-			if !utils.IsInStringArray(podDesc.IsolatedDevices[i].SharingMode, compute.VIRTUAL_SHARING_MODES) {
+			if podDesc.IsolatedDevices[i].DevType != compute.GPU_TYPE && podDesc.IsolatedDevices[i].DevType != compute.NPU_TYPE {
 				continue
 			}
 			hasGpu = true
