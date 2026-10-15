@@ -131,7 +131,7 @@ type PodMetrics struct {
 	PodDiskIos       PodDiskIoMetrics           `json:"pod_disk_ios"`
 	PodNvidiaGpu     []*PodNvidiaGpuMetrics     `json:"pod_nvidia_gpu"`
 	PodVastaitechGpu []*PodVastaitechGpuMetrics `json:"pod_vastaitech_gpu"`
-	PodCphAmdGpu     []*PodCphAmdGpuMetrics     `json:"pod_cph_amd_gpu"`
+	PodAmdGpu        []*PodAmdGpuMetrics        `json:"pod_amd_gpu"`
 	PodMthreadsGpu   []*PodMthreadsGpuMetrics   `json:"pod_mthreads_gpu"`
 	PodIluvatarGpu   []*PodIluvatarGpuMetrics   `json:"pod_iluvatar_gpu"`
 	PodAscendGPU     []*PodAscendNpuMetrics     `json:"pod_ascend_gpu"`
@@ -151,7 +151,7 @@ func (m PodMetricMeta) GetTag() map[string]string {
 	return nil
 }
 
-type PodCphAmdGpuMetrics struct {
+type PodAmdGpuMetrics struct {
 	PodMetricMeta
 
 	DevId   string
@@ -159,22 +159,22 @@ type PodCphAmdGpuMetrics struct {
 	MemUtil float64
 }
 
-func (m PodCphAmdGpuMetrics) GetName() string {
-	return "pod_cph_amd_gpu"
+func (m PodAmdGpuMetrics) GetName() string {
+	return "pod_amd_gpu"
 }
 
-func (m PodCphAmdGpuMetrics) GetUniformName() string {
+func (m PodAmdGpuMetrics) GetUniformName() string {
 	return "pod_gpu"
 }
 
-func (m PodCphAmdGpuMetrics) GetTag() map[string]string {
+func (m PodAmdGpuMetrics) GetTag() map[string]string {
 	return map[string]string{
 		"dev_id":   m.DevId,
 		"dev_type": apis.GPU_TYPE,
 	}
 }
 
-func (m PodCphAmdGpuMetrics) ToMap() map[string]interface{} {
+func (m PodAmdGpuMetrics) ToMap() map[string]interface{} {
 	ret := map[string]interface{}{
 		CPH_AMD_GPU_DEV_ID:   m.DevId,
 		CPH_AMD_GPU_MEM:      m.Mem,
@@ -929,7 +929,7 @@ func (m *SGuestMonitor) PodMetrics(prevUsage *GuestMetrics) *PodMetrics {
 		PodVolumes:       m.getVolumeMetrics(),
 		PodNvidiaGpu:     m.getPodNvidiaGpuMetrics(),
 		PodVastaitechGpu: m.getPodVastaitechGpuMetrics(),
-		PodCphAmdGpu:     m.getPodCphAmdGpuMetrics(),
+		PodAmdGpu:        m.getPodAmdGpuMetrics(),
 		PodIluvatarGpu:   m.getPodIluvatarGpuMetrics(),
 		PodAscendGPU:     m.getPodAscendGpuMetrics(),
 		PodKunlunxinGPU:  m.getPodKunlunxinGpuMetrics(),
@@ -952,23 +952,23 @@ func (m *SGuestMonitor) PodMetrics(prevUsage *GuestMetrics) *PodMetrics {
 	return pm
 }
 
-func (m *SGuestMonitor) getPodCphAmdGpuMetrics() []*PodCphAmdGpuMetrics {
-	if len(m.cphAmdGpuMetrics) == 0 {
+func (m *SGuestMonitor) getPodAmdGpuMetrics() []*PodAmdGpuMetrics {
+	if len(m.amdGpuMetrics) == 0 {
 		return nil
 	}
-	addrGpuMap := map[string]*PodCphAmdGpuMetrics{}
-	for i := range m.cphAmdGpuMetrics {
-		devId := m.cphAmdGpuMetrics[i].DevId
+	addrGpuMap := map[string]*PodAmdGpuMetrics{}
+	for i := range m.amdGpuMetrics {
+		devId := m.amdGpuMetrics[i].DevId
 		gms, ok := addrGpuMap[devId]
 		if !ok {
-			gms = new(PodCphAmdGpuMetrics)
+			gms = new(PodAmdGpuMetrics)
 			gms.DevId = devId
 		}
-		gms.Mem += m.cphAmdGpuMetrics[i].Mem
-		gms.MemUtil += m.cphAmdGpuMetrics[i].MemUtil
+		gms.Mem += m.amdGpuMetrics[i].Mem
+		gms.MemUtil += m.amdGpuMetrics[i].MemUtil
 		addrGpuMap[devId] = gms
 	}
-	res := make([]*PodCphAmdGpuMetrics, 0)
+	res := make([]*PodAmdGpuMetrics, 0)
 	for _, gms := range addrGpuMap {
 		res = append(res, gms)
 	}
@@ -1005,6 +1005,7 @@ func (m *SGuestMonitor) getPodIluvatarGpuMetrics() []*PodIluvatarGpuMetrics {
 
 func (m *SGuestMonitor) getPodAscendGpuMetrics() []*PodAscendNpuMetrics {
 	if len(m.ascendNpuMetrics) == 0 {
+		log.Errorf("ascendNpuMetrics is empty")
 		return nil
 	}
 	addrGpuMap := map[int]*PodAscendNpuMetrics{}
@@ -1215,11 +1216,21 @@ func (d *GuestMetrics) toPodTelegrafData(tagStr string) []string {
 	for i := range m.PodVastaitechGpu {
 		ims = append(ims, m.PodVastaitechGpu[i])
 	}
-	for i := range m.PodCphAmdGpu {
-		ims = append(ims, m.PodCphAmdGpu[i])
+	for i := range m.PodAmdGpu {
+		ims = append(ims, m.PodAmdGpu[i])
 	}
 	for i := range m.PodMthreadsGpu {
 		ims = append(ims, m.PodMthreadsGpu[i])
+	}
+	for i := range m.PodIluvatarGpu {
+		ims = append(ims, m.PodIluvatarGpu[i])
+	}
+	for i := range m.PodAscendGPU {
+		ims = append(ims, m.PodAscendGPU[i])
+		log.Errorf("append ascend gpu %s", m.PodAscendGPU[i].ToMap())
+	}
+	for i := range m.PodKunlunxinGPU {
+		ims = append(ims, m.PodKunlunxinGPU[i])
 	}
 
 	for _, c := range m.Containers {

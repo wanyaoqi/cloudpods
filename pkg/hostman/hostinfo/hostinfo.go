@@ -134,7 +134,7 @@ type SHostInfo struct {
 	containerNvidiaGpus            []isolated_device.IDevice
 	hasNvidiaGpus                  *bool
 	hasVastaitechGpus              *bool
-	hasCphAmdGpus                  *bool
+	hasAmdGpus                     *bool
 	hasMthreadsGpus                *bool
 	hasAscendNpus                  *bool
 	hasKunlunxinXpu                *bool

@@ -190,23 +190,23 @@ func (h *SHostInfo) HasContainerKunlunxinXpu() bool {
 	return *h.hasKunlunxinXpu
 }
 
-func (h *SHostInfo) HasContainerCphAmdGpu() bool {
+func (h *SHostInfo) HasContainerAmdGpu() bool {
 	if !h.IsContainerHost() {
 		return false
 	}
-	if h.hasCphAmdGpus != nil {
-		return *h.hasCphAmdGpus
+	if h.hasAmdGpus != nil {
+		return *h.hasAmdGpus
 	}
-	hasCphAmdGpus := false
+	hasAmdGpus := false
 	devs := h.IsolatedDeviceMan.GetDevices()
 	for i := range devs {
 		vendorId := strings.Split(devs[i].GetVendorDeviceId(), ":")[0]
 		if vendorId == apis.AMD_VENDOR_ID {
-			hasCphAmdGpus = true
+			hasAmdGpus = true
 		}
 	}
-	h.hasCphAmdGpus = &hasCphAmdGpus
-	return *h.hasCphAmdGpus
+	h.hasAmdGpus = &hasAmdGpus
+	return *h.hasAmdGpus
 }
 
 func (h *SHostInfo) HasContainerIluvatarGpu() bool {
