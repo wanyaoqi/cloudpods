@@ -924,24 +924,24 @@ func GenerateStartOptions(
 	}
 	opts = append(opts, nicOpts...)
 
-	if !input.GuestDesc.LightMode {
-		if !input.QemuArch.IsX86() {
-			if input.GuestDesc.Usb != nil {
-				opts = append(opts, generatePCIDeviceOption(input.GuestDesc.Usb.PCIDevice))
-				for _, device := range input.Devices {
-					opts = append(opts, drvOpt.Device(device))
-				}
-			}
-		} else {
-			opts = append(opts, drvOpt.USB())
+	//if !input.GuestDesc.LightMode {
+	if !input.QemuArch.IsX86() {
+		if input.GuestDesc.Usb != nil {
+			opts = append(opts, generatePCIDeviceOption(input.GuestDesc.Usb.PCIDevice))
 			for _, device := range input.Devices {
 				opts = append(opts, drvOpt.Device(device))
 			}
-			if input.GuestDesc.Usb != nil {
-				opts = append(opts, generatePCIDeviceOption(input.GuestDesc.Usb.PCIDevice))
-			}
+		}
+	} else {
+		opts = append(opts, drvOpt.USB())
+		for _, device := range input.Devices {
+			opts = append(opts, drvOpt.Device(device))
+		}
+		if input.GuestDesc.Usb != nil {
+			opts = append(opts, generatePCIDeviceOption(input.GuestDesc.Usb.PCIDevice))
 		}
 	}
+	//}
 
 	// isolated devices
 	if len(input.GuestDesc.IsolatedDevices) > 0 && !input.GuestDesc.LightMode {
