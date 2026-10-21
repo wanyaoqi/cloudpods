@@ -706,6 +706,10 @@ func generateTpmDevOptions(tpm *desc.SGuestTpm, arch Arch) []string {
 	return opts
 }
 
+func generateTimestampOptions() string {
+	return "-msg timestamp=on"
+}
+
 func getMigrateOptions(drvOpt QemuOptions, input *GenerateStartOptionsInput) []string {
 	opts := make([]string, 0)
 	if input.NeedMigrate {
@@ -985,6 +989,8 @@ func GenerateStartOptions(
 	if len(input.ExtraOptions) != 0 {
 		opts = append(opts, input.ExtraOptions...)
 	}
+
+	opts = append(opts, generateTimestampOptions())
 
 	return strings.Join(opts, " "), nil
 }
