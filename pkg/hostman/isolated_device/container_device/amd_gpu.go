@@ -12,7 +12,6 @@ import (
 	computeapi "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
-	fileutils "yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 )
 
@@ -45,9 +44,11 @@ func (m *amdGPUManager) ProbeDevices() ([]isolated_device.IDevice, error) {
 }
 
 func (m *amdGPUManager) GetContainerExtraConfigures(devs []*hostapi.ContainerDevice) ([]*runtimeapi.KeyValue, []*runtimeapi.Mount) {
-	if !fileutils.Exists("/opt/rocm-6.4.0") {
+	_, err := procutils.RemoteStat("/opt/rocm-6.4.0")
+	if err != nil {
 		return nil, nil
 	}
+
 	return nil, []*runtimeapi.Mount{
 		{
 			ContainerPath: "/opt/rocm-6.4.0",
