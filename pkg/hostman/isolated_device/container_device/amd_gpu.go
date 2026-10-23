@@ -37,7 +37,15 @@ func (m *amdGPUManager) NewContainerDevices(input *hostapi.ContainerCreateInput,
 		HostPath:      hostPath,
 		Permissions:   "rwm",
 	}
-	return []*runtimeapi.Device{cDev}, nil, nil
+	ret := []*runtimeapi.Device{cDev}
+	if fileutils.Exists("/dev/kfd") {
+		ret = append(ret, &runtimeapi.Device{
+			ContainerPath: "/dev/kfd",
+			HostPath:      "/dev/kfd",
+			Permissions:   "rwm",
+		})
+	}
+	return ret, nil, nil
 }
 
 func (m *amdGPUManager) ProbeDevices() ([]isolated_device.IDevice, error) {
@@ -45,33 +53,34 @@ func (m *amdGPUManager) ProbeDevices() ([]isolated_device.IDevice, error) {
 }
 
 func (m *amdGPUManager) GetContainerExtraConfigures(devs []*hostapi.ContainerDevice) ([]*runtimeapi.KeyValue, []*runtimeapi.Mount) {
-	mounts := []*runtimeapi.Mount{}
-	if fileutils.Exists("/dev/kfd") {
-		mounts = append(mounts, &runtimeapi.Mount{
-			ContainerPath: "/dev/kfd",
-			HostPath:      "/dev/kfd",
-			Readonly:      false,
-		})
-	}
-	_, err := procutils.RemoteStat("/opt/rocm-6.4.0")
-	if err == nil {
-		mounts = append(mounts, &runtimeapi.Mount{
-			ContainerPath: "/opt/rocm",
-			HostPath:      "/opt/rocm-6.4.0",
-			Readonly:      true,
-		})
-	}
+	return nil, nil
+	//mounts := []*runtimeapi.Mount{}
+	//if fileutils.Exists("/dev/kfd") {
+	//	mounts = append(mounts, &runtimeapi.Mount{
+	//		ContainerPath: "/dev/kfd",
+	//		HostPath:      "/dev/kfd",
+	//		Readonly:      false,
+	//	})
+	//}
+	//_, err := procutils.RemoteStat("/opt/rocm-6.4.0")
+	//if err == nil {
+	//	mounts = append(mounts, &runtimeapi.Mount{
+	//		ContainerPath: "/opt/rocm",
+	//		HostPath:      "/opt/rocm-6.4.0",
+	//		Readonly:      true,
+	//	})
+	//}
+	//
+	//_, err = procutils.RemoteStat("/opt/amdgpu")
+	//if err == nil {
+	//	mounts = append(mounts, &runtimeapi.Mount{
+	//		ContainerPath: "/opt/amdgpu",
+	//		HostPath:      "/opt/amdgpu",
+	//		Readonly:      true,
+	//	})
+	//}
 
-	_, err = procutils.RemoteStat("/opt/amdgpu")
-	if err == nil {
-		mounts = append(mounts, &runtimeapi.Mount{
-			ContainerPath: "/opt/amdgpu",
-			HostPath:      "/opt/amdgpu",
-			Readonly:      true,
-		})
-	}
-
-	return nil, mounts
+	//return nil, mounts
 }
 
 func newAMDGPUManager() *amdGPUManager {
