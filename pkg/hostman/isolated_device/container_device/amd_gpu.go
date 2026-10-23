@@ -12,6 +12,7 @@ import (
 	computeapi "yunion.io/x/onecloud/pkg/apis/compute"
 	hostapi "yunion.io/x/onecloud/pkg/apis/host"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
+	fileutils "yunion.io/x/onecloud/pkg/util/fileutils2"
 	"yunion.io/x/onecloud/pkg/util/procutils"
 )
 
@@ -44,18 +45,33 @@ func (m *amdGPUManager) ProbeDevices() ([]isolated_device.IDevice, error) {
 }
 
 func (m *amdGPUManager) GetContainerExtraConfigures(devs []*hostapi.ContainerDevice) ([]*runtimeapi.KeyValue, []*runtimeapi.Mount) {
+	mounts := []*runtimeapi.Mount{}
+	if fileutils.Exists("/dev/kfd") {
+		mounts = append(mounts, &runtimeapi.Mount{
+			ContainerPath: "/dev/kfd",
+			HostPath:      "/dev/kfd",
+			Readonly:      false,
+		})
+	}
 	_, err := procutils.RemoteStat("/opt/rocm-6.4.0")
-	if err != nil {
-		return nil, nil
+	if err == nil {
+		mounts = append(mounts, &runtimeapi.Mount{
+			ContainerPath: "/opt/rocm",
+			HostPath:      "/opt/rocm-6.4.0",
+			Readonly:      true,
+		})
 	}
 
-	return nil, []*runtimeapi.Mount{
-		{
-			ContainerPath: "/opt/rocm-6.4.0",
-			HostPath:      "/opt/rocm",
+	_, err = procutils.RemoteStat("/opt/amdgpu")
+	if err != nil {
+		mounts = append(mounts, &runtimeapi.Mount{
+			ContainerPath: "/opt/amdgpu",
+			HostPath:      "/opt/amdgpu",
 			Readonly:      true,
-		},
+		})
 	}
+
+	return nil, mounts
 }
 
 func newAMDGPUManager() *amdGPUManager {
