@@ -63,7 +63,7 @@ func (m *amdGPUManager) GetContainerExtraConfigures(devs []*hostapi.ContainerDev
 	}
 
 	_, err = procutils.RemoteStat("/opt/amdgpu")
-	if err != nil {
+	if err == nil {
 		mounts = append(mounts, &runtimeapi.Mount{
 			ContainerPath: "/opt/amdgpu",
 			HostPath:      "/opt/amdgpu",
