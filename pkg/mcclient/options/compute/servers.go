@@ -811,7 +811,7 @@ type ServerUpdateOptions struct {
 	Name             string `help:"New name to change"`
 	Vmem             string `help:"Memory size" json:"vmem_size"`
 	Ncpu             *int   `help:"CPU count" json:"vcpu_count"`
-	Vga              string `help:"VGA driver" choices:"std|vmware|cirrus|qxl|virtio"`
+	Vga              string `help:"VGA driver" choices:"std|vmware|cirrus|qxl|virtio|virito-gpu"`
 	Vdi              string `help:"VDI protocol" choices:"vnc|spice"`
 	Bios             string `help:"BIOS" choices:"BIOS|UEFI"`
 	Desc             string `help:"Description" json:"description"`
