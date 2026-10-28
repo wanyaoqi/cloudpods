@@ -1082,6 +1082,18 @@ func (guest *SGuest) ValidateDeleteCondition(ctx context.Context, info *api.Serv
 			return httperrors.NewInputParameterError("Cannot delete server on offline host")
 		}
 	}
+	if guest.GetHypervisor() == api.HYPERVISOR_BAREMETAL {
+		host, err := guest.GetHost()
+		if err != nil {
+			return err
+		}
+		if host.IsImport &&
+			!options.Options.BaremetalPrepareServerSupportRealDelete &&
+			!options.Options.BaremetalPrepareServerFakeDelete {
+			return httperrors.NewBadRequestError("Import baremetal can't delete by default")
+		}
+	}
+
 	return guest.validateDeleteCondition(ctx, false)
 }
 

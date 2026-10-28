@@ -227,25 +227,27 @@ func (s *sBaremetalRegisterTask) doRedfishProbe(ctx context.Context) (redfishSup
 	return
 }
 
-func (s *sBaremetalRegisterTask) DoPrepare(ctx context.Context, cli *ssh.Client, registered bool) error {
+func (s *sBaremetalRegisterTask) DoPrepare(ctx context.Context, cli *ssh.Client, registered, noIpmi bool) error {
 	infos, err := s.prepareBaremetalInfo(cli)
 	if err != nil {
 		log.Errorf("prepareBaremetalInfo failed %s", err)
 		return err
 	}
 
-	redfishSupport, cdromSupport := s.doRedfishProbe(ctx)
+	if !noIpmi {
+		redfishSupport, cdromSupport := s.doRedfishProbe(ctx)
 
-	infos.ipmiInfo.IpAddr = s.IpmiIpAddr
-	infos.ipmiInfo.Username = s.IpmiUsername
-	infos.ipmiInfo.Password = s.IpmiPassword
-	infos.ipmiInfo.LanChannel = s.IpmiLanChannel
-	infos.ipmiInfo.Verified = true
-	infos.ipmiInfo.Present = true
-	infos.ipmiInfo.RedfishApi = redfishSupport
-	infos.ipmiInfo.CdromBoot = cdromSupport
+		infos.ipmiInfo.IpAddr = s.IpmiIpAddr
+		infos.ipmiInfo.Username = s.IpmiUsername
+		infos.ipmiInfo.Password = s.IpmiPassword
+		infos.ipmiInfo.LanChannel = s.IpmiLanChannel
+		infos.ipmiInfo.Verified = true
+		infos.ipmiInfo.Present = true
+		infos.ipmiInfo.RedfishApi = redfishSupport
+		infos.ipmiInfo.CdromBoot = cdromSupport
 
-	s.updateIpmiInfo(ctx, cli)
+		s.updateIpmiInfo(ctx, cli)
+	}
 
 	return s.updateBmInfo(ctx, cli, infos, registered)
 }
