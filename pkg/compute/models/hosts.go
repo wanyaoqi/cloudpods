@@ -5996,11 +5996,11 @@ func (hh *SHost) PerformInitialize(
 	if len(name) == 0 {
 		name = hh.Name + "-server"
 	}
-
-	if hh.IpmiInfo == nil || !hh.IpmiInfo.Contains("ip_addr") ||
-		!hh.IpmiInfo.Contains("password") {
-		return nil, httperrors.NewBadRequestError("IPMI infomation not configured")
-	}
+	//
+	//if hh.IpmiInfo == nil || !hh.IpmiInfo.Contains("ip_addr") ||
+	//	!hh.IpmiInfo.Contains("password") {
+	//	return nil, httperrors.NewBadRequestError("IPMI infomation not configured")
+	//}
 	if err := hh.CreateFakeBaremetalServer(ctx, userCred, name, userCred); err != nil {
 		log.Errorf("CreateFakeBaremetalServer failed %s", err)
 	}
