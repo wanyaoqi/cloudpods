@@ -5295,6 +5295,9 @@ func (hh *SHost) PerformStart(
 	if !utils.IsInStringArray(hh.Status, []string{api.BAREMETAL_READY}) {
 		return nil, httperrors.NewInvalidStatusError("Cannot start baremetal with active guest")
 	}
+	if hh.IsImport && hh.IpmiInfo == nil {
+		return nil, httperrors.NewBadRequestError("Baremetal no ipmi info")
+	}
 	guest := hh.GetBaremetalServer()
 	if guest != nil {
 		if hh.HostType == api.HOST_TYPE_BAREMETAL && utils.ToBool(guest.GetMetadata(ctx, "is_fake_baremetal_server", userCred)) {
@@ -5327,6 +5330,9 @@ func (hh *SHost) PerformStop(ctx context.Context, userCred mcclient.TokenCredent
 	}
 	if !utils.IsInStringArray(hh.Status, []string{api.BAREMETAL_RUNNING}) {
 		return nil, httperrors.NewInvalidStatusError("Cannot stop baremetal with non-active guest")
+	}
+	if hh.IsImport && hh.IpmiInfo == nil {
+		return nil, httperrors.NewBadRequestError("Baremetal no ipmi info")
 	}
 	guest := hh.GetBaremetalServer()
 	if guest != nil {
@@ -5371,6 +5377,9 @@ func (hh *SHost) PerformMaintenance(ctx context.Context, userCred mcclient.Token
 	guest := hh.GetBaremetalServer()
 	if guest != nil && !utils.IsInStringArray(guest.Status, []string{api.VM_READY, api.VM_RUNNING, api.VM_ADMIN}) {
 		return nil, httperrors.NewInvalidStatusError("Cannot do maintenance while guest status %s", guest.Status)
+	}
+	if hh.IsImport && hh.IpmiInfo == nil {
+		return nil, httperrors.NewBadRequestError("Baremetal no ipmi info")
 	}
 	params := jsonutils.NewDict()
 	if guest != nil {
