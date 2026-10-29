@@ -377,7 +377,7 @@ func (m *SBaremetalManager) RegisterBaremetal(ctx context.Context, userCred mccl
 	)
 	var bmId string
 	if !registered {
-		bmId, err = registerTask.CreateBaremetal(ctx)
+		bmId, err = registerTask.CreateBaremetal(ctx, input.NoIpmi)
 	} else {
 		bmId, err = registerTask.UpdateBaremetal(ctx)
 	}

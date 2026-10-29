@@ -122,7 +122,7 @@ func (s *sBaremetalRegisterTask) getAccessDevMacAddr(ip string) (string, error) 
 	return segs[1], nil
 }
 
-func (s *sBaremetalRegisterTask) CreateBaremetal(ctx context.Context) (string, error) {
+func (s *sBaremetalRegisterTask) CreateBaremetal(ctx context.Context, noIpmi bool) (string, error) {
 	zoneId := s.BmManager.GetZoneId()
 	ret, err := s.SshCli.Run("/lib/mos/lsnic")
 	if err != nil {
@@ -168,10 +168,12 @@ func (s *sBaremetalRegisterTask) CreateBaremetal(ctx context.Context) (string, e
 	if err != nil {
 		return "", fmt.Errorf("BmManager add admin netif failed: %s", err)
 	}
-	err = pxeBm.InitAdminNetif(ctx,
-		s.IpmiMac, s.IpmiWire, api.NIC_TYPE_IPMI, api.NETWORK_TYPE_IPMI, true, s.IpmiIpAddr)
-	if err != nil {
-		return "", fmt.Errorf("BmManager add ipmi netif failed: %s", err)
+	if !noIpmi {
+		err = pxeBm.InitAdminNetif(ctx,
+			s.IpmiMac, s.IpmiWire, api.NIC_TYPE_IPMI, api.NETWORK_TYPE_IPMI, true, s.IpmiIpAddr)
+		if err != nil {
+			return "", fmt.Errorf("BmManager add ipmi netif failed: %s", err)
+		}
 	}
 	for _, nic := range nicinfo {
 		if nic.Dev != s.accessNic.Dev {
