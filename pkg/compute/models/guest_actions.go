@@ -595,6 +595,13 @@ func (self *SGuest) GetSchedMigrateParams(
 			self.CpuNumaPin.Unmarshal(&cpuNumaPin)
 			schedDesc.CpuNumaPin = cpuNumaPin
 		}
+		gds, _ := self.GetGuestDisks()
+		for i := range gds {
+			if gds[i].AioMode == api.DISK_AIO_MODE_IO_URING {
+				schedDesc.DiskIoUring = true
+				break
+			}
+		}
 	}
 	schedDesc.ReuseNetwork = true
 	return schedDesc

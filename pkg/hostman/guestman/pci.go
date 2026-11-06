@@ -415,16 +415,30 @@ func (s *SKVMGuestInstance) initGuestDisks(pciRoot, pciBridge *desc.PCIControlle
 		}
 	}
 
+	s.Desc.Iothreads = make([]*desc.Object, 0)
+	s.Desc.Iothreads = append(s.Desc.Iothreads, desc.NewObject("iothread", "iothread0"))
+
 	cont := pciRoot
 	if pciBridge != nil {
 		cont = pciBridge
 	}
+
 	for i := 0; i < len(s.Desc.Disks); i++ {
 		devType := qemu.GetDiskDeviceModel(s.Desc.Disks[i].Driver)
 		id := fmt.Sprintf("drive_%d", s.Desc.Disks[i].Index)
 		if s.Desc.Disks[i].Pci != nil || s.Desc.Disks[i].Scsi != nil {
 			log.Infof("guest %s disk %v has been init", s.Desc.Uuid, s.Desc.Disks[i].Index)
 			continue
+		}
+
+		if s.Desc.Disks[i].NumIothreads > 0 {
+			idx := len(s.Desc.Iothreads)
+			for j := 0; j < int(s.Desc.Disks[i].NumIothreads); j++ {
+				iothreadId := fmt.Sprintf("iothread%d", idx+j)
+				iothread := desc.NewObject("iothread", iothreadId)
+				s.Desc.Iothreads = append(s.Desc.Iothreads, iothread)
+				s.Desc.Disks[i].IothreadIds = append(s.Desc.Disks[i].IothreadIds, id)
+			}
 		}
 
 		switch s.Desc.Disks[i].Driver {

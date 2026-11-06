@@ -40,6 +40,7 @@ import (
 	"yunion.io/x/pkg/util/rbacscope"
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/timeutils"
+	"yunion.io/x/pkg/util/version"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
@@ -4588,6 +4589,24 @@ func (self *SGuest) attach2Disk(ctx context.Context, disk *SDisk, userCred mccli
 
 	guestdisk.DiskId = disk.Id
 	guestdisk.GuestId = self.Id
+
+	if len(driver) == 0 {
+		driver = options.Options.DefaultDiskDriver
+	}
+	if len(cache) == 0 {
+		cache = options.Options.DefaultDiskCacheMode
+	}
+
+	if options.Options.DiskEnableIoUring && utils.IsInStringArray(driver, []string{api.DISK_DRIVER_SCSI, api.DISK_DRIVER_VIRTIO}) {
+		host, err := self.GetHost()
+		if err != nil {
+			return errors.Wrap(err, "GetHost")
+		}
+		kernelVersion, _ := host.SysInfo.GetString("kernel_version")
+		if version.GE(kernelVersion, "5.10") {
+			guestdisk.AioMode = api.DISK_AIO_MODE_IO_URING
+		}
+	}
 
 	lockman.LockObject(ctx, self)
 	defer lockman.ReleaseObject(ctx, self)

@@ -208,6 +208,8 @@ type SGuestDisk struct {
 	Scsi *SCSIDevice `json:",omitempty"`
 	// disk driver ide/sata
 	Ide *IDEDevice `json:",omitempty"`
+
+	IothreadIds []string `json:",omitempty"`
 }
 
 // -device ide-cd,drive=ide0-cd0,bus=ide.1

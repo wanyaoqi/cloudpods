@@ -99,6 +99,7 @@ type ComputeOptions struct {
 
 	DefaultDiskDriver                      string `help:"default disk driver" choices:"scsi|virtio|ide" default:"scsi"`
 	DefaultDiskCacheMode                   string `help:"default kvm disk cache mode" choices:"writeback|none|writethrough" default:"none"`
+	DiskEnableIoUring                      bool   `help:"default enable io uring" choices:"true|false" default:"true"`
 	DefaultDiskHighPerformanceNumQueues    int8   `help:"default disk high performance num queues" default:"2"`
 	DefaultDiskHighPerformanceNumIothreads int8   `help:"default disk high performance num iothreads" default:"2"`
 
