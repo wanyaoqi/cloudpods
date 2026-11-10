@@ -273,7 +273,9 @@ func generateScsiJsonOptions(drvOpt QemuOptions, scsi *desc.SGuestVirtioScsi, io
 			ret["iothread-vq-mapping"] = iothreadVqMap
 		}
 	}
-	opt := fmt.Sprintf("-device '%s'", jsonutils.Marshal(ret).String())
+	cmdline := jsonutils.Marshal(ret).String()
+	cmdline = strings.ReplaceAll(cmdline, "\"", "\\\"")
+	opt := fmt.Sprintf("-device '%s'", cmdline)
 	return opt
 }
 
