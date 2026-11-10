@@ -467,7 +467,9 @@ func getDiskDeviceJsonOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName, 
 	} else if diskDriver == DISK_DRIVER_SATA {
 		ret["bus"] = fmt.Sprintf("ahci0.%d", diskIndex)
 	}
-	opt := fmt.Sprintf("-device '%s'", jsonutils.Marshal(ret).String())
+	cmdline := jsonutils.Marshal(ret).String()
+	cmdline = strings.ReplaceAll(cmdline, "\"", "\\\"")
+	opt := fmt.Sprintf("-device '%s'", cmdline)
 	return opt
 }
 
