@@ -450,7 +450,7 @@ func getDiskDeviceJsonOption(optDrv QemuOptions, disk *desc.SGuestDisk, osName, 
 		}
 
 		if numQueues > 0 {
-			ret["num_queues"] = numQueues
+			ret["num-queues"] = numQueues
 			ret["vectors"] = numQueues + 1
 		}
 	} else if utils.IsInStringArray(diskDriver, []string{DISK_DRIVER_SCSI, DISK_DRIVER_PVSCSI}) {
