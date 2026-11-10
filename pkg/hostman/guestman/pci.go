@@ -431,28 +431,53 @@ func (s *SKVMGuestInstance) initGuestDisks(pciRoot, pciBridge *desc.PCIControlle
 			continue
 		}
 
-		if s.Desc.Disks[i].NumIothreads > 0 {
-			idx := len(s.Desc.Iothreads)
-			for j := 0; j < int(s.Desc.Disks[i].NumIothreads); j++ {
-				iothreadId := fmt.Sprintf("iothread%d", idx+j)
-				iothread := desc.NewObject("iothread", iothreadId)
-				s.Desc.Iothreads = append(s.Desc.Iothreads, iothread)
-				s.Desc.Disks[i].IothreadIds = append(s.Desc.Disks[i].IothreadIds, id)
-			}
-		}
-
 		switch s.Desc.Disks[i].Driver {
 		case DISK_DRIVER_VIRTIO:
 			if s.Desc.Disks[i].Pci == nil {
 				s.Desc.Disks[i].Pci = desc.NewPCIDevice(cont.CType, devType, id)
 			}
-		case DISK_DRIVER_SCSI:
-			if s.Desc.VirtioScsi == nil {
-				s.Desc.VirtioScsi = &desc.SGuestVirtioScsi{
-					PCIDevice: desc.NewPCIDevice(pciRoot.CType, "virtio-scsi-pci", "scsi"),
+			if s.Desc.Disks[i].NumIothreads > 0 {
+				for j := 0; j < int(s.Desc.Disks[i].NumIothreads); j++ {
+					iothreadId := fmt.Sprintf("iothread_%d_%d", s.Desc.Disks[i].Index, j)
+					iothread := desc.NewObject("iothread", iothreadId)
+					s.Desc.Iothreads = append(s.Desc.Iothreads, iothread)
+					if s.Desc.Disks[i].IothreadIds == nil {
+						s.Desc.Disks[i].IothreadIds = make([]string, 0)
+					}
+					s.Desc.Disks[i].IothreadIds = append(s.Desc.Disks[i].IothreadIds, iothreadId)
 				}
 			}
-			s.Desc.Disks[i].Scsi = desc.NewScsiDevice(s.Desc.VirtioScsi.Id, devType, id)
+		case DISK_DRIVER_SCSI:
+			if s.Desc.Disks[i].NumIothreads > 0 {
+				// new virtio scsi device for disk
+				scsiId := fmt.Sprintf("scsi%d", s.Desc.Disks[i].Index)
+				numQueues := s.Desc.Disks[i].NumQueues
+				s.Desc.Disks[i].VirtioScsi = &desc.SGuestVirtioScsi{
+					PCIDevice: desc.NewPCIDevice(pciRoot.CType, "virtio-scsi-pci", scsiId),
+					NumQueues: &numQueues,
+				}
+				for j := 0; j < int(s.Desc.Disks[i].NumQueues); j++ {
+					iothreadId := fmt.Sprintf("iothread_%d_%d", s.Desc.Disks[i].Index, j)
+					iothread := desc.NewObject("iothread", iothreadId)
+
+					s.Desc.Iothreads = append(s.Desc.Iothreads, iothread)
+					if s.Desc.Disks[i].IothreadIds == nil {
+						s.Desc.Disks[i].IothreadIds = make([]string, 0)
+					}
+
+					s.Desc.Disks[i].IothreadIds = append(s.Desc.Disks[i].IothreadIds, iothreadId)
+				}
+
+				s.Desc.Disks[i].Scsi = desc.NewScsiDevice(s.Desc.Disks[i].VirtioScsi.Id, devType, id)
+			} else {
+				// use default virtio scsi device
+				if s.Desc.VirtioScsi == nil {
+					s.Desc.VirtioScsi = &desc.SGuestVirtioScsi{
+						PCIDevice: desc.NewPCIDevice(pciRoot.CType, "virtio-scsi-pci", "scsi"),
+					}
+				}
+				s.Desc.Disks[i].Scsi = desc.NewScsiDevice(s.Desc.VirtioScsi.Id, devType, id)
+			}
 		case DISK_DRIVER_PVSCSI:
 			if s.Desc.PvScsi == nil {
 				s.Desc.PvScsi = &desc.SGuestPvScsi{
@@ -724,6 +749,11 @@ func (s *SKVMGuestInstance) ensurePciAddresses() error {
 			err = s.ensureDevicePciAddress(s.Desc.Disks[i].Pci, -1, nil)
 			if err != nil {
 				return errors.Wrapf(err, "ensure disk %d pci address", s.Desc.Disks[i].Index)
+			}
+		} else if s.Desc.Disks[i].VirtioScsi != nil {
+			err = s.ensureDevicePciAddress(s.Desc.Disks[i].VirtioScsi.PCIDevice, -1, nil)
+			if err != nil {
+				return errors.Wrapf(err, "ensure disk %d virtio scsi address", s.Desc.Disks[i].Index)
 			}
 		}
 	}

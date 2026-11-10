@@ -209,6 +209,7 @@ type SGuestDisk struct {
 	// disk driver ide/sata
 	Ide *IDEDevice `json:",omitempty"`
 
+	VirtioScsi  *SGuestVirtioScsi
 	IothreadIds []string `json:",omitempty"`
 }
 
@@ -354,7 +355,8 @@ type SGuestVirtioSerial struct {
 type SGuestVirtioScsi struct {
 	*PCIDevice
 
-	NumQueues *uint8 `json:"num_queues"`
+	NumQueues   *uint8   `json:"num_queues,omitempty"`
+	IothreadIds []string `json:"iothread_ids,omitempty"`
 }
 
 type SGuestPvScsi struct {
