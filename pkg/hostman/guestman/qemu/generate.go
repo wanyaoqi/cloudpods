@@ -259,8 +259,8 @@ func getMonitorOptions(drvOpt QemuOptions, input *Monitor) []string {
 func generateScsiJsonOptions(drvOpt QemuOptions, scsi *desc.SGuestVirtioScsi, iothreadIds []string) string {
 	ret := generatePCIDeviceJsonOption(scsi.PCIDevice)
 	if scsi.NumQueues != nil && *scsi.NumQueues > 0 {
-		ret["num_queues"] = fmt.Sprintf("%d", *scsi.NumQueues)
-		ret["vectors"] = fmt.Sprintf("%d", *scsi.NumQueues+3)
+		ret["num_queues"] = *scsi.NumQueues
+		ret["vectors"] = *scsi.NumQueues + 3
 	}
 	if drvOpt.SupportVqMapping() {
 		if len(iothreadIds) > 0 {
