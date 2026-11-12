@@ -38,6 +38,7 @@ const (
 	Version_9_0_1  Version = "9.0.1"
 	Version_10_0_3 Version = "10.0.3"
 	Version_10_0_7 Version = "10.0.7"
+	Version_11_0_5 Version = "11.0.5"
 )
 
 type Arch string
@@ -121,6 +122,7 @@ type QemuOptions interface {
 	ScsiDeviceId(serial string, driver string) string
 	SupportVqMapping() bool
 	SupportJsonCmdline() bool
+	SupportIoUring() bool
 }
 
 var (
@@ -241,6 +243,10 @@ func (o baseOptions) SupportJsonCmdline() bool {
 }
 
 func (o baseOptions) SupportVqMapping() bool {
+	return false
+}
+
+func (o baseOptions) SupportIoUring() bool {
 	return false
 }
 
@@ -413,6 +419,17 @@ func (o baseOptions_ge_1000) SupportVqMapping() bool {
 
 func newBaseOptionsGE1000() *baseOptions_ge_1000 {
 	return &baseOptions_ge_1000{}
+}
+
+type baseOptions_ge_1100 struct {
+}
+
+func (o baseOptions_ge_1100) SupportIoUring() bool {
+	return true
+}
+
+func newBaseOptionsGE1100() *baseOptions_ge_1100 {
+	return &baseOptions_ge_1100{}
 }
 
 // qemu version grate or equal 3.1.0
