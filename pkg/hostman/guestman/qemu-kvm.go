@@ -173,18 +173,19 @@ func (s *SKVMGuestInstance) updateGuestDesc(data *jsonutils.JSONDict) error {
 	if qemuVersion == "latest" {
 		qemuVersion = ""
 	}
-	input.QemuVersion = qemu.Version(qemuVersion)
+	qemuArch := qemu.Arch_x86_64
 	if s.manager.host.IsAarch64() {
-		input.QemuArch = qemu.Arch_aarch64
+		qemuArch = qemu.Arch_aarch64
 	} else if s.manager.host.IsRiscv64() {
-		input.QemuArch = qemu.Arch_riscv64
-	} else {
-		input.QemuArch = qemu.Arch_x86_64
+		qemuArch = qemu.Arch_riscv64
 	}
 	// TOOD
-	qemu.GetCommand(input.QemuVersion, input.QemuArch)
+	qemuDrv, ok := qemu.GetCommand(qemu.Version(qemuVersion), qemuArch)
+	if !ok {
+		return errors.Errorf("qemu version %s is not supported", qemuVersion)
+	}
 
-	err = s.initGuestDesc()
+	err = s.initGuestDesc(qemuDrv)
 	if err != nil {
 		return err
 	}

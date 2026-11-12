@@ -10,7 +10,7 @@ func init() {
 
 type opt_1105_x86_64 struct {
 	*opt_1007_x86_64
-	*baseOptions_ge_1100
+	*baseOptions_ge_1105
 }
 
 func newOpt_11_0_5_x86_64() QemuOptions {
@@ -29,7 +29,7 @@ func newCmd_11_0_5_x86_64() QemuCommand {
 
 type opt_1105_aarch64 struct {
 	*opt_1007_aarch64
-	*baseOptions_ge_1100
+	*baseOptions_ge_1105
 }
 
 func newCmd_11_0_5_aarch64() QemuCommand {
@@ -48,7 +48,7 @@ func newOpt_11_0_5_aarch64() QemuOptions {
 
 type opt_1105_riscv64 struct {
 	*opt_1007_riscv64
-	*baseOptions_ge_1100
+	*baseOptions_ge_1105
 }
 
 func newCmd_11_0_5_riscv64() QemuCommand {

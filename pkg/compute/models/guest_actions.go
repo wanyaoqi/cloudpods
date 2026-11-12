@@ -37,6 +37,7 @@ import (
 	"yunion.io/x/pkg/util/rand"
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/sets"
+	"yunion.io/x/pkg/util/version"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
@@ -595,11 +596,14 @@ func (self *SGuest) GetSchedMigrateParams(
 			self.CpuNumaPin.Unmarshal(&cpuNumaPin)
 			schedDesc.CpuNumaPin = cpuNumaPin
 		}
-		gds, _ := self.GetGuestDisks()
-		for i := range gds {
-			if gds[i].AioMode == api.DISK_AIO_MODE_IO_URING {
-				schedDesc.DiskIoUring = true
-				break
+		qemuVersion := self.GetMetadata(context.Background(), "__qemu_version", userCred)
+		if version.GE(qemuVersion, "11.0.5") {
+			gds, _ := self.GetGuestDisks()
+			for i := range gds {
+				if gds[i].AioMode == api.DISK_AIO_MODE_IO_URING {
+					schedDesc.DiskIoUring = true
+					break
+				}
 			}
 		}
 	}

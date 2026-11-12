@@ -421,15 +421,15 @@ func newBaseOptionsGE1000() *baseOptions_ge_1000 {
 	return &baseOptions_ge_1000{}
 }
 
-type baseOptions_ge_1100 struct {
+type baseOptions_ge_1105 struct {
 }
 
-func (o baseOptions_ge_1100) SupportIoUring() bool {
+func (o baseOptions_ge_1105) SupportIoUring() bool {
 	return true
 }
 
-func newBaseOptionsGE1100() *baseOptions_ge_1100 {
-	return &baseOptions_ge_1100{}
+func newBaseOptionsGE1105() *baseOptions_ge_1105 {
+	return &baseOptions_ge_1105{}
 }
 
 // qemu version grate or equal 3.1.0

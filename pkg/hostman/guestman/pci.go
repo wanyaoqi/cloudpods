@@ -49,7 +49,7 @@ func (s *SKVMGuestInstance) pciControllerFind(cont desc.PCI_CONTROLLER_TYPE) *de
 	return nil
 }
 
-func (s *SKVMGuestInstance) initGuestDesc() error {
+func (s *SKVMGuestInstance) initGuestDesc(qemuDrv qemu.QemuCommand) error {
 	err := s.initCpuDesc(0)
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (s *SKVMGuestInstance) initGuestDesc() error {
 		return errors.Wrap(err, "init guest pci addresses")
 	}
 
-	err = s.initGuestDevicesDesc(pciRoot, pciBridge)
+	err = s.initGuestDevicesDesc(pciRoot, pciBridge, qemuDrv)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (s *SKVMGuestInstance) initGuestDesc() error {
 	return s.ensurePciAddresses()
 }
 
-func (s *SKVMGuestInstance) initGuestDevicesDesc(pciRoot, pciBridge *desc.PCIController) error {
+func (s *SKVMGuestInstance) initGuestDevicesDesc(pciRoot, pciBridge *desc.PCIController, qemuDrv qemu.QemuCommand) error {
 	// vdi device for spice
 	s.Desc.VdiDevice = new(desc.SGuestVdi)
 	if s.IsVdiSpice() {
@@ -88,7 +88,7 @@ func (s *SKVMGuestInstance) initGuestDevicesDesc(pciRoot, pciBridge *desc.PCICon
 	s.initGuestVga(pciRoot)
 	s.initCdromDesc()
 	s.initFloppyDesc()
-	s.initGuestDisks(pciRoot, pciBridge, false)
+	s.initGuestDisks(pciRoot, pciBridge, false, qemuDrv)
 	if err := s.initGuestNetworks(pciRoot, pciBridge); err != nil {
 		return errors.Wrap(err, "init guest networks")
 	}
@@ -397,7 +397,7 @@ func (s *SKVMGuestInstance) initFloppyDesc() {
 	}
 }
 
-func (s *SKVMGuestInstance) initGuestDisks(pciRoot, pciBridge *desc.PCIController, loadGuest bool) {
+func (s *SKVMGuestInstance) initGuestDisks(pciRoot, pciBridge *desc.PCIController, loadGuest bool, qemuDrv qemu.QemuCommand) {
 	if !loadGuest {
 		hasVirtioScsi, hasPvScsi, hasSataDisk := s.fixDiskDriver()
 		if hasVirtioScsi && s.Desc.VirtioScsi == nil {
@@ -429,6 +429,17 @@ func (s *SKVMGuestInstance) initGuestDisks(pciRoot, pciBridge *desc.PCIControlle
 		if s.Desc.Disks[i].Pci != nil || s.Desc.Disks[i].Scsi != nil {
 			log.Infof("guest %s disk %v has been init", s.Desc.Uuid, s.Desc.Disks[i].Index)
 			continue
+		}
+
+		if qemuDrv != nil && s.Desc.Disks[i].AioMode == compute.DISK_AIO_MODE_IO_URING {
+			qemuOpts := qemuDrv.GetOptions()
+			if !qemuOpts.SupportIoUring() {
+				if s.Desc.Disks[i].CacheMode == compute.DISK_CACHE_MODE_NONE {
+					s.Desc.Disks[i].AioMode = compute.DISK_AIO_MODE_NATIVE
+				} else {
+					s.Desc.Disks[i].AioMode = compute.DISK_AIO_MODE_THREADS
+				}
+			}
 		}
 
 		switch s.Desc.Disks[i].Driver {
@@ -1167,7 +1178,7 @@ func (s *SKVMGuestInstance) initGuestDescFromExistingGuest(
 		}
 	}
 
-	s.initGuestDisks(pciRoot, nil, true)
+	s.initGuestDisks(pciRoot, nil, true, nil)
 
 	for i := 0; i < len(unknownDevices); i++ {
 		if unknownDevices[i].Bus == 0 && unknownDevices[i].Slot == 0 {
