@@ -2745,7 +2745,7 @@ func (h *SHostInfo) injectTelegrafDeviceConfig(conf map[string]interface{}) {
 		if vendorId == api.MTHREADS_VENDOR_ID {
 			hasMthreads = true
 		}
-		if !utils.IsInStringArray(dev.GetSharingMode(), api.VIRTUAL_SHARING_MODES) {
+		if !utils.IsInStringArray(dev.GetSharingMode(), api.VAILD_SHARING_MODES) {
 			continue
 		}
 		if dev.GetDeviceType() == api.NETINT_TYPE {
