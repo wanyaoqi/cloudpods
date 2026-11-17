@@ -6147,11 +6147,16 @@ func (hh *SHost) PerformBaremetalProbeIsolatedDevices(
 	if err != nil {
 		return nil, errors.Wrap(err, "GetSshAdminKeypair")
 	}
-	privateKyes := append(private, private1...)
+	privateKeys := append(private, private1...)
 	params := jsonutils.NewDict()
 	params.Set("access_ip", jsonutils.NewString(accessIp))
 	params.Set("username", jsonutils.NewString(username))
-	params.Set("private_key", jsonutils.NewStringArray(privateKyes))
+	params.Set("private_key", jsonutils.NewStringArray(privateKeys))
+	if data.Contains("ssh_port") {
+		sshPort, _ := data.Int("ssh_port")
+		params.Set("ssh_port", jsonutils.NewInt(sshPort))
+	}
+
 	url := fmt.Sprintf("/baremetals/%s/probe-isolated-devices", hh.Id)
 	header := mcclient.GetTokenHeaders(userCred)
 	_, err = hh.BaremetalSyncRequest(ctx, "POST", url, header, params)
