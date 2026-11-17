@@ -1968,6 +1968,9 @@ func (manager *SGuestManager) validateCreateData(
 				}
 				bm.Set(int64(*input.Disks[i].BootIndex))
 			}
+			if input.Disks[i].Performance == "" {
+				input.Disks[i].Performance = options.Options.DiskDefaultPerformance
+			}
 		}
 
 		arch := imgProperties["os_arch"]
