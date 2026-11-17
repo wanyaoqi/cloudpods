@@ -5950,6 +5950,10 @@ func (hh *SHost) PerformPrepare(ctx context.Context, userCred mcclient.TokenCred
 	if !hh.IsBaremetal {
 		return nil, httperrors.NewInvalidStatusError("not a baremetal")
 	}
+	if hh.IsImport {
+		return hh.PerformBaremetalProbeIsolatedDevices(ctx, userCred, query, data)
+	}
+
 	server := hh.GetBaremetalServer()
 	if server != nil && server.Status != api.VM_ADMIN {
 		return nil, httperrors.NewInvalidStatusError("Cannot prepare baremetal in server status %s", server.Status)
