@@ -467,7 +467,7 @@ func (s *SKVMGuestInstance) initGuestDisks(pciRoot, pciBridge *desc.PCIControlle
 					PCIDevice: desc.NewPCIDevice(pciRoot.CType, "virtio-scsi-pci", scsiId),
 					NumQueues: &numQueues,
 				}
-				for j := 0; j < int(s.Desc.Disks[i].NumQueues); j++ {
+				for j := 0; j < int(s.Desc.Disks[i].NumIothreads); j++ {
 					iothreadId := fmt.Sprintf("iothread_%d_%d", s.Desc.Disks[i].Index, j)
 					iothread := desc.NewObject("iothread", iothreadId)
 

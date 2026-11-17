@@ -101,7 +101,7 @@ type ComputeOptions struct {
 	DefaultDiskCacheMode                   string `help:"default kvm disk cache mode" choices:"writeback|none|writethrough" default:"none"`
 	DiskDefaultPerformance                 string `help:"default disk performance" default:"high"`
 	DiskEnableIoUring                      bool   `help:"default enable io uring" choices:"true|false" default:"true"`
-	DefaultDiskHighPerformanceNumQueues    int8   `help:"default disk high performance num queues" default:"2"`
+	DefaultDiskHighPerformanceNumQueues    int8   `help:"default disk high performance num queues" default:"8"`
 	DefaultDiskHighPerformanceNumIothreads int8   `help:"default disk high performance num iothreads" default:"2"`
 
 	DefaultGuestStopTimeout      int `help:"default guest stop timeout" default:"300"`
