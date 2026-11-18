@@ -7067,6 +7067,12 @@ func (self *SGuest) PerformChangeDiskDriver(ctx context.Context, userCred mcclie
 		if input.CacheMode != "" {
 			gd.CacheMode = input.CacheMode
 		}
+		if input.NumQueues != nil {
+			gd.NumQueues = *input.NumQueues
+		}
+		if input.NumIothreads != nil {
+			gd.NumIothreads = *input.NumIothreads
+		}
 		return nil
 	})
 	if err != nil {
