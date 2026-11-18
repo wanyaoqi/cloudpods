@@ -1257,7 +1257,10 @@ func (manager *SStorageManager) totalCapacityQ(
 		subq := HoststorageManager.Query("storage_id")
 		subq = subq.Join(hosts, sqlchemy.Equals(hosts.Field("id"), subq.Field("host_id")))
 		subq = subq.Filter(sqlchemy.IsTrue(hosts.Field("enabled")))
-		subq = subq.Filter(sqlchemy.Equals(hosts.Field("host_status"), api.HOST_ONLINE))
+		subq = subq.Filter(sqlchemy.OR(
+			sqlchemy.Equals(hosts.Field("host_status"), api.HOST_ONLINE),
+			sqlchemy.Equals(hosts.Field("host_type"), api.HOST_TYPE_BAREMETAL),
+		))
 		subq = AttachUsageQuery(subq, hosts, hostTypes, resourceTypes, nil, nil, "", rangeObjs)
 
 		sq = sq.Filter(sqlchemy.In(sq.Field("id"), subq.SubQuery()))
