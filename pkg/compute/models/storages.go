@@ -1253,6 +1253,7 @@ func (manager *SStorageManager) totalCapacityQ(
 	sq := manager.Query()
 
 	if len(hostTypes) > 0 || len(resourceTypes) > 0 || len(rangeObjs) > 0 {
+		log.Errorf("totalCapacityQ %v\n%v\n%v\n", hostTypes, resourceTypes, rangeObjs)
 		hosts := HostManager.Query().SubQuery()
 		subq := HoststorageManager.Query("storage_id")
 		subq = subq.Join(hosts, sqlchemy.Equals(hosts.Field("id"), subq.Field("host_id")))
