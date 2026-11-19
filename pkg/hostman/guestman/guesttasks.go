@@ -643,7 +643,12 @@ func (d *SGuestDiskSyncTask) onAddDiskSucc(disk *desc.SGuestDisk, results string
 	switch diskDriver {
 	case DISK_DRIVER_VIRTIO:
 		disk.Pci = desc.NewPCIDevice(*cType, devType, id)
-		err := d.guest.ensureDevicePciAddress(disk.Pci, -1, nil)
+		var err error
+		if d.guest.GetDescVersion() == desc.DESC_VERSION_V2 {
+			err = d.guest.ensureDevicePciAddressAtSlot(disk.Pci, d.guest.getDiskPciSlot(int(disk.Index)))
+		} else {
+			err = d.guest.ensureDevicePciAddress(disk.Pci, -1, nil)
+		}
 		if err != nil {
 			log.Errorln(err)
 			d.guest.Monitor.DriveDel(id, func(res string) {
@@ -944,7 +949,12 @@ func (n *SGuestNetworkSyncTask) onNetdevAdd(nic *desc.SGuestNetwork, cType *desc
 		onFail(err)
 		return
 	}
-	err := n.guest.ensureDevicePciAddress(nic.Pci, -1, nil)
+	var err error
+	if n.guest.GetDescVersion() == desc.DESC_VERSION_V2 {
+		err = n.guest.ensureDevicePciAddressAtSlot(nic.Pci, n.guest.getNicPciSlot(int(nic.Index)))
+	} else {
+		err = n.guest.ensureDevicePciAddress(nic.Pci, -1, nil)
+	}
 	if err != nil {
 		onFail(err)
 		return
