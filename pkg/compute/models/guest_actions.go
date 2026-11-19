@@ -7057,6 +7057,18 @@ func (self *SGuest) PerformChangeDiskDriver(ctx context.Context, userCred mcclie
 		}
 	}
 
+	if input.Performance == api.DISK_PERFORMANCE_HIGH {
+		numIothreads := options.Options.DefaultDiskHighPerformanceNumIothreads
+		numQueues := options.Options.DefaultDiskHighPerformanceNumQueues
+		input.NumIothreads = &numIothreads
+		input.NumQueues = &numQueues
+	} else if input.Performance == api.DISK_PERFORMANCE_NORMAL {
+		numIothreads := int8(0)
+		numQueues := int8(0)
+		input.NumIothreads = &numIothreads
+		input.NumQueues = &numQueues
+	}
+
 	_, err := db.Update(gd, func() error {
 		if input.Driver != "" {
 			gd.Driver = input.Driver
