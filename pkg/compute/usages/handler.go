@@ -478,6 +478,7 @@ func getProjectGeneralUsage(ctx context.Context, userToken mcclient.TokenCredent
 
 	count.Include(
 		ContainerNormalUsage(ctx, userToken, getKey(scope, "containers"), scope, cred, rangeObjs, hostTypes, []string{api.HostResourceTypeShared}, providers, brands, cloudEnv, false, nil, policyResult),
+		BaremetalNormalUsage(ctx, userToken, getKey(scope, "baremetals"), scope, cred, rangeObjs, hostTypes, []string{api.HostResourceTypeShared}, providers, brands, cloudEnv, false, nil, policyResult),
 
 		GuestNormalUsage(ctx, userToken, getKey(scope, "servers.last_week"), scope, cred, rangeObjs, hostTypes, []string{api.HostResourceTypeShared}, providers, brands, cloudEnv, false, &lastWeek, policyResult),
 		GuestNormalUsage(ctx, userToken, getKey(scope, "servers.last_month"), scope, cred, rangeObjs, hostTypes, []string{api.HostResourceTypeShared}, providers, brands, cloudEnv, false, &lastMonth, policyResult),
