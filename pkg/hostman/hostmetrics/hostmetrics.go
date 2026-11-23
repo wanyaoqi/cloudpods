@@ -312,6 +312,7 @@ func (s *SGuestMonitorCollector) GetGuests() map[string]*SGuestMonitor {
 			}
 
 			podStat, podProcs := GetPodStatsById(podStats, gpuPodProcs, guestId)
+			log.Errorf("guestId %s, podstat %s, podProcs %s, gpuPodProcs %s, podstats %s", guestId, podStat, podProcs, gpuPodProcs, podStats)
 			if podStat != nil {
 				gm, err := NewGuestPodMonitor(
 					instance, guestName, guestId, podStat,
