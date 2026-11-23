@@ -38,7 +38,6 @@ import (
 	"yunion.io/x/onecloud/pkg/baremetal/utils/ipmitool"
 	"yunion.io/x/onecloud/pkg/cloudcommon/types"
 	"yunion.io/x/onecloud/pkg/compute/baremetal"
-	deployapi "yunion.io/x/onecloud/pkg/hostman/hostdeployer/apis"
 	"yunion.io/x/onecloud/pkg/hostman/isolated_device"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	modules "yunion.io/x/onecloud/pkg/mcclient/modules/compute"
@@ -670,13 +669,6 @@ func getArchitecture(cli *ssh.Client) (string, error) {
 	default:
 		return arch, nil
 	}
-}
-
-func getOsInfo(cli *ssh.Client) (string, *deployapi.ReleaseInfo, error) {
-
-	osType := fsDriver.GetOs()
-	relInfo := fsDriver.GetReleaseInfo(fsDriver.GetPartition())
-	return osType, relInfo, nil
 }
 
 func getDMISysinfo(cli *ssh.Client) (*types.SSystemInfo, error) {
