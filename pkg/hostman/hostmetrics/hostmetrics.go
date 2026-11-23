@@ -28,6 +28,7 @@ import (
 	psnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/process"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/httputils"
@@ -747,6 +748,8 @@ func NewGuestPodMonitor(
 	}
 
 	if hasNvGpu {
+		log.Errorf("nvidiaGpuMetrics: %s", jsonutils.Marshal(nvidiaGpuMetrics))
+		log.Errorf("podProcs: %s", jsonutils.Marshal(podProcs))
 		m.nvidiaGpuMetrics = GetPodGpuMetrics(nvidiaGpuMetrics, podProcs, func(m NvidiaGpuProcessMetrics) string { return m.Pid })
 		m.nvidiaGpuIndexMemoryMap = hostInstance.GetNvidiaGpuIndexMemoryMap()
 		nvDevIds := make([]string, 0, len(nvAssignInputs))
@@ -755,6 +758,9 @@ func NewGuestPodMonitor(
 		}
 		indexById := hostInstance.GetNvidiaGpuIndexByDeviceIds(nvDevIds)
 		m.nvidiaGpuAssigned = buildNvidiaGpuAssignedQuotas(nvAssignInputs, indexById, m.nvidiaGpuIndexMemoryMap)
+		log.Errorf("nvidiaGpuMetrics: %s", jsonutils.Marshal(m.nvidiaGpuMetrics))
+		log.Errorf("nvidiaGpuAssigned: %s", jsonutils.Marshal(m.nvidiaGpuAssigned))
+		log.Errorf("nvidiaGpuIndexMemoryMap: %s", jsonutils.Marshal(m.nvidiaGpuIndexMemoryMap))
 	}
 	if hasVastaitechGpu {
 		m.vastaitechGpuMetrics = GetPodGpuMetrics(vastaitechGpuMetrics, podProcs, func(m VastaitechGpuProcessMetrics) string { return m.Pid })
