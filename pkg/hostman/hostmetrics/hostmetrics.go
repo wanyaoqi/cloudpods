@@ -312,7 +312,7 @@ func (s *SGuestMonitorCollector) GetGuests() map[string]*SGuestMonitor {
 			}
 
 			podStat, podProcs := GetPodStatsById(podStats, gpuPodProcs, guestId)
-			log.Errorf("guestId %s, podstat %s, podProcs %s, gpuPodProcs %s, podstats %s", guestId, podStat, podProcs, gpuPodProcs, podStats)
+			//log.Errorf("guestId %s, podstat %s, podProcs %s, gpuPodProcs %s, podstats %s", guestId, podStat, podProcs, gpuPodProcs, podStats)
 			if podStat != nil {
 				gm, err := NewGuestPodMonitor(
 					instance, guestName, guestId, podStat,
@@ -725,7 +725,7 @@ func NewGuestPodMonitor(
 				mthreadsAddrs = append(mthreadsAddrs, dev.Addr)
 			}
 		}
-		if !utils.IsInStringArray(dev.SharingMode, compute.VIRTUAL_SHARING_MODES) {
+		if !utils.IsInStringArray(dev.SharingMode, compute.VAILD_SHARING_MODES) {
 			continue
 		}
 		switch vendorId {
