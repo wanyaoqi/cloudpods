@@ -6063,9 +6063,50 @@ func (hh *SHost) PerformInitialize(
 
 	if err := hh.CreateFakeBaremetalServer(ctx, userCred, name, userCred); err != nil {
 		log.Errorf("CreateFakeBaremetalServer failed %s", err)
+		return nil, err
+	}
+	guest := hh.GetBaremetalServer()
+
+	res := jsonutils.NewDict()
+	if options.Options.BaremetalPrepareServerDeploySshKey {
+		_, adminPubKey, err := sshkeys.GetSshAdminKeypair(ctx)
+		if err != nil {
+			log.Errorf("fail to get ssh admin public key %s", err)
+		} else {
+			res.Set("admin_public_key", jsonutils.NewString(adminPubKey[0]))
+		}
+		_, projPubKey, err := sshkeys.GetSshProjectKeypair(ctx, guest.ProjectId)
+		if err != nil {
+			log.Errorf("fail to get ssh project public key %s", err)
+		} else {
+			res.Set("project_public_key", jsonutils.NewString(projPubKey[0]))
+		}
 	}
 
-	return nil, nil
+	deployInfo := api.SDeployGuestFsOsInfo{}
+	if err := data.Unmarshal(&deployInfo); err != nil {
+		log.Errorf("unmarshal SDeployGuestFsResponse: %v", err)
+		return res, nil
+	}
+	hh.SetMetadata(ctx, api.HOST_METADATA_BM_REGISTER_OS_INFO, jsonutils.Marshal(deployInfo), userCred)
+
+	if deployInfo.Os != "" {
+		guest.saveOsType(userCred, deployInfo.Os)
+	}
+	info := make(map[string]interface{})
+	setString := func(key, value string) {
+		if len(value) > 0 {
+			info[key] = value
+			return
+		}
+	}
+	setString("os_distribution", deployInfo.Distro)
+	setString("os_version", deployInfo.Version)
+	setString("os_arch", deployInfo.Arch)
+	setString("os_language", deployInfo.Language)
+	setString("current_version", deployInfo.CurrentVersion)
+	guest.SetAllMetadata(ctx, info, userCred)
+	return res, nil
 }
 
 func (hh *SHost) PerformCreateFromImportBaremetal(
