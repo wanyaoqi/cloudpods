@@ -319,7 +319,7 @@ func (s *sBaremetalRegisterTask) initBaremetalServer(ctx context.Context, cli *s
 
 	consts.SetAllowVmSELinux(true)
 	sshPart := sshpart.NewSSHPartition(cli, "", false)
-	sshPart.SetMountPath("/")
+	sshPart.SetMountPath("/hostfs")
 
 	fsDriver, err := guestfs.DetectRootFs(sshPart)
 	if err != nil {
