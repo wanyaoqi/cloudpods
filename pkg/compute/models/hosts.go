@@ -6160,6 +6160,10 @@ func (hh *SHost) PerformBaremetalProbeIsolatedDevices(
 		sshPort, _ := data.Int("ssh_port")
 		params.Set("ssh_port", jsonutils.NewInt(sshPort))
 	}
+	if data.Contains("access_ip") {
+		accessIp, _ = data.GetString("access_ip")
+		params.Set("access_ip", jsonutils.NewString(accessIp))
+	}
 
 	url := fmt.Sprintf("/baremetals/%s/probe-isolated-devices", hh.Id)
 	header := mcclient.GetTokenHeaders(userCred)
