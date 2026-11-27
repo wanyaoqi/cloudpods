@@ -32,7 +32,6 @@ const (
 	agentLogRotationMaxArchives  = 1
 	linuxLogfile                 = "/var/log/telegraf.log"
 	regionWindowsLogfile         = "/Program Files/Telegraf/telegraf.log"
-	ansibleWindowsLogfile        = `C:\\Telegraf\\telegraf.log`
 	outputType                   = "influxdb"
 	outputDatabase               = "telegraf"
 )
@@ -99,10 +98,9 @@ func AnsibleVars() map[string]interface{} {
 		"telegraf_agent_metric_buffer_limit":           agentMetricBufferLimit,
 		"telegraf_agent_quiet":                         false,
 		"telegraf_agent_omit_hostname":                 true,
-		"telegraf_agent_logfile":                       linuxLogfile,
+		"telegraf_agent_logfile":                       "",
 		"telegraf_agent_logfile_rotation_max_size":     agentLogRotationMaxSize,
 		"telegraf_agent_logfile_rotation_max_archives": agentLogRotationMaxArchives,
-		"telegraf_win_logfile":                         ansibleWindowsLogfile,
 		"telegraf_agent_output": []map[string]interface{}{{
 			"type": outputType,
 			"config": []string{

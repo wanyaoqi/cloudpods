@@ -65,4 +65,7 @@ func TestRenderAndExportAnsibleVars(t *testing.T) {
 	if vars["cloudpods_telegraf_profiles"] == nil {
 		t.Fatal("shared profiles not exported")
 	}
+	if vars["telegraf_agent_logfile"] != "" {
+		t.Fatalf("ansibleserver logfile should be empty, got %v", vars["telegraf_agent_logfile"])
+	}
 }
