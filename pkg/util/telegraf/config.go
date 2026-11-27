@@ -10,8 +10,74 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"text/template"
 )
+
+// ConfigOption is a typed TOML key/value. RawValue is reserved for existing
+// plugin definitions that are already expressed as TOML.
+type ConfigSection struct {
+	Name     string
+	Array    bool
+	Nested   bool
+	Options  []ConfigOption
+	Children []ConfigSection
+}
+
+type ConfigOption struct {
+	Key      string
+	Value    interface{}
+	RawValue bool
+}
+
+// Config contains caller-supplied, structured Telegraf tables.
+type Config struct {
+	GlobalTags ConfigSection
+	Agent      ConfigSection
+	Outputs    []ConfigSection
+	Inputs     []ConfigSection
+}
+
+func tomlValue(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return strconv.Quote(v)
+	case bool:
+		return strconv.FormatBool(v)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case []string:
+		values := make([]string, len(v))
+		for i := range v {
+			values[i] = strconv.Quote(v[i])
+		}
+		return "[" + strings.Join(values, ", ") + "]"
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+const configTemplate = "{{define \"section\"}}{{ $section := . }}{{if .Nested}}  {{end}}{{if .Array}}[[{{.Name}}]]{{else}}[{{.Name}}]{{end}}\n" +
+	"{{range .Options}}{{if $section.Nested}}    {{else}}  {{end}}{{.Key}} = {{if .RawValue}}{{.Value}}{{else}}{{toml .Value}}{{end}}\n" +
+	"{{end}}{{range .Children}}\n{{template \"section\" .}}{{end}}{{end}}" +
+	"{{template \"section\" .GlobalTags}}\n{{template \"section\" .Agent}}" +
+	"{{range .Outputs}}\n{{template \"section\" .}}{{end}}{{range .Inputs}}\n{{template \"section\" .}}{{end}}"
+
+// RenderConfig renders caller-supplied structured tables using the common TOML template.
+func RenderConfig(config Config) (string, error) {
+	t, err := template.New("telegraf-config").Funcs(template.FuncMap{"toml": tomlValue}).Parse(configTemplate)
+	if err != nil {
+		return "", fmt.Errorf("parse telegraf config template: %w", err)
+	}
+	var out bytes.Buffer
+	if err := t.Execute(&out, config); err != nil {
+		return "", fmt.Errorf("render telegraf config: %w", err)
+	}
+	return out.String(), nil
+}
 
 // AnsibleVarsPath is the shared vars-file path inside the ansibleserver image.
 const AnsibleVarsPath = "/opt/yunion/playbook/monitor-agent/cloudpods-telegraf-vars.json"
@@ -137,58 +203,6 @@ func WriteAnsibleVars(path string) error {
 	return nil
 }
 
-const configTemplate = `### MANAGED BY ansible-telegraf ANSIBLE ROLE ###
-
-[global_tags]
-{{ range $value := .Tags }}
-    {{ $value.Name }} = {{ printf "%q" $value.Value }}
-{{- end }}
-
-# Configuration for telegraf agent
-[agent]
-    interval = "{{ .Interval }}s"
-    debug = false
-    hostname = ""
-    round_interval = true
-    flush_interval = "{{ .FlushInterval }}s"
-    flush_jitter = "{{ .FlushJitter }}s"
-    collection_jitter = "{{ .CollectionJitter }}s"
-    metric_batch_size = {{ .MetricBatchSize }}
-    metric_buffer_limit = {{ .MetricBufferLimit }}
-    quiet = false
-    logfile = {{ printf "%q" .Logfile }}
-    logfile_rotation_max_size = "{{ .LogRotationMaxSize }}"
-    logfile_rotation_max_archives = {{ .LogRotationMaxArchives }}
-    omit_hostname = true
-
-###############################################################################
-#                                  OUTPUTS                                    #
-###############################################################################
-
-[[outputs.{{ .OutputType }}]]
-    urls = [{{ printf "%q" .URL }}]
-    database = "{{ .OutputDatabase }}"
-    insecure_skip_verify = true
-
-###############################################################################
-#                                  INPUTS                                     #
-###############################################################################
-{{ range .Plugins }}
-[[inputs.{{ .Plugin }}]]
-{{ range .Config }}    {{ . }}
-{{ end }}{{ end }}`
-
-type tag struct{ Name, Value string }
-type renderData struct {
-	Tags                                                       []tag
-	Logfile, URL                                               string
-	Plugins                                                    []Plugin
-	Interval, FlushInterval, FlushJitter, CollectionJitter     int
-	MetricBatchSize, MetricBufferLimit, LogRotationMaxArchives int
-	LogRotationMaxSize                                         string
-	OutputType, OutputDatabase                                 string
-}
-
 // Render generates the same profile configuration for region-side deployment.
 func Render(profile string, tags []map[string]string, url, logfile string) (string, error) {
 	profiles := Profiles()
@@ -199,26 +213,37 @@ func Render(profile string, tags []map[string]string, url, logfile string) (stri
 	if logfile == "" {
 		logfile = linuxLogfile
 	}
-	d := renderData{
-		Logfile: logfile, URL: url, Plugins: selected,
-		Interval: agentIntervalSeconds, FlushInterval: agentFlushIntervalSeconds,
-		FlushJitter: agentFlushJitterSeconds, CollectionJitter: agentCollectionJitterSeconds,
-		MetricBatchSize: agentMetricBatchSize, MetricBufferLimit: agentMetricBufferLimit,
-		LogRotationMaxSize: agentLogRotationMaxSize, LogRotationMaxArchives: agentLogRotationMaxArchives,
-		OutputType: outputType, OutputDatabase: outputDatabase,
+	config := Config{
+		GlobalTags: ConfigSection{Name: "global_tags"},
+		Agent: ConfigSection{Name: "agent", Options: []ConfigOption{
+			{Key: "interval", Value: "60s"}, {Key: "debug", Value: false},
+			{Key: "hostname", Value: ""}, {Key: "round_interval", Value: true},
+			{Key: "flush_interval", Value: "60s"}, {Key: "flush_jitter", Value: "0s"},
+			{Key: "collection_jitter", Value: "0s"}, {Key: "metric_batch_size", Value: 1000},
+			{Key: "metric_buffer_limit", Value: 10000}, {Key: "quiet", Value: false},
+			{Key: "logfile", Value: logfile}, {Key: "logfile_rotation_max_size", Value: agentLogRotationMaxSize},
+			{Key: "logfile_rotation_max_archives", Value: agentLogRotationMaxArchives}, {Key: "omit_hostname", Value: true},
+		}},
+		Outputs: []ConfigSection{{Name: "outputs." + outputType, Array: true, Options: []ConfigOption{
+			{Key: "urls", Value: []string{url}}, {Key: "database", Value: outputDatabase},
+			{Key: "insecure_skip_verify", Value: true},
+		}}},
 	}
 	for _, values := range tags {
-		d.Tags = append(d.Tags, tag{Name: values["tag_name"], Value: values["tag_value"]})
+		config.GlobalTags.Options = append(config.GlobalTags.Options, ConfigOption{Key: values["tag_name"], Value: values["tag_value"]})
 	}
-	t, err := template.New("telegraf").Parse(configTemplate)
-	if err != nil {
-		return "", err
+	for _, plugin := range selected {
+		section := ConfigSection{Name: "inputs." + plugin.Plugin, Array: true}
+		for _, line := range plugin.Config {
+			key, value, ok := strings.Cut(line, "=")
+			if !ok {
+				return "", fmt.Errorf("invalid config for input %s: %q", plugin.Plugin, line)
+			}
+			section.Options = append(section.Options, ConfigOption{Key: strings.TrimSpace(key), Value: strings.TrimSpace(value), RawValue: true})
+		}
+		config.Inputs = append(config.Inputs, section)
 	}
-	var out bytes.Buffer
-	if err := t.Execute(&out, d); err != nil {
-		return "", err
-	}
-	return out.String(), nil
+	return RenderConfig(config)
 }
 
 // RegionWindowsLogfile preserves the Windows path used by region-side delivery.

@@ -69,3 +69,32 @@ func TestRenderAndExportAnsibleVars(t *testing.T) {
 		t.Fatalf("ansibleserver logfile should be empty, got %v", vars["telegraf_agent_logfile"])
 	}
 }
+
+func TestRenderGenericConfig(t *testing.T) {
+	config := Config{
+		GlobalTags: ConfigSection{Name: "global_tags", Options: []ConfigOption{{Key: "host", Value: "host-1"}}},
+		Agent:      ConfigSection{Name: "agent", Options: []ConfigOption{{Key: "interval", Value: "30s"}}},
+		Outputs: []ConfigSection{
+			{Name: "outputs.influxdb", Array: true, Options: []ConfigOption{{Key: "timeout", Value: "30s"}}},
+		},
+		Inputs: []ConfigSection{
+			{Name: "inputs.net", Array: true,
+				Options:  []ConfigOption{{Key: "interfaces", Value: []string{"eth0"}}},
+				Children: []ConfigSection{{Name: "inputs.net.interface_conf", Array: true, Nested: true, Options: []ConfigOption{{Key: "name", Value: "eth0"}, {Key: "speed", Value: 1000}}}},
+			},
+			{Name: "inputs.procstat", Array: true, Options: []ConfigOption{{Key: "pid_file", Value: "/run/service.pid"}}},
+		},
+	}
+	want := "[global_tags]\n  host = \"host-1\"\n\n" +
+		"[agent]\n  interval = \"30s\"\n\n" +
+		"[[outputs.influxdb]]\n  timeout = \"30s\"\n\n" +
+		"[[inputs.net]]\n  interfaces = [\"eth0\"]\n\n  [[inputs.net.interface_conf]]\n    name = \"eth0\"\n    speed = 1000\n\n" +
+		"[[inputs.procstat]]\n  pid_file = \"/run/service.pid\"\n"
+	got, err := RenderConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("generic renderer output mismatch:\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
