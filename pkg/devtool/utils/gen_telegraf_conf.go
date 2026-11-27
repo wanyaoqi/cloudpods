@@ -33,7 +33,7 @@ func GenerateTelegrafConf(
 		logfile = telegraf.RegionWindowsLogfile()
 	}
 	if hypervisor == api.HYPERVISOR_BAREMETAL {
-		profile = "baremetal"
+		profile = "baremetal_linux"
 	}
 	args := GetLocalArgs(serverDetails, influxdbUrl)
 	tags, ok := args["telegraf_global_tags"].([]map[string]string)

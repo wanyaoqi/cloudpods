@@ -19,21 +19,21 @@ func TestProfilesKeepApprovedDifferences(t *testing.T) {
 		return false
 	}
 	for profile, name := range map[string]string{
-		"guest_linux":   "nvidia_smi",
-		"guest_windows": "swap",
-		"baremetal":     "kernel",
+		"guest_linux":     "nvidia_smi",
+		"guest_windows":   "swap",
+		"baremetal_linux": "kernel",
 	} {
 		if !contains(profile, name) {
 			t.Errorf("%s profile missing %s", profile, name)
 		}
 	}
 	for _, name := range []string{"kernel", "kernel_vmstat", "brsmi"} {
-		if !contains("baremetal", name) {
-			t.Errorf("baremetal profile missing %s", name)
+		if !contains("baremetal_linux", name) {
+			t.Errorf("baremetal_linux profile missing %s", name)
 		}
 	}
 	for _, name := range []string{"sensors", "smart"} {
-		if contains("baremetal", name) {
+		if contains("baremetal_linux", name) {
 			t.Errorf("optional plugin %s must be selected after probing", name)
 		}
 	}

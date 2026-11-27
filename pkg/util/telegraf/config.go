@@ -76,11 +76,15 @@ func Profiles() map[string][]Plugin {
 	windows := clonePlugins(base) // Windows intentionally includes swap.
 	windows = append(windows, plugins("nvidia_smi")...)
 	baremetal := clonePlugins(base)
-	baremetal = append(baremetal, plugins("kernel", "kernel_vmstat", "nvidia_smi", "npu_smi", "ixsmi", "ppusmi", "hysmi", "xpusmi", "brsmi")...)
+	baremetal = append(baremetal, plugins(
+		"kernel", "kernel_vmstat",
+		"nvidia_smi", "amd_rocm_smi", "npu_smi", "ixsmi",
+		"ppusmi", "hysmi", "xpusmi", "brsmi", "mthreadsgmi",
+	)...)
 	return map[string][]Plugin{
-		"guest_linux":   linux,
-		"guest_windows": windows,
-		"baremetal":     baremetal,
+		"guest_linux":     linux,
+		"guest_windows":   windows,
+		"baremetal_linux": baremetal,
 	}
 }
 
