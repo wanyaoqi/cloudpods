@@ -10,7 +10,7 @@ FROM registry.cn-beijing.aliyuncs.com/yunionio/ansibleserver-base:3.22.2-0
 COPY --from=file-repo /opt/yunion/ansible-install-pkg /opt/yunion/ansible-install-pkg
 
 RUN mkdir -p /opt/yunion/playbook
-RUN git clone -b master https://github.com/wanyaoqi/monitor-agent.git /opt/yunion/playbook/monitor-agent --recurse-submodules
+RUN git clone -b fix/unifi-telegraf-confi https://github.com/wanyaoqi/monitor-agent.git /opt/yunion/playbook/monitor-agent --recurse-submodules
 
 # Full ocboot tree. The runner only execs ocboot.py; switch-edition and later subcommands stay in ocboot.
 RUN git clone -b release/4.0 https://github.com/yunionio/ocboot.git /opt/yunion/ocboot
